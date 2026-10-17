@@ -1,4 +1,4 @@
-import { Card, Col, Row, Statistic, Table, Tag, Spin } from 'antd';
+import { Card, Col, Row, Statistic, Tag, Spin } from 'antd';
 import { UserOutlined, TeamOutlined, HomeOutlined, DollarOutlined } from '@ant-design/icons';
 import { Column } from '@ant-design/charts';
 import { useEffect, useState } from 'react';
