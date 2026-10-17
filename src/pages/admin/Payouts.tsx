@@ -1,4 +1,4 @@
-import { Table, Tag, Button, Space, Modal, Input, message } from 'antd';
+import { Table, Tag, Button, Modal, Input, message } from 'antd';
 import { useEffect, useState } from 'react';
 import { adminApi } from '../../services/adminMock';
 import type { PayoutItem } from '../../types/admin';
