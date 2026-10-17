@@ -111,7 +111,7 @@ export default function AdminLayout() {
                         </Badge>
                         <Dropdown menu={{
                             items: [
-                                { key: 'profile', label: 'Hồ sơ cá nhân' },
+                                { key: 'profile', label: 'Hồ sơ cá nhân', onClick: () => navigate('/profile') },
                                 {
                                     key: 'logout',
                                     label: 'Đăng xuất',

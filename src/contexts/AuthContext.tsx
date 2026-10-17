@@ -12,6 +12,8 @@ interface AuthContextType {
   login: (dto: LoginDto, remember?: boolean) => Promise<UserProfile>;
   register: (dto: RegisterDto) => Promise<UserProfile>;
   logout: () => Promise<void>;
+  /** Cập nhật hồ sơ đang hiển thị (VD: sau khi đổi họ tên) */
+  updateUser: (user: UserProfile) => void;
   switchRoleMock: (role: UserRole) => void;
 }
 
@@ -74,6 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         register,
         logout,
+        updateUser: setUser,
         switchRoleMock,
       }}
     >

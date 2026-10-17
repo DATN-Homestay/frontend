@@ -17,6 +17,7 @@ import HomePage from './pages/customer/Home';
 import HomestayDetailPage from './pages/customer/HomestayDetail';
 import CheckoutPage from './pages/customer/Checkout';
 import MyTripsPage from './pages/customer/MyTrips';
+import ProfilePage from './pages/account/Profile';
 
 // Host Pages (Member 2)
 import HostDashboardPage from './pages/host/Dashboard';
@@ -84,6 +85,7 @@ export default function App() {
               <Route path="homestay/:id" element={<HomestayDetailPage />} />
               <Route path="checkout" element={<CheckoutPage />} />
               <Route path="trips" element={<MyTripsPage />} />
+              <Route path="profile" element={<ProfilePage />} />
             </Route>
 
             {/* PHÂN HỆ 2: CHỦ NHÀ (HOST PORTAL) */}

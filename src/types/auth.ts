@@ -39,3 +39,18 @@ export interface RegisterDto {
   phone_number?: string;
   role: 'CUSTOMER' | 'HOST';
 }
+
+/** Một phiên đăng nhập (thiết bị) trong GET /users/me/sessions */
+export interface SessionInfo {
+  id: string;
+  user_agent: string | null;
+  ip_address: string | null;
+  last_used_at: string;
+  created_at: string;
+  is_current: boolean;
+}
+
+export interface ChangePasswordDto {
+  current_password: string;
+  new_password: string;
+}

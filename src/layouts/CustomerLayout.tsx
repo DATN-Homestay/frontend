@@ -83,6 +83,7 @@ export default function CustomerLayout() {
             <Dropdown
               menu={{
                 items: [
+                  { key: 'profile', icon: <UserOutlined />, label: 'Hồ sơ của tôi', onClick: () => navigate('/profile') },
                   { key: 'trips', icon: <CalendarOutlined />, label: 'Chuyến đi của tôi', onClick: () => navigate('/trips') },
                   { type: 'divider' },
                   {
