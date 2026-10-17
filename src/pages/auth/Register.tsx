@@ -1,23 +1,61 @@
 import { useState } from 'react';
-import { Form, Input, Button, Typography, message, Radio, Divider } from 'antd';
+import { Form, Input, Button, Typography, Checkbox, Segmented, Alert, App } from 'antd';
 import { UserOutlined, MailOutlined, LockOutlined, PhoneOutlined } from '@ant-design/icons';
-import { useNavigate, Link } from 'react-router-dom';
-import { authService } from '../../services/authService';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { ApiError } from '../../services/apiClient';
+import { postLoginPath } from '../../services/authService';
+import { glowButtonStyle } from './authStyles';
+import type { RegisterDto } from '../../types/auth';
 
 const { Title, Text } = Typography;
 
+interface RegisterForm extends RegisterDto {
+  confirm_password: string;
+  agree: boolean;
+}
+
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { message } = App.useApp();
+  const { register } = useAuth();
+  const [form] = Form.useForm<RegisterForm>();
+  const role = Form.useWatch('role', form) ?? 'CUSTOMER';
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const onFinish = async (values: any) => {
+  const from = (location.state as { from?: string } | null)?.from;
+
+  const onFinish = async (values: RegisterForm) => {
+    // Chỉ gửi các trường backend nhận; ValidationPipe từ chối trường lạ
+    const dto: RegisterDto = {
+      role: values.role,
+      full_name: values.full_name,
+      email: values.email,
+      phone_number: values.phone_number,
+      password: values.password,
+    };
     setLoading(true);
+    setError(null);
     try {
-      await authService.register(values);
-      message.success('Đăng ký tài khoản thành công! Vui lòng đăng nhập.');
-      navigate('/auth/login');
-    } catch (err: any) {
-      message.error(err.message || 'Đăng ký thất bại');
+      const user = await register(dto);
+      message.success(`Tạo tài khoản thành công. Chào mừng ${user.full_name}!`);
+      navigate(postLoginPath(user.roles, from), { replace: true });
+    } catch (err) {
+      const text = err instanceof Error ? err.message : 'Đăng ký thất bại';
+      // Lỗi trùng email / SĐT hiển thị ngay dưới ô nhập tương ứng
+      if (err instanceof ApiError && err.status === 409) {
+        if (text.includes('Email')) {
+          form.setFields([{ name: 'email', errors: [text] }]);
+          return;
+        }
+        if (text.includes('Số điện thoại')) {
+          form.setFields([{ name: 'phone_number', errors: [text] }]);
+          return;
+        }
+      }
+      setError(text);
     } finally {
       setLoading(false);
     }
@@ -26,64 +64,131 @@ export default function RegisterPage() {
   return (
     <div>
       <div style={{ textAlign: 'center', marginBottom: 20 }}>
-        <Title level={3} style={{ margin: 0 }}>Tạo tài khoản</Title>
-        <Text type="secondary">Trải nghiệm đặt phòng và kinh doanh homestay</Text>
+        <Title level={2} style={{ margin: 0, fontWeight: 700 }}>
+          Tạo Tài Khoản Mới
+        </Title>
+        <Text type="secondary">Tham gia nền tảng đặt homestay bảo chứng Escrow &amp; AI</Text>
       </div>
 
-      <Form layout="vertical" onFinish={onFinish} initialValues={{ role: 'CUSTOMER' }} requiredMark={false}>
-        <Form.Item
-          label="Bạn tham gia với vai trò"
-          name="role"
-          rules={[{ required: true }]}
-        >
-          <Radio.Group style={{ width: '100%', display: 'flex', gap: 8 }}>
-            <Radio.Button value="CUSTOMER" style={{ flex: 1, textAlign: 'center' }}>Khách hàng</Radio.Button>
-            <Radio.Button value="HOST" style={{ flex: 1, textAlign: 'center' }}>Chủ Homestay</Radio.Button>
-          </Radio.Group>
+      {error && <Alert type="error" showIcon title={error} style={{ marginBottom: 16, whiteSpace: 'pre-line' }} />}
+
+      <Form<RegisterForm>
+        form={form}
+        layout="vertical"
+        onFinish={onFinish}
+        onValuesChange={() => setError(null)}
+        initialValues={{ role: 'CUSTOMER', agree: false }}
+        requiredMark={false}
+      >
+        <Form.Item name="role" style={{ marginBottom: 20 }}>
+          <Segmented
+            block
+            size="large"
+            options={[
+              { label: 'Khách du lịch', value: 'CUSTOMER' },
+              { label: 'Chủ nhà Homestay (Host)', value: 'HOST' },
+            ]}
+          />
         </Form.Item>
 
         <Form.Item
-          label="Họ và tên"
           name="full_name"
-          rules={[{ required: true, message: 'Vui lòng nhập họ và tên' }]}
+          rules={[
+            { required: true, whitespace: true, message: 'Vui lòng nhập họ và tên' },
+            { min: 2, max: 100, message: 'Họ tên phải từ 2 đến 100 ký tự' },
+          ]}
         >
-          <Input prefix={<UserOutlined />} placeholder="Nguyễn Văn A" size="large" />
+          <Input prefix={<UserOutlined />} placeholder="Họ và tên" size="large" autoComplete="name" />
         </Form.Item>
 
         <Form.Item
-          label="Email"
           name="email"
-          rules={[{ required: true, message: 'Vui lòng nhập email' }, { type: 'email', message: 'Email không hợp lệ' }]}
+          rules={[
+            { required: true, message: 'Vui lòng nhập email' },
+            { type: 'email', message: 'Email không hợp lệ' },
+          ]}
         >
-          <Input prefix={<MailOutlined />} placeholder="nguyenvana@example.com" size="large" />
+          <Input prefix={<MailOutlined />} placeholder="Email" size="large" autoComplete="email" />
         </Form.Item>
 
         <Form.Item
-          label="Số điện thoại"
           name="phone_number"
-          rules={[{ required: true, message: 'Vui lòng nhập số điện thoại' }]}
+          extra={role === 'HOST' ? 'Bắt buộc với Chủ nhà để nhận mã OTP xác thực' : undefined}
+          rules={[
+            { required: role === 'HOST', message: 'Chủ nhà bắt buộc nhập số điện thoại' },
+            { pattern: /^0\d{9}$/, message: 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 0' },
+          ]}
         >
-          <Input prefix={<PhoneOutlined />} placeholder="0912345678" size="large" />
+          <Input
+            prefix={<PhoneOutlined />}
+            placeholder={role === 'HOST' ? 'Số điện thoại' : 'Số điện thoại (không bắt buộc)'}
+            size="large"
+            autoComplete="tel"
+            maxLength={10}
+          />
         </Form.Item>
 
         <Form.Item
-          label="Mật khẩu"
           name="password"
-          rules={[{ required: true, message: 'Vui lòng nhập mật khẩu' }, { min: 6, message: 'Tối thiểu 6 ký tự' }]}
+          hasFeedback
+          rules={[
+            { required: true, message: 'Vui lòng nhập mật khẩu' },
+            { min: 8, max: 64, message: 'Mật khẩu phải từ 8 đến 64 ký tự' },
+            {
+              pattern: /(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+              message: 'Mật khẩu phải có chữ hoa, chữ thường và chữ số',
+            },
+          ]}
         >
-          <Input.Password prefix={<LockOutlined />} placeholder="Tối thiểu 6 ký tự" size="large" />
+          <Input.Password prefix={<LockOutlined />} placeholder="Mật khẩu" size="large" autoComplete="new-password" />
         </Form.Item>
 
-        <Button type="primary" htmlType="submit" size="large" block loading={loading} style={{ marginTop: 8 }}>
-          Đăng ký tài khoản
+        <Form.Item
+          name="confirm_password"
+          dependencies={['password']}
+          hasFeedback
+          rules={[
+            { required: true, message: 'Vui lòng nhập lại mật khẩu' },
+            ({ getFieldValue }) => ({
+              validator(_, value) {
+                return !value || getFieldValue('password') === value
+                  ? Promise.resolve()
+                  : Promise.reject(new Error('Mật khẩu nhập lại không khớp'));
+              },
+            }),
+          ]}
+        >
+          <Input.Password
+            prefix={<LockOutlined />}
+            placeholder="Nhập lại mật khẩu"
+            size="large"
+            autoComplete="new-password"
+          />
+        </Form.Item>
+
+        <Form.Item
+          name="agree"
+          valuePropName="checked"
+          rules={[
+            {
+              validator: (_, value) =>
+                value ? Promise.resolve() : Promise.reject(new Error('Bạn cần đồng ý với điều khoản để tiếp tục')),
+            },
+          ]}
+        >
+          <Checkbox>Tôi đồng ý với Điều khoản dịch vụ và Chính sách Escrow của StayAI</Checkbox>
+        </Form.Item>
+
+        <Button type="primary" htmlType="submit" size="large" block loading={loading} style={glowButtonStyle}>
+          Đăng Ký Tài Khoản
         </Button>
       </Form>
 
-      <Divider style={{ margin: '16px 0', fontSize: 13, color: '#94a3b8' }}>hoặc</Divider>
-
-      <div style={{ textAlign: 'center' }}>
+      <div style={{ textAlign: 'center', marginTop: 20 }}>
         <Text type="secondary">Đã có tài khoản? </Text>
-        <Link to="/auth/login" style={{ fontWeight: 600, color: '#6366f1' }}>Đăng nhập</Link>
+        <Link to="/auth/login" state={location.state} style={{ fontWeight: 600 }}>
+          Đăng nhập ngay
+        </Link>
       </div>
     </div>
   );

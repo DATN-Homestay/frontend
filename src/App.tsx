@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider } from 'antd';
+import { App as AntApp, ConfigProvider } from 'antd';
 import { AuthProvider } from './contexts/AuthContext';
 
 // Layouts
@@ -74,6 +74,7 @@ export default function App() {
         },
       }}
     >
+      <AntApp>
       <AuthProvider>
         <BrowserRouter>
           <Routes>
@@ -119,6 +120,7 @@ export default function App() {
           </Routes>
         </BrowserRouter>
       </AuthProvider>
+      </AntApp>
     </ConfigProvider>
   );
 }

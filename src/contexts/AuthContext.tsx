@@ -1,61 +1,78 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { UserProfile, LoginDto } from '../types/auth';
-import { authService } from '../services/authService';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import type { UserProfile, LoginDto, RegisterDto, UserRole } from '../types/auth';
+import { authService, primaryRole } from '../services/authService';
+import { AUTH_EXPIRED_EVENT } from '../services/apiClient';
 
 interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
-  role: 'CUSTOMER' | 'HOST' | 'ADMIN' | null;
-  login: (dto: LoginDto) => Promise<void>;
-  logout: () => void;
-  switchRoleMock: (role: 'CUSTOMER' | 'HOST' | 'ADMIN') => void;
+  /** Đang kiểm tra phiên đăng nhập khi tải trang */
+  initializing: boolean;
+  role: UserRole | null;
+  login: (dto: LoginDto, remember?: boolean) => Promise<UserProfile>;
+  register: (dto: RegisterDto) => Promise<UserProfile>;
+  logout: () => Promise<void>;
+  switchRoleMock: (role: UserRole) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(() => authService.getCurrentUser());
+  const [initializing, setInitializing] = useState(() => authService.hasSession());
 
+  // Xác minh lại token với server khi tải trang (token có thể đã bị thu hồi)
   useEffect(() => {
-    // If no user exists yet in storage, provide default demo user
-    if (!user) {
-      const demoUser: UserProfile = {
-        id: '1',
-        email: 'host@homestay.vn',
-        full_name: 'Nguyễn Văn Chủ Nhà',
-        roles: ['HOST'],
-      };
-      setUser(demoUser);
-      localStorage.setItem('user_profile', JSON.stringify(demoUser));
-    }
-  }, [user]);
+    if (!authService.hasSession()) return;
+    authService
+      .fetchMe()
+      .then(setUser)
+      .catch(() => setUser(null))
+      .finally(() => setInitializing(false));
+  }, []);
 
-  const login = async (dto: LoginDto) => {
-    const res = await authService.login(dto);
-    setUser(res.user);
-  };
+  // apiClient báo phiên hết hạn (refresh token không còn dùng được)
+  useEffect(() => {
+    const onExpired = () => setUser(null);
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+  }, []);
 
-  const logout = () => {
-    authService.logout();
+  const login = useCallback(async (dto: LoginDto, remember = true) => {
+    const loggedIn = await authService.login(dto, remember);
+    setUser(loggedIn);
+    return loggedIn;
+  }, []);
+
+  /** Đăng ký xong tự đăng nhập luôn */
+  const register = useCallback(
+    async (dto: RegisterDto) => {
+      await authService.register(dto);
+      return login({ email: dto.email, password: dto.password });
+    },
+    [login],
+  );
+
+  const logout = useCallback(async () => {
+    await authService.logout();
     setUser(null);
-  };
+  }, []);
 
-  const switchRoleMock = (role: 'CUSTOMER' | 'HOST' | 'ADMIN') => {
+  // Chỉ đổi vai trò hiển thị phía client để thử giao diện, không đổi quyền thật trên server
+  const switchRoleMock = (role: UserRole) => {
     if (!user) return;
-    const updated = { ...user, roles: [role] };
-    setUser(updated);
-    localStorage.setItem('user_profile', JSON.stringify(updated));
+    setUser({ ...user, roles: [role] });
   };
-
-  const role = user?.roles?.[0] || 'CUSTOMER';
 
   return (
     <AuthContext.Provider
       value={{
         user,
         isAuthenticated: !!user,
-        role,
+        initializing,
+        role: user ? primaryRole(user.roles) : null,
         login,
+        register,
         logout,
         switchRoleMock,
       }}

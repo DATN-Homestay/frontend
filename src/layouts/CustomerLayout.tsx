@@ -1,5 +1,12 @@
-import { Layout, Menu, Button, Space, Typography, Tag } from 'antd';
-import { HomeOutlined, CompassOutlined, CalendarOutlined, UserOutlined, SwapOutlined } from '@ant-design/icons';
+import { Layout, Menu, Button, Space, Typography, Tag, Dropdown, Avatar } from 'antd';
+import {
+  HomeOutlined,
+  CompassOutlined,
+  CalendarOutlined,
+  UserOutlined,
+  SwapOutlined,
+  LogoutOutlined,
+} from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -9,7 +16,7 @@ const { Title, Text } = Typography;
 export default function CustomerLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, role, switchRoleMock } = useAuth();
+  const { user, role, switchRoleMock, logout } = useAuth();
 
   const menuItems = [
     { key: '/', icon: <HomeOutlined />, label: 'Khám phá Homestay' },
@@ -72,9 +79,42 @@ export default function CustomerLayout() {
             Chuyển sang Chế độ Chủ nhà (Host)
           </Button>
 
-          <Button type="primary" onClick={() => navigate('/auth/login')} icon={<UserOutlined />}>
-            {user ? user.full_name : 'Đăng nhập'}
-          </Button>
+          {user ? (
+            <Dropdown
+              menu={{
+                items: [
+                  { key: 'trips', icon: <CalendarOutlined />, label: 'Chuyến đi của tôi', onClick: () => navigate('/trips') },
+                  { type: 'divider' },
+                  {
+                    key: 'logout',
+                    icon: <LogoutOutlined />,
+                    label: 'Đăng xuất',
+                    danger: true,
+                    onClick: async () => {
+                      await logout();
+                      navigate('/');
+                    },
+                  },
+                ],
+              }}
+            >
+              <Space style={{ cursor: 'pointer' }}>
+                <Avatar src={user.avatar_url ?? undefined} icon={<UserOutlined />} style={{ backgroundColor: '#6366f1' }} />
+                <Text strong>{user.full_name}</Text>
+              </Space>
+            </Dropdown>
+          ) : (
+            <Space>
+              <Button onClick={() => navigate('/auth/register', { state: { from: location.pathname } })}>Đăng ký</Button>
+              <Button
+                type="primary"
+                icon={<UserOutlined />}
+                onClick={() => navigate('/auth/login', { state: { from: location.pathname } })}
+              >
+                Đăng nhập
+              </Button>
+            </Space>
+          )}
         </Space>
       </Header>
 
