@@ -37,6 +37,7 @@ export interface RegisterDto {
   password: string;
   full_name: string;
   phone_number?: string;
+  otp_code?: string;
   role: 'CUSTOMER' | 'HOST';
 }
 

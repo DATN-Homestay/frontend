@@ -28,6 +28,15 @@ export default function AuthLayout() {
           colorBorder: 'rgba(148, 163, 184, 0.28)',
           borderRadius: 10,
         },
+        components: {
+          Segmented: {
+            trackBg: 'rgba(15, 23, 42, 0.85)',
+            itemSelectedBg: '#6366f1',
+            itemSelectedColor: '#ffffff',
+            itemColor: '#94a3b8',
+            itemHoverColor: '#f8fafc',
+          },
+        },
       }}
     >
       <div

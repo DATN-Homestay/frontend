@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card, Steps, Typography, Button, Space, Tag, Input, Form, message, Progress, Alert, Row, Col } from 'antd';
 import {
   IdcardOutlined,
-  MobileOutlined,
+  MailOutlined,
   AimOutlined,
   CameraOutlined,
   CheckCircleOutlined,
@@ -107,7 +107,7 @@ export default function VerificationPage() {
 
   const steps = [
     { title: 'CCCD eKYC', description: '+40 điểm', icon: <IdcardOutlined /> },
-    { title: 'OTP Số điện thoại', description: '+30 điểm', icon: <MobileOutlined /> },
+    { title: 'OTP Email chính chủ', description: '+30 điểm', icon: <MailOutlined /> },
     { title: 'GPS Haversine', description: '+30 điểm', icon: <AimOutlined /> },
     { title: 'Live Camera AI', description: '+40 điểm', icon: <CameraOutlined /> },
   ];
@@ -201,17 +201,19 @@ export default function VerificationPage() {
         )}
 
         {currentStep === 1 && (
-          <div style={{ maxWidth: 450 }}>
-            <Title level={4}>Bước 2: Xác thực qua Mã OTP Số điện thoại (+30đ)</Title>
+          <div style={{ maxWidth: 480 }}>
+            <Title level={4}>Bước 2: Xác thực qua Mã OTP Email chính chủ (+30đ)</Title>
             <Paragraph type="secondary">
-              Hệ thống gửi mã OTP 6 chữ số đến số điện thoại đã thu thập từ Google Maps hoặc đăng ký của bạn.
+              Hệ thống sẽ gửi mã bảo mật OTP 6 chữ số đến địa chỉ Email đã đăng ký tài khoản Chủ nhà của bạn để chứng thực quyền sở hữu.
             </Paragraph>
 
             <Space direction="vertical" style={{ width: '100%' }} size="middle">
-              <Button onClick={handleSendOtp}>Bấm để gửi mã OTP về máy</Button>
+              <Button type="default" icon={<MailOutlined />} onClick={handleSendOtp}>
+                Gửi mã OTP về Hộp thư Email
+              </Button>
 
               <Input
-                placeholder="Nhập mã OTP (hoặc 849201)"
+                placeholder="Nhập mã OTP 6 chữ số (hoặc 849201)"
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value)}
                 maxLength={6}
