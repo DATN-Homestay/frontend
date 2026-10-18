@@ -80,3 +80,33 @@ export interface HostBalanceInfo {
     check_out_date: string;
   }>;
 }
+
+export interface HostDashboardStats {
+  totalHomestays: number;
+  totalRooms: number;
+  verifiedCount: number;
+  homestays: Array<{
+    id: string;
+    name: string;
+    city: string;
+    address: string;
+    is_claimed: number;
+    status: string;
+    average_rating: number;
+    total_reviews: number;
+    rooms_count: number;
+  }>;
+}
+
+export interface HostCoupon {
+  id: string;
+  code: string;
+  discount_type: 'PERCENT' | 'FIXED_AMOUNT';
+  discount_value: number;
+  min_order_value?: number;
+  start_date: string;
+  end_date: string;
+  is_active: number;
+  created_at: string;
+}
+

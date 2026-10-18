@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { App as AntApp, ConfigProvider } from 'antd';
 import { AuthProvider } from './contexts/AuthContext';
 
+import ProtectedRoute from './components/auth/ProtectedRoute';
+
 // Layouts
 import CustomerLayout from './layouts/CustomerLayout';
 import HostLayout from './layouts/HostLayout';
@@ -26,6 +28,7 @@ import PriceCalendarPage from './pages/host/PriceCalendar';
 import VerificationPage from './pages/host/Verification';
 import HostBookingsPage from './pages/host/Bookings';
 import HostPayoutsPage from './pages/host/Payouts';
+import HostCouponsPage from './pages/host/Coupons';
 
 // Admin Pages (Member 3 - Intact)
 import DashboardPage from './pages/admin/Dashboard';
@@ -88,27 +91,32 @@ export default function App() {
               <Route path="profile" element={<ProfilePage />} />
             </Route>
 
-            {/* PHÂN HỆ 2: CHỦ NHÀ (HOST PORTAL) */}
-            <Route path="/host" element={<HostLayout />}>
-              <Route index element={<HostDashboardPage />} />
-              <Route path="listings" element={<MyListingsPage />} />
-              <Route path="pricing" element={<PriceCalendarPage />} />
-              <Route path="verification" element={<VerificationPage />} />
-              <Route path="bookings" element={<HostBookingsPage />} />
-              <Route path="payouts" element={<HostPayoutsPage />} />
+            {/* PHÂN HỆ 2: CHỦ NHÀ (HOST PORTAL) - CHỈ TÀI KHOẢN ĐĂNG KÝ LÀM HOST MỚI VÀO ĐƯỢC */}
+            <Route element={<ProtectedRoute allowedRoles={['HOST', 'ADMIN']} />}>
+              <Route path="/host" element={<HostLayout />}>
+                <Route index element={<HostDashboardPage />} />
+                <Route path="listings" element={<MyListingsPage />} />
+                <Route path="pricing" element={<PriceCalendarPage />} />
+                <Route path="verification" element={<VerificationPage />} />
+                <Route path="bookings" element={<HostBookingsPage />} />
+                <Route path="payouts" element={<HostPayoutsPage />} />
+                <Route path="coupons" element={<HostCouponsPage />} />
+              </Route>
             </Route>
 
-            {/* PHÂN HỆ 3: QUẢN TRỊ VIÊN (ADMIN PORTAL) */}
-            <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<DashboardPage />} />
-              <Route path="users" element={<UsersPage />} />
-              <Route path="host-verifications" element={<HostVerificationsPage />} />
-              <Route path="homestays" element={<HomestaysPage />} />
-              <Route path="revenues" element={<RevenuesPage />} />
-              <Route path="payouts" element={<PayoutsPage />} />
-              <Route path="refunds" element={<RefundsPage />} />
-              <Route path="configs" element={<ConfigsPage />} />
-              <Route path="audit-logs" element={<AuditLogsPage />} />
+            {/* PHÂN HỆ 3: QUẢN TRỊ VIÊN (ADMIN PORTAL) - CHỈ TÀI KHOẢN ADMIN MỚI VÀO ĐƯỢC */}
+            <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<DashboardPage />} />
+                <Route path="users" element={<UsersPage />} />
+                <Route path="host-verifications" element={<HostVerificationsPage />} />
+                <Route path="homestays" element={<HomestaysPage />} />
+                <Route path="revenues" element={<RevenuesPage />} />
+                <Route path="payouts" element={<PayoutsPage />} />
+                <Route path="refunds" element={<RefundsPage />} />
+                <Route path="configs" element={<ConfigsPage />} />
+                <Route path="audit-logs" element={<AuditLogsPage />} />
+              </Route>
             </Route>
 
             {/* PHÂN HỆ AUTHENTICATION */}

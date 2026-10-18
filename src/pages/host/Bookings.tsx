@@ -1,192 +1,380 @@
 import { useState, useEffect } from 'react';
-import { Card, Table, Tag, Button, Typography, Space, message, Modal } from 'antd';
-import { CheckOutlined, ClockCircleOutlined, UserOutlined } from '@ant-design/icons';
+import {
+  Card,
+  Table,
+  Tag,
+  Button,
+  Typography,
+  Select,
+  Row,
+  Col,
+  message,
+  Modal,
+  Input,
+} from 'antd';
+import {
+  CheckOutlined,
+  ClockCircleOutlined,
+  UserOutlined,
+  HomeOutlined,
+  PhoneOutlined,
+  MailOutlined,
+  CalendarOutlined,
+  SearchOutlined,
+} from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { hostService } from '../../services/hostService';
-import type { HostBookingItem } from '../../types/host';
+import type { HostBookingItem, HostHomestay } from '../../types/host';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
 export default function HostBookingsPage() {
   const [bookings, setBookings] = useState<HostBookingItem[]>([]);
+  const [homestays, setHomestays] = useState<HostHomestay[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Filters
+  const [selectedHomestayId, setSelectedHomestayId] = useState<string | undefined>(undefined);
+  const [selectedStatus, setSelectedStatus] = useState<string | undefined>(undefined);
+  const [searchText, setSearchText] = useState('');
+
   useEffect(() => {
-    loadBookings();
+    loadInitialData();
   }, []);
 
-  const loadBookings = async () => {
+  const loadInitialData = async () => {
     setLoading(true);
     try {
-      const res = await hostService.getBookings();
-      setBookings(res.data || []);
-    } catch {
-      // Mock fallback
-      setBookings([
-        {
-          id: '1',
-          booking_code: 'BK202610168392',
-          customer: { id: '15', full_name: 'Nguyễn Văn Khách', email: 'khach@gmail.com', phone_number: '0912345678' },
-          room: { id: '101', homestay_id: '1', room_name: 'Phòng Deluxe Hướng Đồi', capacity: 2, base_price: 650000 },
-          check_in_date: '2026-10-20',
-          check_out_date: '2026-10-22',
-          num_guests: 2,
-          total_amount: 1300000,
-          status: 'PAID_ESCROW',
-          escrow: { release_due_at: '2026-10-21T14:00:00Z', status: 'HOLDING' },
-          created_at: '2026-10-16',
-        },
-        {
-          id: '2',
-          booking_code: 'BK202610151122',
-          customer: { id: '18', full_name: 'Trần Thị Thu', email: 'thu@gmail.com', phone_number: '0987654321' },
-          room: { id: '101', homestay_id: '1', room_name: 'Phòng Deluxe Hướng Đồi', capacity: 2, base_price: 650000 },
-          check_in_date: '2026-10-15',
-          check_out_date: '2026-10-17',
-          num_guests: 2,
-          total_amount: 1300000,
-          status: 'CHECKED_IN',
-          escrow: { release_due_at: '2026-10-16T14:00:00Z', status: 'HOLDING' },
-          created_at: '2026-10-12',
-        },
+      const [listingsRes, bookingsRes] = await Promise.allSettled([
+        hostService.getMyListings(),
+        hostService.getBookings(),
       ]);
+
+      if (listingsRes.status === 'fulfilled') {
+        const val = listingsRes.value;
+        const list = Array.isArray(val) ? val : (val as any)?.data || [];
+        setHomestays(list);
+      }
+      if (bookingsRes.status === 'fulfilled') {
+        const bVal = bookingsRes.value;
+        const bList = Array.isArray(bVal) ? bVal : (bVal as any)?.data || [];
+        setBookings(bList);
+      }
+    } catch {
+      setHomestays([]);
+      setBookings([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const loadBookings = async () => {
+    setLoading(true);
+    try {
+      const res = await hostService.getBookings({
+        homestay_id: selectedHomestayId,
+        status: selectedStatus,
+      });
+      const bList = Array.isArray(res) ? res : (res as any)?.data || [];
+      setBookings(bList);
+    } catch {
+      setBookings([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Xác nhận khách đã đến nhận phòng thực tế (Check-in)
   const handleCheckIn = (id: string, code: string) => {
     Modal.confirm({
-      title: `Xác nhận khách đã đến nhận phòng (${code})?`,
-      content: 'Trạng thái sẽ chuyển sang CHECKED_IN và kích hoạt đồng hồ đếm ngược Escrow 24 giờ giải ngân.',
+      title: `Xác nhận khách đã nhận phòng (#${code})?`,
+      content: (
+        <div>
+          <Paragraph>
+            Khi bạn xác nhận Check-in, trạng thái đơn sẽ chuyển sang <strong>CHECKED_IN</strong>.
+          </Paragraph>
+          <Paragraph type="secondary" style={{ fontSize: 13 }}>
+            ⏱️ Hệ thống Escrow Ký quỹ sẽ <strong>kích hoạt đồng hồ đếm ngược 24 giờ</strong>. Sau 24h nếu khách không khiếu nại, tiền phòng sẽ được tự động giải ngân vào số dư của bạn.
+          </Paragraph>
+        </div>
+      ),
+      okText: 'Xác Nhận Check-in',
+      cancelText: 'Hủy',
+      okButtonProps: { style: { background: '#10b981' } },
       onOk: async () => {
         try {
           await hostService.checkIn(id);
-          message.success('Xác nhận nhận phòng (Check-in) thành công!');
+          message.success(`Đã xác nhận Check-in thành công cho đơn #${code}!`);
           loadBookings();
-        } catch {
-          message.success('Xác nhận nhận phòng thành công (Đã kích hoạt Escrow 24h)');
-          setBookings((prev) =>
-            prev.map((b) => (b.id === id ? { ...b, status: 'CHECKED_IN' } : b)),
-          );
+        } catch (err: any) {
+          message.error(err.message || 'Lỗi khi xác nhận check-in');
         }
       },
     });
   };
 
+  // Xác nhận khách đã trả phòng (Check-out)
   const handleCheckOut = (id: string, code: string) => {
     Modal.confirm({
-      title: `Xác nhận khách đã trả phòng (${code})?`,
-      content: 'Đơn hàng sẽ chuyển sang COMPLETED và khách có thể gửi đánh giá sao.',
+      title: `Xác nhận khách đã trả phòng (#${code})?`,
+      content: (
+        <div>
+          <Paragraph>
+            Đơn hàng sẽ chuyển sang trạng thái <strong>COMPLETED (Hoàn tất)</strong>. Phòng sẽ sẵn sàng đón khách tiếp theo và khách hàng có thể gửi đánh giá sao.
+          </Paragraph>
+        </div>
+      ),
+      okText: 'Xác Nhận Check-out',
+      cancelText: 'Hủy',
+      okButtonProps: { style: { background: '#6366f1' } },
       onOk: async () => {
         try {
           await hostService.checkOut(id);
-          message.success('Xác nhận trả phòng (Check-out) thành công!');
+          message.success(`Đã xác nhận Check-out thành công cho đơn #${code}!`);
           loadBookings();
-        } catch {
-          message.success('Xác nhận trả phòng thành công! Đơn hàng hoàn tất.');
-          setBookings((prev) =>
-            prev.map((b) => (b.id === id ? { ...b, status: 'COMPLETED' } : b)),
-          );
+        } catch (err: any) {
+          message.error(err.message || 'Lỗi khi xác nhận check-out');
         }
       },
     });
   };
 
+  // Lọc dữ liệu theo text tìm kiếm
+  const safeBookings = Array.isArray(bookings) ? bookings : [];
+  const filteredBookings = safeBookings.filter((b) => {
+    if (!searchText) return true;
+    const term = searchText.toLowerCase();
+    return (
+      (b.booking_code && b.booking_code.toLowerCase().includes(term)) ||
+      (b.customer?.full_name && b.customer.full_name.toLowerCase().includes(term)) ||
+      (b.customer?.phone_number && b.customer.phone_number.includes(term)) ||
+      (b.room?.room_name && b.room.room_name.toLowerCase().includes(term))
+    );
+  });
+
   const columns = [
     {
-      title: 'Mã đơn',
+      title: 'Mã Đơn & Ngày Đặt',
       dataIndex: 'booking_code',
       key: 'booking_code',
-      render: (code: string) => <strong>{code}</strong>,
+      render: (code: string, record: HostBookingItem) => (
+        <div>
+          <Text strong style={{ color: '#4f46e5', fontSize: 15 }}>{code}</Text>
+          <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+            {dayjs(record.created_at).format('DD/MM/YYYY HH:mm')}
+          </Text>
+        </div>
+      ),
     },
     {
-      title: 'Khách hàng',
+      title: 'Khách Hàng',
       key: 'customer',
       render: (_: any, record: HostBookingItem) => (
         <div>
-          <Text strong><UserOutlined /> {record.customer?.full_name}</Text>
-          <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
-            {record.customer?.phone_number} • {record.customer?.email}
+          <Text strong style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <UserOutlined /> {record.customer?.full_name || 'Khách du lịch'}
           </Text>
+          {record.customer?.phone_number && (
+            <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+              <PhoneOutlined /> {record.customer.phone_number}
+            </Text>
+          )}
+          {record.customer?.email && (
+            <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+              <MailOutlined /> {record.customer.email}
+            </Text>
+          )}
         </div>
       ),
     },
     {
-      title: 'Phòng lưu trú',
+      title: 'Chỗ Nghỉ & Loại Phòng',
       key: 'room',
       render: (_: any, record: HostBookingItem) => (
         <div>
-          <Text>{record.room?.room_name}</Text>
-          <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
-            {record.check_in_date} ➔ {record.check_out_date}
+          <Text strong style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <HomeOutlined /> {record.room?.homestay?.name || 'Homestay của bạn'}
+          </Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Phòng: {record.room?.room_name || 'Phòng Deluxe'} ({record.num_guests} khách)
           </Text>
         </div>
       ),
     },
     {
-      title: 'Tiền phòng',
-      dataIndex: 'total_amount',
-      key: 'total_amount',
-      render: (amount: number) => (
-        <strong style={{ color: '#6366f1' }}>{amount.toLocaleString('vi-VN')}đ</strong>
-      ),
-    },
-    {
-      title: 'Trạng thái',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => {
-        if (status === 'PAID_ESCROW') {
-          return <Tag color="blue" icon={<ClockCircleOutlined />}>Đã thanh toán Escrow</Tag>;
-        }
-        if (status === 'CHECKED_IN') {
-          return <Tag color="purple" icon={<CheckOutlined />}>Đang lưu trú (Checked-in)</Tag>;
-        }
-        if (status === 'COMPLETED') {
-          return <Tag color="success">Hoàn tất (Completed)</Tag>;
-        }
-        return <Tag>{status}</Tag>;
+      title: 'Lịch Lưu Trú',
+      key: 'stay_dates',
+      render: (_: any, record: HostBookingItem) => {
+        const inDate = dayjs(record.check_in_date);
+        const outDate = dayjs(record.check_out_date);
+        const nights = outDate.diff(inDate, 'day') || 1;
+        return (
+          <div>
+            <Text strong>
+              {inDate.format('DD/MM/YYYY')} ➔ {outDate.format('DD/MM/YYYY')}
+            </Text>
+            <Tag color="purple" style={{ display: 'block', width: 'fit-content', marginTop: 4 }}>
+              {nights} đêm
+            </Tag>
+          </div>
+        );
       },
     },
     {
-      title: 'Thao tác',
+      title: 'Tiền Phòng (VNPay)',
+      dataIndex: 'total_amount',
+      key: 'total_amount',
+      render: (amount: number) => (
+        <div>
+          <Text strong style={{ color: '#10b981', fontSize: 15 }}>
+            {Number(amount).toLocaleString('vi-VN')} VNĐ
+          </Text>
+          <Text type="secondary" style={{ display: 'block', fontSize: 11 }}>
+            Đã thanh toán Escrow
+          </Text>
+        </div>
+      ),
+    },
+    {
+      title: 'Trạng Thái & Bảo Chứng Escrow',
+      key: 'status',
+      render: (_: any, record: HostBookingItem) => {
+        const status = record.status;
+        return (
+          <div>
+            {status === 'PAID_ESCROW' && (
+              <Tag color="cyan" icon={<ClockCircleOutlined />} style={{ padding: '4px 8px', fontSize: 12 }}>
+                Chờ Check-in (Ký quỹ)
+              </Tag>
+            )}
+            {status === 'CHECKED_IN' && (
+              <Tag color="processing" icon={<CheckOutlined />} style={{ padding: '4px 8px', fontSize: 12 }}>
+                Đang ở (Escrow 24h)
+              </Tag>
+            )}
+            {status === 'COMPLETED' && (
+              <Tag color="success" style={{ padding: '4px 8px', fontSize: 12 }}>
+                ✓ Đã hoàn tất
+              </Tag>
+            )}
+            {status === 'CANCELLED' && (
+              <Tag color="error" style={{ padding: '4px 8px', fontSize: 12 }}>
+                Đã hủy
+              </Tag>
+            )}
+
+            {record.escrow?.release_due_at && (
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                🛡️ Giải ngân: {dayjs(record.escrow.release_due_at).format('DD/MM HH:mm')}
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      title: 'Hành Động',
       key: 'action',
-      render: (_: any, record: HostBookingItem) => (
-        <Space>
-          {record.status === 'PAID_ESCROW' && (
+      render: (_: any, record: HostBookingItem) => {
+        if (record.status === 'PAID_ESCROW') {
+          return (
             <Button
               type="primary"
               size="small"
+              icon={<CheckOutlined />}
               onClick={() => handleCheckIn(record.id, record.booking_code)}
+              style={{ background: '#10b981', borderColor: '#10b981' }}
             >
-              Xác nhận Check-in
+              Check-in
             </Button>
-          )}
-
-          {record.status === 'CHECKED_IN' && (
+          );
+        }
+        if (record.status === 'CHECKED_IN') {
+          return (
             <Button
-              type="default"
+              type="primary"
               size="small"
-              style={{ borderColor: '#10b981', color: '#10b981' }}
+              icon={<CalendarOutlined />}
               onClick={() => handleCheckOut(record.id, record.booking_code)}
+              style={{ background: '#6366f1', borderColor: '#6366f1' }}
             >
-              Xác nhận Check-out
+              Check-out
             </Button>
-          )}
-        </Space>
-      ),
+          );
+        }
+        return <Text type="secondary" style={{ fontSize: 12 }}>Hoàn thành</Text>;
+      },
     },
   ];
 
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <Title level={2} style={{ margin: 0 }}>Đơn đặt phòng & Quản lý Nhận phòng</Title>
-        <Text type="secondary">Xác nhận khách đến nhận phòng (Check-in) để kích hoạt thời gian ký quỹ Escrow 24 giờ</Text>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <Title level={2} style={{ margin: 0 }}>Đơn Đặt Phòng &amp; Check-in / Check-out</Title>
+          <Text type="secondary">
+            Quản lý vòng đời lưu trú, xác nhận khách đến nhận phòng và kích hoạt bộ đếm giải ngân Escrow 24 giờ
+          </Text>
+        </div>
+        <Button onClick={loadInitialData} loading={loading}>
+          Làm mới danh sách
+        </Button>
       </div>
 
+      {/* FILTER BAR */}
+      <Card style={{ borderRadius: 14, marginBottom: 20 }}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={8}>
+            <Text strong style={{ display: 'block', marginBottom: 4 }}>Lọc theo Homestay</Text>
+            <Select
+              allowClear
+              placeholder="Tất cả Chỗ nghỉ Homestay"
+              style={{ width: '100%' }}
+              value={selectedHomestayId}
+              onChange={(val) => setSelectedHomestayId(val)}
+              options={(Array.isArray(homestays) ? homestays : []).map((h) => ({ label: h.name, value: h.id }))}
+            />
+          </Col>
+
+          <Col xs={24} sm={8}>
+            <Text strong style={{ display: 'block', marginBottom: 4 }}>Trạng thái đơn hàng</Text>
+            <Select
+              allowClear
+              placeholder="Tất cả trạng thái"
+              style={{ width: '100%' }}
+              value={selectedStatus}
+              onChange={(val) => setSelectedStatus(val)}
+              options={[
+                { label: 'Chờ nhận phòng (PAID_ESCROW)', value: 'PAID_ESCROW' },
+                { label: 'Đang lưu trú (CHECKED_IN)', value: 'CHECKED_IN' },
+                { label: 'Đã hoàn tất (COMPLETED)', value: 'COMPLETED' },
+                { label: 'Đã hủy (CANCELLED)', value: 'CANCELLED' },
+              ]}
+            />
+          </Col>
+
+          <Col xs={24} sm={8}>
+            <Text strong style={{ display: 'block', marginBottom: 4 }}>Tìm kiếm nhanh</Text>
+            <Input
+              prefix={<SearchOutlined />}
+              placeholder="Tìm mã đơn, tên khách, SĐT..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              allowClear
+            />
+          </Col>
+        </Row>
+      </Card>
+
+      {/* TABLE */}
       <Card style={{ borderRadius: 14 }}>
-        <Table dataSource={bookings} columns={columns} rowKey="id" loading={loading} />
+        <Table
+          dataSource={filteredBookings}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 8 }}
+        />
       </Card>
     </div>
   );

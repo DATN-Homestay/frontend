@@ -6,12 +6,23 @@ import type {
   VerificationStatusResponse,
   HostBookingItem,
   HostBalanceInfo,
+  HostDashboardStats,
+  HostCoupon,
 } from '../types/host';
 
 export const hostService = {
-  // Homestays
+  // 0. Dashboard Stats
+  async getDashboardStats(): Promise<{ data: HostDashboardStats }> {
+    return await apiClient('/host/dashboard/stats');
+  },
+
+  // 1. Homestays Management
   async getMyListings(): Promise<HostHomestay[]> {
     return await apiClient('/host/homestays/my-listings');
+  },
+
+  async getHomestayDetail(id: string): Promise<HostHomestay> {
+    return await apiClient(`/host/homestays/${id}`);
   },
 
   async createHomestay(data: Partial<HostHomestay>): Promise<HostHomestay> {
@@ -32,7 +43,7 @@ export const hostService = {
     return await apiClient(`/host/homestays/${id}`, { method: 'DELETE' });
   },
 
-  // Rooms & Calendar
+  // 2. Rooms & Images
   async createRoom(homestayId: string, data: { room_name: string; capacity: number; base_price: number }) {
     return await apiClient(`/host/homestays/${homestayId}/rooms`, {
       method: 'POST',
@@ -40,6 +51,29 @@ export const hostService = {
     });
   },
 
+  async updateRoom(roomId: string, data: { room_name?: string; capacity?: number; base_price?: number }) {
+    return await apiClient(`/host/rooms/${roomId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteRoom(roomId: string) {
+    return await apiClient(`/host/rooms/${roomId}`, { method: 'DELETE' });
+  },
+
+  async uploadRoomImage(roomId: string, data: { image_url: string; is_primary?: number; sort_order?: number }) {
+    return await apiClient(`/host/rooms/${roomId}/images`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteRoomImage(imageId: string) {
+    return await apiClient(`/host/rooms/images/${imageId}`, { method: 'DELETE' });
+  },
+
+  // 3. Calendar & Batch Update
   async getCalendar(roomId: string, fromDate?: string, toDate?: string): Promise<PriceCalendarDay[]> {
     return await apiClient(`/host/rooms/${roomId}/calendar`, {
       params: { from_date: fromDate, to_date: toDate },
@@ -53,21 +87,49 @@ export const hostService = {
     });
   },
 
-  // Dynamic Pricing AI
+  async batchUpdateCalendar(
+    roomId: string,
+    data: { from_date: string; to_date: string; price?: number; is_available?: number },
+  ) {
+    return await apiClient(`/host/rooms/${roomId}/calendar/batch`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // 4. Dynamic Pricing AI
   async getPricingSuggestions(homestayId: string, date: string, roomId?: string): Promise<{ data: PricingSuggestion }> {
     return await apiClient('/host/pricing/suggestions', {
       params: { homestay_id: homestayId, date, room_id: roomId },
     });
   },
 
-  async applyPricing(data: { homestay_id: string; date: string; applied_price: number; room_id?: string }) {
+  async applyPricing(data: { homestay_id: string; date: string; applied_price?: number; new_price?: number; room_id?: string }) {
     return await apiClient('/host/pricing/apply', {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   },
 
-  // 4-Layer Verification
+  // 5. 4-Layer Verification
+  async uploadCccdImage(file: File): Promise<{ data: { image_url: string; file_name: string } }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = localStorage.getItem('stayai_access_token');
+    const res = await fetch('http://localhost:3000/api/v1/host/verify/upload-cccd', {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Lỗi khi tải ảnh CCCD lên máy chủ');
+    }
+    return await res.json();
+  },
+
   async verifyCccd(data: {
     homestay_id: string;
     front_image_url: string;
@@ -116,7 +178,7 @@ export const hostService = {
     return await apiClient(`/host/verify/status/${homestayId}`);
   },
 
-  // Bookings & Check-in
+  // 6. Bookings & Check-in / Check-out
   async getBookings(params?: { homestay_id?: string; status?: string }): Promise<{ data: HostBookingItem[] }> {
     return await apiClient('/host/bookings', { params });
   },
@@ -129,19 +191,42 @@ export const hostService = {
     return await apiClient(`/host/bookings/${bookingId}/check-out`, { method: 'PUT' });
   },
 
-  // Payouts & Balance
+  // 7. Payouts & Balance (Escrow & Settlement)
   async getBalance(): Promise<{ data: HostBalanceInfo }> {
     return await apiClient('/host/payouts/balance');
   },
 
-  async requestPayout(bookingId?: string) {
+  async requestPayout(bookingId?: string, note?: string) {
     return await apiClient('/host/payouts/request', {
       method: 'POST',
-      body: JSON.stringify({ booking_id: bookingId }),
+      body: JSON.stringify({ booking_id: bookingId, note }),
     });
   },
 
   async getPayoutHistory() {
     return await apiClient('/host/payouts/history');
+  },
+
+  // 8. Host Coupons
+  async getCoupons(): Promise<{ data: HostCoupon[] }> {
+    return await apiClient('/host/coupons');
+  },
+
+  async createCoupon(data: {
+    code: string;
+    discount_type: 'PERCENT' | 'FIXED_AMOUNT';
+    discount_value: number;
+    min_order_value?: number;
+    start_date: string;
+    end_date: string;
+  }) {
+    return await apiClient('/host/coupons', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteCoupon(id: string) {
+    return await apiClient(`/host/coupons/${id}`, { method: 'DELETE' });
   },
 };
