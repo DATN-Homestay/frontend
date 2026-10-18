@@ -15,6 +15,7 @@ import {
     MenuUnfoldOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 const { Header, Sider, Content } = Layout;
 
@@ -41,6 +42,7 @@ export default function AdminLayout() {
     const navigate = useNavigate();
     const location = useLocation();
     const { token } = theme.useToken();
+    const { user, logout } = useAuth();
     const [collapsed, setCollapsed] = useState(false);
 
     return (
@@ -109,21 +111,21 @@ export default function AdminLayout() {
                         </Badge>
                         <Dropdown menu={{
                             items: [
-                                { key: 'profile', label: 'Hồ sơ cá nhân' },
+                                { key: 'profile', label: 'Hồ sơ cá nhân', onClick: () => navigate('/profile') },
                                 {
                                     key: 'logout',
                                     label: 'Đăng xuất',
                                     icon: <LogoutOutlined />,
-                                    onClick: () => {
-                                        localStorage.removeItem('token');
-                                        navigate('/login');
+                                    onClick: async () => {
+                                        await logout();
+                                        navigate('/auth/login');
                                     },
                                 },
                             ],
                         }}>
                             <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
                                 <Avatar icon={<UserOutlined />} style={{ backgroundColor: token.colorPrimary }} />
-                                <span style={{ fontWeight: 500 }}>Super Admin</span>
+                                <span style={{ fontWeight: 500 }}>{user?.full_name ?? 'Super Admin'}</span>
                             </div>
                         </Dropdown>
                     </div>

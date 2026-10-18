@@ -105,7 +105,7 @@ export default function HostLayout() {
               Chuyển sang Admin Portal
             </Button>
 
-            <Space>
+            <Space style={{ cursor: 'pointer' }} onClick={() => navigate('/profile')}>
               <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#6366f1' }} />
               <Text strong>{user?.full_name || 'Chủ nhà'}</Text>
             </Space>

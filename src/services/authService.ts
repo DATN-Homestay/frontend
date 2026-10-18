@@ -1,56 +1,73 @@
-import { apiClient } from './apiClient';
-import type { AuthResponse, LoginDto, RegisterDto, UserProfile } from '../types/auth';
+import { apiClient, type ApiResponse } from './apiClient';
+import { tokenStorage } from './tokenStorage';
+import type { AuthResponse, LoginDto, RegisterDto, RegisterResult, UserProfile, UserRole } from '../types/auth';
+
+/** Vai trò chính để điều hướng: Host đăng ký có cả CUSTOMER và HOST nên không lấy roles[0] */
+export function primaryRole(roles: UserRole[] | undefined): UserRole {
+  if (roles?.includes('ADMIN')) return 'ADMIN';
+  if (roles?.includes('HOST')) return 'HOST';
+  return 'CUSTOMER';
+}
+
+const HOME_BY_ROLE: Record<UserRole, string> = {
+  ADMIN: '/admin',
+  HOST: '/host',
+  CUSTOMER: '/',
+};
+
+/** Trang đích sau khi đăng nhập: quay lại trang trước đó nếu có, không thì về trang chủ theo vai trò */
+export function postLoginPath(roles: UserRole[] | undefined, from?: string): string {
+  return from ?? HOME_BY_ROLE[primaryRole(roles)];
+}
 
 export const authService = {
-  async login(dto: LoginDto): Promise<AuthResponse> {
-    try {
-      const res = await apiClient<{ data: AuthResponse }>('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify(dto),
-      });
-      if (res.data?.access_token) {
-        localStorage.setItem('access_token', res.data.access_token);
-        localStorage.setItem('user_profile', JSON.stringify(res.data.user));
-      }
-      return res.data;
-    } catch {
-      // Mock Fallback cho dev testing nếu Backend auth chưa xong
-      const mockRole = dto.email.includes('host') ? 'HOST' : dto.email.includes('admin') ? 'ADMIN' : 'CUSTOMER';
-      const mockUser: UserProfile = {
-        id: '1',
-        email: dto.email,
-        full_name: dto.email.split('@')[0],
-        roles: [mockRole],
-      };
-      const mockRes: AuthResponse = {
-        access_token: 'mock_jwt_token_' + Date.now(),
-        user: mockUser,
-      };
-      localStorage.setItem('access_token', mockRes.access_token);
-      localStorage.setItem('user_profile', JSON.stringify(mockUser));
-      return mockRes;
-    }
-  },
-
-  async register(dto: RegisterDto) {
-    return await apiClient('/auth/register', {
+  async login(dto: LoginDto, remember: boolean): Promise<UserProfile> {
+    const res = await apiClient<ApiResponse<AuthResponse>>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(dto),
+      skipAuthRefresh: true,
     });
+    const { access_token, refresh_token, user } = res.data;
+    tokenStorage.saveSession(access_token, refresh_token, user, remember);
+    return user;
+  },
+
+  async register(dto: RegisterDto): Promise<RegisterResult> {
+    const body: RegisterDto = { ...dto };
+    if (!body.phone_number) delete body.phone_number;
+
+    const res = await apiClient<ApiResponse<RegisterResult>>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      skipAuthRefresh: true,
+    });
+    return res.data;
+  },
+
+  /** Lấy lại hồ sơ từ server (kiểm tra token còn hiệu lực khi tải trang) */
+  async fetchMe(): Promise<UserProfile> {
+    const res = await apiClient<ApiResponse<UserProfile>>('/auth/me');
+    tokenStorage.setUser(res.data);
+    return res.data;
   },
 
   getCurrentUser(): UserProfile | null {
-    const raw = localStorage.getItem('user_profile');
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
+    return tokenStorage.getUser();
   },
 
-  logout() {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('user_profile');
+  hasSession(): boolean {
+    return !!tokenStorage.getRefreshToken();
+  },
+
+  async logout(): Promise<void> {
+    try {
+      if (tokenStorage.getAccessToken()) {
+        await apiClient('/auth/logout', { method: 'POST' });
+      }
+    } catch {
+      // Phiên đã hết hạn phía server thì vẫn xóa token phía client
+    } finally {
+      tokenStorage.clear();
+    }
   },
 };
