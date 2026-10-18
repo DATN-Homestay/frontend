@@ -9,6 +9,10 @@ interface AuthContextType {
   /** Đang kiểm tra phiên đăng nhập khi tải trang */
   initializing: boolean;
   role: UserRole | null;
+  isHost: boolean;
+  isAdmin: boolean;
+  isCustomer: boolean;
+  hasRole: (role: UserRole) => boolean;
   login: (dto: LoginDto, remember?: boolean) => Promise<UserProfile>;
   register: (dto: RegisterDto) => Promise<UserProfile>;
   logout: () => Promise<void>;
@@ -66,6 +70,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser({ ...user, roles: [role] });
   };
 
+  const isHost = Boolean(user?.roles?.includes('HOST'));
+  const isAdmin = Boolean(user?.roles?.includes('ADMIN'));
+  const isCustomer = Boolean(user?.roles?.includes('CUSTOMER'));
+  const hasRole = (r: UserRole) => Boolean(user?.roles?.includes(r));
+
   return (
     <AuthContext.Provider
       value={{
@@ -73,6 +82,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: !!user,
         initializing,
         role: user ? primaryRole(user.roles) : null,
+        isHost,
+        isAdmin,
+        isCustomer,
+        hasRole,
         login,
         register,
         logout,

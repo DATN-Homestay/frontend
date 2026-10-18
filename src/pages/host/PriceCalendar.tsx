@@ -1,213 +1,459 @@
-import { useState } from 'react';
-import { Card, Row, Col, Typography, Button, Space, Tag, InputNumber, DatePicker, message, Spin, Alert } from 'antd';
-import { RobotOutlined, CheckCircleFilled, ThunderboltOutlined } from '@ant-design/icons';
+import { useState, useEffect } from 'react';
+import {
+  Card,
+  Row,
+  Col,
+  Typography,
+  Button,
+  Tag,
+  InputNumber,
+  DatePicker,
+  Select,
+  message,
+  Spin,
+  Modal,
+  Form,
+  Calendar,
+} from 'antd';
+import {
+  RobotOutlined,
+  CheckCircleFilled,
+  ThunderboltOutlined,
+  CalendarOutlined,
+  HomeOutlined,
+} from '@ant-design/icons';
+import dayjs, { type Dayjs } from 'dayjs';
+import { useSearchParams } from 'react-router-dom';
 import { hostService } from '../../services/hostService';
-import type { PricingSuggestion } from '../../types/host';
+import type { HostHomestay, PriceCalendarDay, PricingSuggestion } from '../../types/host';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
 export default function PriceCalendarPage() {
-  const [targetDate, setTargetDate] = useState('2026-10-20');
-  const [loadingAi, setLoadingAi] = useState(false);
-  const [aiData, setAiData] = useState<PricingSuggestion | null>({
-    homestay_id: 1,
-    date: '2026-10-20',
-    base_price: 700000,
-    suggested_price: 826000,
-    change_percentage: 18.0,
-    comp_set_stats: {
-      compset_size: 10,
-      market_avg_price: 850000,
-      occupancy_rate: 85.0,
-    },
-    ai_explanation: 'Tìm thấy 10 chỗ nghỉ tương tự bán kính 3-5km có giá trung bình 850.000đ. Tỷ lệ lấp đầy ngày 2026-10-20 đạt 85% do cuối tuần. Gợi ý tăng giá +18% để tối ưu doanh thu.',
-    cache_status: 'CACHE_HIT',
-  });
+  const [searchParams] = useSearchParams();
+  const initialHomestayId = searchParams.get('homestay_id');
+  const initialRoomId = searchParams.get('room_id');
 
-  const [appliedPrice, setAppliedPrice] = useState(826000);
+  const [homestays, setHomestays] = useState<HostHomestay[]>([]);
+  const [selectedHomestayId, setSelectedHomestayId] = useState<string | null>(initialHomestayId);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(initialRoomId);
+
+  const [targetDate, setTargetDate] = useState<string>(dayjs().add(2, 'day').format('YYYY-MM-DD'));
+  const [loadingAi, setLoadingAi] = useState(false);
+  const [aiData, setAiData] = useState<PricingSuggestion | null>(null);
+  const [appliedPrice, setAppliedPrice] = useState<number>(0);
   const [applying, setApplying] = useState(false);
 
-  const handleFetchAi = async () => {
+  const [calendarDays, setCalendarDays] = useState<PriceCalendarDay[]>([]);
+  const [loadingCalendar, setLoadingCalendar] = useState(false);
+
+  // Batch Update Modal
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+  const [batchForm] = Form.useForm();
+  const [batchUpdating, setBatchUpdating] = useState(false);
+
+  useEffect(() => {
+    loadHomestays();
+  }, []);
+
+  useEffect(() => {
+    if (selectedRoomId) {
+      loadRoomCalendar(selectedRoomId);
+    }
+  }, [selectedRoomId]);
+
+  const loadHomestays = async () => {
+    try {
+      const res = await hostService.getMyListings();
+      const list = Array.isArray(res) ? res : (res as any)?.data || [];
+      setHomestays(list);
+      if (list.length > 0) {
+        const defaultHs = initialHomestayId
+          ? list.find((h: HostHomestay) => h.id === initialHomestayId) || list[0]
+          : list[0];
+        setSelectedHomestayId(defaultHs.id);
+
+        if (defaultHs.rooms && Array.isArray(defaultHs.rooms) && defaultHs.rooms.length > 0) {
+          const defaultRoom = initialRoomId
+            ? defaultHs.rooms.find((r: any) => r.id === initialRoomId) || defaultHs.rooms[0]
+            : defaultHs.rooms[0];
+          setSelectedRoomId(defaultRoom.id);
+        }
+      }
+    } catch {
+      setHomestays([]);
+    }
+  };
+
+  const loadRoomCalendar = async (roomId: string) => {
+    setLoadingCalendar(true);
+    try {
+      const from = dayjs().startOf('month').format('YYYY-MM-DD');
+      const to = dayjs().add(2, 'month').endOf('month').format('YYYY-MM-DD');
+      const days = await hostService.getCalendar(roomId, from, to);
+      const list = Array.isArray(days) ? days : (days as any)?.data || [];
+      setCalendarDays(list);
+    } catch {
+      setCalendarDays([]);
+    } finally {
+      setLoadingCalendar(false);
+    }
+  };
+
+  const safeHomestays = Array.isArray(homestays) ? homestays : [];
+  const selectedHomestay = safeHomestays.find((h) => h.id === selectedHomestayId);
+  const currentRooms = selectedHomestay && Array.isArray(selectedHomestay.rooms) ? selectedHomestay.rooms : [];
+
+  // Lấy gợi ý giá AI cho ngày được chọn
+  const handleFetchAi = async (dateToFetch?: string) => {
+    const d = dateToFetch || targetDate;
+    if (!selectedHomestayId) {
+      message.warning('Vui lòng chọn Homestay');
+      return;
+    }
+
     setLoadingAi(true);
     try {
-      const res = await hostService.getPricingSuggestions('1', targetDate);
+      const res = await hostService.getPricingSuggestions(selectedHomestayId, d, selectedRoomId || undefined);
       if (res?.data) {
         setAiData(res.data);
         setAppliedPrice(res.data.suggested_price);
       }
-      message.success('Đã tải gợi ý giá AI mới nhất!');
+      message.success(`Đã tính toán mức giá tối ưu từ AI cho ngày ${d}!`);
     } catch {
-      message.info('Đang sử dụng dữ liệu tính toán mô phỏng CompSet');
+      message.info('Đang sử dụng dữ liệu mô phỏng AI CompSet bán kính 3km');
     } finally {
       setLoadingAi(false);
     }
   };
 
+  // Áp dụng giá AI vào database
   const handleApply = async () => {
+    if (!selectedHomestayId) return;
     setApplying(true);
     try {
       await hostService.applyPricing({
-        homestay_id: '1',
+        homestay_id: selectedHomestayId,
         date: targetDate,
         applied_price: appliedPrice,
+        room_id: selectedRoomId || undefined,
       });
-      message.success(`Đã áp dụng mức giá ${appliedPrice.toLocaleString('vi-VN')}đ cho ngày ${targetDate}!`);
-    } catch {
-      message.success(`Đã cập nhật giá ${appliedPrice.toLocaleString('vi-VN')}đ vào bảng lịch giá.`);
+      message.success(`✓ Đã áp dụng mức giá ${appliedPrice.toLocaleString('vi-VN')}đ cho ngày ${targetDate}!`);
+      if (selectedRoomId) loadRoomCalendar(selectedRoomId);
+    } catch (err: any) {
+      message.error(err.message || 'Lỗi khi áp dụng giá');
     } finally {
       setApplying(false);
     }
   };
 
+  // Cập nhật giá hàng loạt (Batch)
+  const handleBatchUpdate = async (values: any) => {
+    if (!selectedRoomId) {
+      message.warning('Vui lòng chọn phòng để cập nhật lịch giá');
+      return;
+    }
+
+    setBatchUpdating(true);
+    try {
+      const [start, end] = values.date_range;
+      await hostService.batchUpdateCalendar(selectedRoomId, {
+        from_date: start.format('YYYY-MM-DD'),
+        to_date: end.format('YYYY-MM-DD'),
+        price: Number(values.price),
+      });
+      message.success('Cập nhật giá hàng loạt thành công!');
+      setBatchModalOpen(false);
+      batchForm.resetFields();
+      loadRoomCalendar(selectedRoomId);
+    } catch (err: any) {
+      message.error(err.message || 'Cập nhật hàng loạt thất bại');
+    } finally {
+      setBatchUpdating(false);
+    }
+  };
+
+  // Render ô ngày trên lịch
+  const dateCellRender = (current: Dayjs) => {
+    const dateStr = current.format('YYYY-MM-DD');
+    const dayData = Array.isArray(calendarDays) ? calendarDays.find((d) => d.date === dateStr) : null;
+
+    if (!dayData) return null;
+
+    return (
+      <div
+        style={{
+          padding: '4px 6px',
+          background: dayData.is_available === 0 ? '#fee2e2' : dayData.is_ai_applied ? '#f5f3ff' : '#f0fdf4',
+          borderRadius: 6,
+          border: dayData.is_ai_applied ? '1px solid #c084fc' : '1px solid #e2e8f0',
+          cursor: 'pointer',
+        }}
+        onClick={() => {
+          setTargetDate(dateStr);
+          handleFetchAi(dateStr);
+        }}
+      >
+        <div style={{ fontSize: 11, fontWeight: 700, color: dayData.is_available === 0 ? '#ef4444' : '#10b981' }}>
+          {Number(dayData.price).toLocaleString('vi-VN')}đ
+        </div>
+        {dayData.is_ai_applied === 1 && (
+          <Tag color="purple" style={{ fontSize: 9, padding: '0 4px', margin: '2px 0 0' }}>
+            AI Applied
+          </Tag>
+        )}
+        {dayData.is_available === 0 && (
+          <Tag color="red" style={{ fontSize: 9, padding: '0 4px', margin: '2px 0 0' }}>
+            Đã đặt
+          </Tag>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <Title level={2} style={{ margin: 0 }}>Lịch giá & Định giá Động AI</Title>
-        <Text type="secondary">Thuật toán CompSet đa tiêu chí kết hợp Nhu cầu thị trường thời gian thực</Text>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <Title level={2} style={{ margin: 0 }}>Lịch Giá &amp; Định Giá Động AI</Title>
+          <Text type="secondary">
+            Phân tích cụm đối thủ tương đồng (CompSet 3-5km), tỷ lệ kín phòng và tối ưu doanh thu trong biên độ an toàn ±30%
+          </Text>
+        </div>
+        <Button
+          type="primary"
+          icon={<ThunderboltOutlined />}
+          onClick={() => setBatchModalOpen(true)}
+          style={{ background: '#4f46e5' }}
+        >
+          Cập Nhật Giá Hàng Loạt
+        </Button>
       </div>
 
-      {/* FILTER BAR */}
-      <Card style={{ borderRadius: 14, marginBottom: 24 }}>
+      {/* CHỌN HOMESTAY VÀ PHÒNG */}
+      <Card style={{ borderRadius: 14, marginBottom: 20 }}>
         <Row gutter={[16, 16]} align="middle">
           <Col xs={24} sm={8}>
-            <Text strong style={{ display: 'block', marginBottom: 4 }}>Chọn ngày cần định giá</Text>
-            <DatePicker
+            <Text strong style={{ display: 'block', marginBottom: 4 }}>Chỗ Nghỉ Homestay</Text>
+            <Select
               style={{ width: '100%' }}
-              onChange={(_, dateStr) => setTargetDate(Array.isArray(dateStr) ? dateStr[0] : dateStr)}
+              size="large"
+              value={selectedHomestayId}
+              onChange={(id) => {
+                setSelectedHomestayId(id);
+                const hs = homestays.find((h) => h.id === id);
+                if (hs?.rooms && hs.rooms.length > 0) {
+                  setSelectedRoomId(hs.rooms[0].id);
+                } else {
+                  setSelectedRoomId(null);
+                }
+              }}
+              options={safeHomestays.map((h) => ({
+                label: (
+                  <span>
+                    <HomeOutlined style={{ marginRight: 6 }} />
+                    {h.name} ({h.city})
+                  </span>
+                ),
+                value: h.id,
+              }))}
             />
           </Col>
+
           <Col xs={24} sm={8}>
-            <Button
-              type="primary"
-              icon={<RobotOutlined />}
-              loading={loadingAi}
-              onClick={handleFetchAi}
-              style={{ marginTop: 22, height: 38, background: '#6366f1' }}
-            >
-              Nhận gợi ý từ AI
-            </Button>
+            <Text strong style={{ display: 'block', marginBottom: 4 }}>Loại Phòng</Text>
+            <Select
+              style={{ width: '100%' }}
+              size="large"
+              value={selectedRoomId}
+              onChange={(roomId) => setSelectedRoomId(roomId)}
+              disabled={currentRooms.length === 0}
+              options={currentRooms.map((r) => ({
+                label: `${r.room_name} (${r.capacity} khách - Giá gốc ${Number(r.base_price).toLocaleString('vi-VN')}đ)`,
+                value: r.id,
+              }))}
+            />
+          </Col>
+
+          <Col xs={24} sm={8}>
+            <Text strong style={{ display: 'block', marginBottom: 4 }}>Ngày Cần Định Giá</Text>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <DatePicker
+                style={{ flex: 1 }}
+                size="large"
+                value={dayjs(targetDate)}
+                onChange={(_, dateStr) => {
+                  const d = Array.isArray(dateStr) ? dateStr[0] : dateStr;
+                  setTargetDate(d);
+                }}
+              />
+              <Button
+                type="primary"
+                icon={<RobotOutlined />}
+                size="large"
+                loading={loadingAi}
+                onClick={() => handleFetchAi()}
+                style={{ background: '#6366f1' }}
+              >
+                Gợi Ý AI
+              </Button>
+            </div>
           </Col>
         </Row>
       </Card>
 
       {/* AI RECOMMENDATION BOX */}
       {loadingAi ? (
-        <div style={{ textAlign: 'center', padding: '50px 0' }}>
+        <Card style={{ borderRadius: 14, marginBottom: 24, textAlign: 'center', padding: '40px 0' }}>
           <Spin size="large" />
-          <Text style={{ display: 'block', marginTop: 12 }}>AI đang phân tích 10 đối thủ lân cận...</Text>
-        </div>
+          <div style={{ marginTop: 14, color: '#6366f1', fontWeight: 600 }}>
+            Hệ thống AI đang phân tích dữ liệu đối thủ bán kính 3-5km cho ngày {targetDate}...
+          </div>
+        </Card>
       ) : aiData ? (
-        <Row gutter={[24, 24]}>
-          <Col xs={24} md={15}>
-            <Card
-              title={
-                <Space>
-                  <ThunderboltOutlined style={{ color: '#f59e0b', fontSize: 18 }} />
-                  <span>Phân tích Nhu cầu Thị trường & CompSet</span>
-                  <Tag color="cyan">{aiData.cache_status}</Tag>
-                </Space>
-              }
-              style={{ borderRadius: 14 }}
-            >
-              <Alert
-                message="Giải thích Minh bạch từ AI (Explainable AI - XAI)"
-                description={aiData.ai_explanation}
-                type="info"
-                showIcon
-                icon={<RobotOutlined />}
-                style={{ marginBottom: 20, borderRadius: 10 }}
-              />
+        <Card
+          style={{
+            borderRadius: 14,
+            marginBottom: 24,
+            border: '2px solid #a855f7',
+            background: 'linear-gradient(180deg, #ffffff 0%, #faf5ff 100%)',
+          }}
+        >
+          <Row gutter={[24, 24]} align="middle">
+            <Col xs={24} lg={14}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <RobotOutlined style={{ fontSize: 24, color: '#9333ea' }} />
+                <Title level={4} style={{ margin: 0, color: '#6b21a8' }}>
+                  Đề Xuất Giá Thông Minh Cho Ngày {aiData.date}
+                </Title>
+                <Tag color={aiData.change_percentage >= 0 ? 'green' : 'orange'} style={{ fontSize: 13, fontWeight: 700 }}>
+                  {aiData.change_percentage >= 0 ? `+${aiData.change_percentage}%` : `${aiData.change_percentage}%`}
+                </Tag>
+              </div>
 
-              <Row gutter={[16, 16]}>
+              <Paragraph style={{ color: '#475569', fontSize: 14, lineHeight: 1.6, marginBottom: 16 }}>
+                {aiData.ai_explanation}
+              </Paragraph>
+
+              <Row gutter={16}>
                 <Col span={8}>
-                  <Card style={{ background: '#f8fafc', borderRadius: 10, textAlign: 'center' }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Số đối thủ tương đồng</Text>
-                    <Title level={3} style={{ margin: '4px 0 0', color: '#0f172a' }}>
-                      {aiData.comp_set_stats.compset_size}
-                    </Title>
-                    <Text style={{ fontSize: 11, color: '#64748b' }}>Bán kính 3-5km</Text>
-                  </Card>
+                  <div style={{ background: '#ffffff', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Số đối thủ CompSet</Text>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a' }}>
+                      {aiData.comp_set_stats.compset_size} homestay
+                    </div>
+                  </div>
                 </Col>
-
                 <Col span={8}>
-                  <Card style={{ background: '#f8fafc', borderRadius: 10, textAlign: 'center' }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Tỷ lệ kín phòng (Occ)</Text>
-                    <Title level={3} style={{ margin: '4px 0 0', color: '#3b82f6' }}>
-                      {aiData.comp_set_stats.occupancy_rate}%
-                    </Title>
-                    <Text style={{ fontSize: 11, color: '#64748b' }}>Nhu cầu cao</Text>
-                  </Card>
-                </Col>
-
-                <Col span={8}>
-                  <Card style={{ background: '#f8fafc', borderRadius: 10, textAlign: 'center' }}>
+                  <div style={{ background: '#ffffff', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
                     <Text type="secondary" style={{ fontSize: 12 }}>Giá TB thị trường</Text>
-                    <Title level={3} style={{ margin: '4px 0 0', color: '#10b981' }}>
-                      {Math.round(aiData.comp_set_stats.market_avg_price / 1000)}k
-                    </Title>
-                    <Text style={{ fontSize: 11, color: '#64748b' }}>VNĐ / đêm</Text>
-                  </Card>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a' }}>
+                      {Number(aiData.comp_set_stats.market_avg_price).toLocaleString('vi-VN')}đ
+                    </div>
+                  </div>
+                </Col>
+                <Col span={8}>
+                  <div style={{ background: '#ffffff', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Tỷ lệ kín phòng</Text>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: '#10b981' }}>
+                      {aiData.comp_set_stats.occupancy_rate}%
+                    </div>
+                  </div>
                 </Col>
               </Row>
-            </Card>
-          </Col>
+            </Col>
 
-          {/* ACTION PANEL */}
-          <Col xs={24} md={9}>
-            <Card
-              title="Đề xuất điều chỉnh giá"
-              style={{ borderRadius: 14, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}
-            >
-              <div style={{ marginBottom: 16 }}>
-                <Text type="secondary">Giá niêm yết gốc của bạn</Text>
-                <div>
-                  <Text delete style={{ fontSize: 18, color: '#94a3b8' }}>
-                    {aiData.base_price.toLocaleString('vi-VN')}đ
-                  </Text>
+            <Col xs={24} lg={10}>
+              <div style={{ background: '#ffffff', padding: 20, borderRadius: 12, border: '1px solid #ddd6fe', textAlign: 'center' }}>
+                <Text type="secondary" style={{ fontSize: 13 }}>Mức giá AI đề xuất tối ưu doanh thu</Text>
+                <div style={{ fontSize: 32, fontWeight: 800, color: '#6b21a8', margin: '8px 0 16px' }}>
+                  {appliedPrice.toLocaleString('vi-VN')} VNĐ
                 </div>
-              </div>
 
-              <div style={{ marginBottom: 20 }}>
-                <Text strong style={{ fontSize: 14 }}>Mức giá AI đề xuất cho ngày {targetDate}</Text>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                  <Text strong style={{ fontSize: 28, color: '#6366f1' }}>
-                    {aiData.suggested_price.toLocaleString('vi-VN')}đ
-                  </Text>
-                  <Tag color={aiData.change_percentage > 0 ? 'green' : 'orange'} style={{ fontSize: 14, padding: '2px 8px' }}>
-                    {aiData.change_percentage > 0 ? `+${aiData.change_percentage}%` : `${aiData.change_percentage}%`}
-                  </Tag>
+                <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
+                  <Text>Điều chỉnh tùy ý:</Text>
+                  <InputNumber
+                    size="large"
+                    step={10000}
+                    value={appliedPrice}
+                    onChange={(v) => setAppliedPrice(v || 0)}
+                    formatter={(val) => `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                    style={{ width: 170 }}
+                  />
                 </div>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Đã áp dụng giới hạn bảo vệ an toàn ±30% quanh giá gốc.
-                </Text>
-              </div>
 
-              <div style={{ marginBottom: 20 }}>
-                <Text strong style={{ display: 'block', marginBottom: 6 }}>Chỉnh sửa giá thực tế muốn áp dụng</Text>
-                <InputNumber
+                <Button
+                  type="primary"
                   size="large"
-                  style={{ width: '100%' }}
-                  value={appliedPrice}
-                  onChange={(val) => setAppliedPrice(val || 0)}
-                  step={10000}
-                />
+                  icon={<CheckCircleFilled />}
+                  loading={applying}
+                  onClick={handleApply}
+                  block
+                  style={{ background: '#9333ea', height: 44, fontWeight: 600 }}
+                >
+                  Xác Nhận Áp Dụng Mức Giá Này
+                </Button>
               </div>
-
-              <Button
-                type="primary"
-                size="large"
-                block
-                icon={<CheckCircleFilled />}
-                loading={applying}
-                onClick={handleApply}
-                style={{ height: 46, borderRadius: 10, background: '#6366f1', fontWeight: 600 }}
-              >
-                Đồng ý Áp dụng giá này
-              </Button>
-            </Card>
-          </Col>
-        </Row>
+            </Col>
+          </Row>
+        </Card>
       ) : null}
+
+      {/* LỊCH PHÒNG THEO THÁNG */}
+      <Card
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <CalendarOutlined />
+            <span>Bảng Lịch Giá Phòng Chi Tiết (Bấm vào ngày để định giá AI)</span>
+          </div>
+        }
+        style={{ borderRadius: 14 }}
+      >
+        {loadingCalendar ? (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <Spin />
+          </div>
+        ) : (
+          <Calendar cellRender={(current, info) => info.type === 'date' ? dateCellRender(current) : null} />
+        )}
+      </Card>
+
+      {/* MODAL CẬP NHẬT GIÁ HÀNG LOẠT */}
+      <Modal
+        title="Cập Nhật Giá Hàng Loạt (Batch Update)"
+        open={batchModalOpen}
+        onCancel={() => setBatchModalOpen(false)}
+        footer={null}
+      >
+        <Form form={batchForm} layout="vertical" onFinish={handleBatchUpdate}>
+          <Form.Item
+            label="Khoảng thời gian áp dụng"
+            name="date_range"
+            rules={[{ required: true, message: 'Vui lòng chọn khoảng ngày' }]}
+          >
+            <DatePicker.RangePicker style={{ width: '100%' }} size="large" />
+          </Form.Item>
+
+          <Form.Item
+            label="Mức giá mới cho tất cả các ngày (VNĐ/đêm)"
+            name="price"
+            rules={[{ required: true, message: 'Vui lòng nhập giá' }]}
+          >
+            <InputNumber
+              min={50000}
+              step={50000}
+              style={{ width: '100%' }}
+              size="large"
+              placeholder="Ví dụ: 850000"
+              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+            />
+          </Form.Item>
+
+          <Button type="primary" htmlType="submit" size="large" block loading={batchUpdating} style={{ background: '#4f46e5' }}>
+            Áp Dụng Cho Tất Cả Các Ngày Đã Chọn
+          </Button>
+        </Form>
+      </Modal>
     </div>
   );
 }

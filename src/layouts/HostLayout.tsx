@@ -1,4 +1,4 @@
-import { Layout, Menu, Button, Space, Typography, Tag, Avatar } from 'antd';
+import { Layout, Menu, Button, Space, Typography, Tag, Avatar, Dropdown } from 'antd';
 import {
   DashboardOutlined,
   HomeOutlined,
@@ -8,6 +8,10 @@ import {
   WalletOutlined,
   UserOutlined,
   ArrowLeftOutlined,
+  CompassOutlined,
+  SwapOutlined,
+  LogoutOutlined,
+  GiftOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,7 +22,39 @@ const { Title, Text } = Typography;
 export default function HostLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, isAdmin, logout } = useAuth();
+
+  const hostUserMenuItems = [
+    { key: 'profile', icon: <UserOutlined />, label: 'Hồ sơ cá nhân', onClick: () => navigate('/profile') },
+    {
+      key: 'customer-mode',
+      icon: <CompassOutlined style={{ color: '#6366f1' }} />,
+      label: <span style={{ color: '#6366f1', fontWeight: 600 }}>Chuyển sang trang Khách hàng</span>,
+      onClick: () => navigate('/'),
+    },
+    ...(isAdmin
+      ? [
+          { type: 'divider' as const },
+          {
+            key: 'admin-mode',
+            icon: <SwapOutlined style={{ color: '#ef4444' }} />,
+            label: <span style={{ color: '#ef4444', fontWeight: 600 }}>Trang Quản trị (Admin)</span>,
+            onClick: () => navigate('/admin'),
+          },
+        ]
+      : []),
+    { type: 'divider' as const },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: 'Đăng xuất',
+      danger: true,
+      onClick: async () => {
+        await logout();
+        navigate('/');
+      },
+    },
+  ];
 
   const menuItems = [
     { key: '/host', icon: <DashboardOutlined />, label: 'Tổng quan (Dashboard)' },
@@ -27,6 +63,7 @@ export default function HostLayout() {
     { key: '/host/verification', icon: <SafetyCertificateOutlined />, label: 'Xác thực 4 lớp Chính chủ' },
     { key: '/host/bookings', icon: <CalendarOutlined />, label: 'Đơn đặt phòng & Check-in' },
     { key: '/host/payouts', icon: <WalletOutlined />, label: 'Doanh thu & Rút tiền' },
+    { key: '/host/coupons', icon: <GiftOutlined />, label: 'Mã giảm giá & Ưu đãi' },
   ];
 
   return (
@@ -101,14 +138,34 @@ export default function HostLayout() {
           </div>
 
           <Space size="middle">
-            <Button onClick={() => navigate('/admin')} type="dashed">
-              Chuyển sang Admin Portal
+            {/* Nút chuyển đổi sang trang Khách hàng nhanh chóng */}
+            <Button
+              type="default"
+              icon={<CompassOutlined />}
+              onClick={() => navigate('/')}
+              style={{ borderColor: '#6366f1', color: '#6366f1', fontWeight: 500 }}
+            >
+              Về trang Khách hàng
             </Button>
 
-            <Space style={{ cursor: 'pointer' }} onClick={() => navigate('/profile')}>
-              <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#6366f1' }} />
-              <Text strong>{user?.full_name || 'Chủ nhà'}</Text>
-            </Space>
+            {/* Chỉ tài khoản ADMIN mới thấy nút này */}
+            {isAdmin && (
+              <Button onClick={() => navigate('/admin')} type="dashed" danger>
+                Vào Admin Portal
+              </Button>
+            )}
+
+            <Dropdown menu={{ items: hostUserMenuItems }}>
+              <Space style={{ cursor: 'pointer' }}>
+                <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#6366f1' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.2 }}>
+                  <Text strong>{user?.full_name || 'Chủ nhà'}</Text>
+                  <Text type="secondary" style={{ fontSize: 11, color: '#6366f1' }}>
+                    Chủ nhà Homestay
+                  </Text>
+                </div>
+              </Space>
+            </Dropdown>
           </Space>
         </Header>
 

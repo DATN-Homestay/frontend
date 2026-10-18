@@ -1,4 +1,4 @@
-import { Layout, Menu, Button, Space, Typography, Tag, Dropdown, Avatar } from 'antd';
+import { Layout, Menu, Button, Space, Typography, Dropdown, Avatar } from 'antd';
 import {
   HomeOutlined,
   CompassOutlined,
@@ -16,11 +16,50 @@ const { Title, Text } = Typography;
 export default function CustomerLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, role, switchRoleMock, logout } = useAuth();
+  const { user, isHost, isAdmin, logout } = useAuth();
 
   const menuItems = [
     { key: '/', icon: <HomeOutlined />, label: 'Khám phá Homestay' },
     { key: '/trips', icon: <CalendarOutlined />, label: 'Chuyến đi của tôi' },
+  ];
+
+  // Các mục menu theo vai trò của người dùng
+  const userMenuItems = [
+    { key: 'profile', icon: <UserOutlined />, label: 'Hồ sơ của tôi', onClick: () => navigate('/profile') },
+    { key: 'trips', icon: <CalendarOutlined />, label: 'Chuyến đi của tôi', onClick: () => navigate('/trips') },
+    ...(isHost
+      ? [
+          { type: 'divider' as const },
+          {
+            key: 'host-portal',
+            icon: <HomeOutlined style={{ color: '#6366f1' }} />,
+            label: <span style={{ color: '#6366f1', fontWeight: 600 }}>Kênh Chủ nhà (Host)</span>,
+            onClick: () => navigate('/host'),
+          },
+        ]
+      : []),
+    ...(isAdmin
+      ? [
+          { type: 'divider' as const },
+          {
+            key: 'admin-portal',
+            icon: <SwapOutlined style={{ color: '#ef4444' }} />,
+            label: <span style={{ color: '#ef4444', fontWeight: 600 }}>Trang Quản trị (Admin)</span>,
+            onClick: () => navigate('/admin'),
+          },
+        ]
+      : []),
+    { type: 'divider' as const },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: 'Đăng xuất',
+      danger: true,
+      onClick: async () => {
+        await logout();
+        navigate('/');
+      },
+    },
   ];
 
   return (
@@ -70,15 +109,27 @@ export default function CustomerLayout() {
         />
 
         <Space size="middle">
-          {/* Quick Role Switcher for pairwise test */}
-          <Tag color="cyan" style={{ cursor: 'pointer', padding: '4px 8px' }} onClick={() => switchRoleMock('HOST')}>
-            <SwapOutlined /> Đang là: <strong>{role}</strong> (Click đổi)
-          </Tag>
-
+          {/* Nút chuyển đổi vai trò: Chỉ tài khoản đã đăng ký làm Chủ nhà mới thấy nút chuyển Kênh Chủ nhà */}
           {user ? (
-            <Button type="default" onClick={() => navigate('/host')}>
-              Kênh Chủ nhà (Host)
-            </Button>
+            isHost ? (
+              <Button
+                type="primary"
+                ghost
+                icon={<HomeOutlined />}
+                onClick={() => navigate('/host')}
+                style={{ fontWeight: 600, borderColor: '#6366f1', color: '#6366f1' }}
+              >
+                Chuyển sang Kênh Chủ nhà
+              </Button>
+            ) : (
+              <Button
+                type="default"
+                style={{ borderColor: '#6366f1', color: '#6366f1', fontWeight: 600 }}
+                onClick={() => navigate('/auth/register?role=HOST')}
+              >
+                Đón khách (Trở thành Host)
+              </Button>
+            )
           ) : (
             <Button
               type="default"
@@ -90,28 +141,17 @@ export default function CustomerLayout() {
           )}
 
           {user ? (
-            <Dropdown
-              menu={{
-                items: [
-                  { key: 'profile', icon: <UserOutlined />, label: 'Hồ sơ của tôi', onClick: () => navigate('/profile') },
-                  { key: 'trips', icon: <CalendarOutlined />, label: 'Chuyến đi của tôi', onClick: () => navigate('/trips') },
-                  { type: 'divider' },
-                  {
-                    key: 'logout',
-                    icon: <LogoutOutlined />,
-                    label: 'Đăng xuất',
-                    danger: true,
-                    onClick: async () => {
-                      await logout();
-                      navigate('/');
-                    },
-                  },
-                ],
-              }}
-            >
+            <Dropdown menu={{ items: userMenuItems }}>
               <Space style={{ cursor: 'pointer' }}>
                 <Avatar src={user.avatar_url ?? undefined} icon={<UserOutlined />} style={{ backgroundColor: '#6366f1' }} />
-                <Text strong>{user.full_name}</Text>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.2 }}>
+                  <Text strong>{user.full_name}</Text>
+                  {isHost && (
+                    <Text type="secondary" style={{ fontSize: 11, color: '#6366f1' }}>
+                      Chủ nhà (Host)
+                    </Text>
+                  )}
+                </div>
               </Space>
             </Dropdown>
           ) : (

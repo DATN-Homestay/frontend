@@ -111,11 +111,16 @@ export default function AdminLayout() {
                         </Badge>
                         <Dropdown menu={{
                             items: [
-                                { key: 'profile', label: 'Hồ sơ cá nhân', onClick: () => navigate('/profile') },
+                                { key: 'profile', icon: <UserOutlined />, label: 'Hồ sơ cá nhân', onClick: () => navigate('/profile') },
+                                { type: 'divider' as const },
+                                { key: 'customer', icon: <HomeOutlined />, label: 'Về trang Khách hàng', onClick: () => navigate('/') },
+                                { key: 'host', icon: <SafetyCertificateOutlined />, label: 'Kênh Chủ nhà Homestay', onClick: () => navigate('/host') },
+                                { type: 'divider' as const },
                                 {
                                     key: 'logout',
                                     label: 'Đăng xuất',
                                     icon: <LogoutOutlined />,
+                                    danger: true,
                                     onClick: async () => {
                                         await logout();
                                         navigate('/auth/login');
