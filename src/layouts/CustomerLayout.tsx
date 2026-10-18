@@ -75,9 +75,19 @@ export default function CustomerLayout() {
             <SwapOutlined /> Đang là: <strong>{role}</strong> (Click đổi)
           </Tag>
 
-          <Button type="default" onClick={() => navigate('/host')}>
-            Chuyển sang Chế độ Chủ nhà (Host)
-          </Button>
+          {user ? (
+            <Button type="default" onClick={() => navigate('/host')}>
+              Kênh Chủ nhà (Host)
+            </Button>
+          ) : (
+            <Button
+              type="default"
+              style={{ borderColor: '#6366f1', color: '#6366f1', fontWeight: 600 }}
+              onClick={() => navigate('/auth/register?role=HOST')}
+            >
+              Đón khách (Trở thành Host)
+            </Button>
+          )}
 
           {user ? (
             <Dropdown

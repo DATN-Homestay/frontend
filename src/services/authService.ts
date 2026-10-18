@@ -44,6 +44,26 @@ export const authService = {
     return res.data;
   },
 
+  /** Gửi mã OTP về email trước khi đăng ký */
+  async sendRegisterOtp(email: string, full_name?: string): Promise<{ success: boolean; message: string; email: string }> {
+    const res = await apiClient<ApiResponse<{ success: boolean; message: string; email: string }>>('/auth/send-register-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, full_name }),
+      skipAuthRefresh: true,
+    });
+    return res.data;
+  },
+
+  /** Kiểm tra tính đúng đắn của mã OTP email đăng ký */
+  async verifyRegisterOtp(email: string, otp_code: string): Promise<{ success: boolean; message: string; verified: boolean }> {
+    const res = await apiClient<ApiResponse<{ success: boolean; message: string; verified: boolean }>>('/auth/verify-register-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp_code }),
+      skipAuthRefresh: true,
+    });
+    return res.data;
+  },
+
   /** Lấy lại hồ sơ từ server (kiểm tra token còn hiệu lực khi tải trang) */
   async fetchMe(): Promise<UserProfile> {
     const res = await apiClient<ApiResponse<UserProfile>>('/auth/me');

@@ -84,10 +84,10 @@ export const hostService = {
     });
   },
 
-  async sendOtp(homestayId: string) {
+  async sendOtp(homestayId: string, email?: string) {
     return await apiClient('/host/verify/send-otp', {
       method: 'POST',
-      body: JSON.stringify({ homestay_id: homestayId }),
+      body: JSON.stringify({ homestay_id: homestayId, email }),
     });
   },
 
