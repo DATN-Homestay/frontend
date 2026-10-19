@@ -13,6 +13,11 @@ export interface HomestayItem {
   source_url?: string;
   amenities_json?: Record<string, any>;
   rooms?: RoomItem[];
+  /** Backend trả kèm khi xem chi tiết (GET /homestays/:id); có thể thiếu hoặc null */
+  host?: { name?: string } | null;
+  images?: { image_url: string }[];
+  reviews?: any[];
+  absa_metric?: { ai_summary_vn?: string | null } | null;
 }
 
 export interface RoomDetailsJson {

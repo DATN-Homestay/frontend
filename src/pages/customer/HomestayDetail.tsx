@@ -53,21 +53,6 @@ import { getHomestayCoverImage, getAllHomestayImages } from '../../utils/imageHe
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
 
-interface ReviewItem {
-  id: string;
-  customer_name: string;
-  customer_avatar: string;
-  stay_date: string;
-  rating_overall: number;
-  comment: string;
-  photos?: string[];
-  created_at: string;
-  host_reply?: {
-    content: string;
-    created_at: string;
-  };
-}
-
 interface ChatMessage {
   id: string;
   sender: 'host' | 'customer';
@@ -943,7 +928,7 @@ export default function HomestayDetailPage() {
             title={
               <Space>
                 <StarFilled style={{ color: '#f59e0b' }} />
-                <span>Đánh giá từ khách hàng ({homestay.total_reviews || absaMetrics.total_reviews} lượt)</span>
+                <span>Đánh giá từ khách hàng ({homestay.total_reviews ?? 0} lượt)</span>
               </Space>
             }
             style={{ borderRadius: 16, marginBottom: 32 }}
@@ -1502,7 +1487,7 @@ export default function HomestayDetailPage() {
         destroyOnHidden
         styles={{
           body: { padding: 0, maxHeight: '90vh', overflowY: 'auto' },
-          content: { borderRadius: 12, overflow: 'hidden', padding: 0 },
+          container: { borderRadius: 12, overflow: 'hidden', padding: 0 },
         }}
         closeIcon={
           <div
