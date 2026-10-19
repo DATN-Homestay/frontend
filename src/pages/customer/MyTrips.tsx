@@ -1,53 +1,120 @@
-import { useState } from 'react';
-import { Card, Table, Tag, Button, Typography, Modal, Rate, Input, message } from 'antd';
-import { CheckCircleOutlined, ClockCircleOutlined, StarOutlined } from '@ant-design/icons';
-import type { CustomerBooking } from '../../types/customer';
+import { useEffect, useState } from 'react';
+import { App, Button, Card, Descriptions, Input, Modal, Rate, Select, Table, Tag, Typography } from 'antd';
+import { CheckCircleOutlined, StarOutlined } from '@ant-design/icons';
+import { customerService } from '../../services/customerService';
+import type { BookingDetail, BookingStatus, MyBookingItem } from '../../types/customer';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
+const money = (value: number) => `${value.toLocaleString('vi-VN')}đ`;
+
+const STATUS_TAG: Record<BookingStatus, { color: string; text: string }> = {
+  PENDING_PAYMENT: { color: 'orange', text: 'Chờ thanh toán' },
+  PAID_ESCROW: { color: 'blue', text: 'Đã thanh toán (Escrow)' },
+  CHECKED_IN: { color: 'cyan', text: 'Đang lưu trú' },
+  COMPLETED: { color: 'success', text: 'Đã hoàn thành' },
+  CANCELLED: { color: 'red', text: 'Đã hủy' },
+  DISPUTED: { color: 'volcano', text: 'Đang khiếu nại' },
+  EXPIRED: { color: 'default', text: 'Hết hạn giữ chỗ' },
+};
+
+/** Đếm ngược hạn thanh toán của đơn đang giữ chỗ */
+function HoldCountdown({ expiresAt }: { expiresAt: string }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const remaining = Math.max(0, new Date(expiresAt).getTime() - now);
+  if (remaining === 0) return <Text type="danger">Đã hết hạn giữ chỗ</Text>;
+
+  const minutes = Math.floor(remaining / 60000);
+  const seconds = Math.floor((remaining % 60000) / 1000);
+  return (
+    <Text type="warning">
+      Còn {minutes}:{String(seconds).padStart(2, '0')}
+    </Text>
+  );
+}
+
 export default function MyTripsPage() {
-  const [reviewModalOpen, setReviewModalOpen] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<CustomerBooking | null>(null);
-  const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState('');
+  const { message } = App.useApp();
 
-  // Mock list of trips
-  const trips: CustomerBooking[] = [
-    {
-      id: '1',
-      booking_code: 'BK202610168392',
-      room_name: 'Phòng Deluxe Hướng Đồi',
-      homestay_name: 'Mây Homestay Đà Lạt',
-      check_in_date: '2026-10-20',
-      check_out_date: '2026-10-22',
-      num_guests: 2,
-      total_amount: 1300000,
-      status: 'PAID_ESCROW',
-      created_at: '2026-10-16',
-    },
-    {
-      id: '2',
-      booking_code: 'BK202609012391',
-      room_name: 'Bungalow View Rừng Thông',
-      homestay_name: 'Pine Hill Retreat Sapa',
-      check_in_date: '2026-09-10',
-      check_out_date: '2026-09-12',
-      num_guests: 2,
-      total_amount: 1800000,
-      status: 'COMPLETED',
-      created_at: '2026-09-05',
-    },
-  ];
+  const [items, setItems] = useState<MyBookingItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [statusFilter, setStatusFilter] = useState<BookingStatus | undefined>();
+  const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [payingId, setPayingId] = useState<string | null>(null);
 
-  const handleOpenReview = (booking: CustomerBooking) => {
-    setSelectedBooking(booking);
-    setReviewModalOpen(true);
+  const [detail, setDetail] = useState<BookingDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  // Dùng chung cho các thao tác đổi bộ lọc / trang / tải lại: bật loading ở handler, không phải trong effect
+  const reload = (next: { page?: number; pageSize?: number; status?: BookingStatus | undefined } = {}) => {
+    setLoading(true);
+    if ('page' in next) setPage(next.page!);
+    if ('pageSize' in next) setPageSize(next.pageSize!);
+    if ('status' in next) setStatusFilter(next.status);
+    setReloadKey((k) => k + 1);
   };
 
+  useEffect(() => {
+    let cancelled = false;
+    customerService
+      .getMyBookings({ page, limit: pageSize, status: statusFilter })
+      .then((data) => {
+        if (cancelled) return;
+        setItems(data.items);
+        setTotal(data.meta.total);
+      })
+      .catch((err) => {
+        if (!cancelled) message.error(err instanceof Error ? err.message : 'Không tải được danh sách chuyến đi');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, pageSize, statusFilter, reloadKey, message]);
+
+  const payNow = async (id: string) => {
+    setPayingId(id);
+    try {
+      const link = await customerService.createPaymentUrl(id);
+      window.location.assign(link.payment_url);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Không thể tạo liên kết thanh toán');
+      reload(); // đơn có thể vừa hết hạn, tải lại để thấy trạng thái đúng
+      setPayingId(null);
+    }
+  };
+
+  const openDetail = async (id: string) => {
+    setDetailLoading(true);
+    setDetail(null);
+    try {
+      setDetail(await customerService.getBookingDetail(id));
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Không tải được chi tiết đơn');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  // ----- Đánh giá: backend chưa có API (GĐ7) nên giữ nguyên giao diện mô phỏng của nhóm -----
+  const [reviewTarget, setReviewTarget] = useState<MyBookingItem | null>(null);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
   const handleSendReview = () => {
     message.success('Đã gửi đánh giá thành công! Cảm ơn bạn đã chia sẻ.');
-    setReviewModalOpen(false);
+    setReviewTarget(null);
     setComment('');
   };
 
@@ -55,91 +122,135 @@ export default function MyTripsPage() {
     {
       title: 'Mã đơn',
       dataIndex: 'booking_code',
-      key: 'booking_code',
       render: (code: string) => <strong>{code}</strong>,
     },
     {
       title: 'Homestay & Phòng',
-      key: 'homestay',
-      render: (_: any, record: CustomerBooking) => (
+      render: (_: unknown, r: MyBookingItem) => (
         <div>
-          <Text strong>{record.homestay_name}</Text>
-          <Text type="secondary" style={{ display: 'block', fontSize: 13 }}>{record.room_name}</Text>
+          <Text strong>{r.homestay.name}</Text>
+          <Text type="secondary" style={{ display: 'block', fontSize: 13 }}>{r.room.room_name}</Text>
         </div>
       ),
     },
     {
       title: 'Thời gian lưu trú',
-      key: 'dates',
-      render: (_: any, record: CustomerBooking) => (
-        <span>{record.check_in_date} ➔ {record.check_out_date}</span>
+      render: (_: unknown, r: MyBookingItem) => (
+        <span>{r.check_in_date} ➔ {r.check_out_date}</span>
       ),
     },
     {
       title: 'Tổng tiền',
       dataIndex: 'total_amount',
-      key: 'total_amount',
-      render: (amount: number) => (
-        <strong style={{ color: '#6366f1' }}>{amount.toLocaleString('vi-VN')}đ</strong>
-      ),
+      render: (amount: number) => <strong style={{ color: '#6366f1' }}>{money(amount)}</strong>,
     },
     {
       title: 'Trạng thái',
       dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => {
-        if (status === 'PAID_ESCROW') {
-          return <Tag color="blue" icon={<ClockCircleOutlined />}>Đã thanh toán Escrow</Tag>;
-        }
-        if (status === 'COMPLETED') {
-          return <Tag color="success" icon={<CheckCircleOutlined />}>Đã hoàn thành</Tag>;
-        }
-        return <Tag>{status}</Tag>;
-      },
+      render: (status: BookingStatus, r: MyBookingItem) => (
+        <div>
+          <Tag color={STATUS_TAG[status].color} icon={status === 'COMPLETED' ? <CheckCircleOutlined /> : undefined}>
+            {STATUS_TAG[status].text}
+          </Tag>
+          {status === 'PENDING_PAYMENT' && r.expires_at && (
+            <div style={{ marginTop: 4, fontSize: 12 }}>
+              <HoldCountdown expiresAt={r.expires_at} />
+            </div>
+          )}
+        </div>
+      ),
     },
     {
       title: 'Thao tác',
-      key: 'action',
-      render: (_: any, record: CustomerBooking) => {
-        if (record.status === 'COMPLETED') {
-          return (
-            <Button
-              type="primary"
-              size="small"
-              icon={<StarOutlined />}
-              onClick={() => handleOpenReview(record)}
-            >
+      render: (_: unknown, r: MyBookingItem) => (
+        <div style={{ display: 'flex', gap: 8 }}>
+          {r.status === 'PENDING_PAYMENT' && (
+            <Button type="primary" size="small" loading={payingId === r.id} onClick={() => payNow(r.id)}>
+              Thanh toán ngay
+            </Button>
+          )}
+          {r.status === 'COMPLETED' && (
+            <Button type="primary" size="small" icon={<StarOutlined />} onClick={() => setReviewTarget(r)}>
               Đánh giá
             </Button>
-          );
-        }
-        return <Button size="small">Chi tiết</Button>;
-      },
+          )}
+          <Button size="small" onClick={() => openDetail(r.id)}>Chi tiết</Button>
+        </div>
+      ),
     },
   ];
 
   return (
     <div>
-      <Title level={2} style={{ marginBottom: 20 }}>Chuyến đi của tôi</Title>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+        <Title level={2} style={{ margin: 0 }}>Chuyến đi của tôi</Title>
+        <Select
+          allowClear
+          placeholder="Tất cả trạng thái"
+          style={{ width: 220 }}
+          value={statusFilter}
+          onChange={(value) => reload({ page: 1, status: value })}
+          options={(Object.keys(STATUS_TAG) as BookingStatus[]).map((s) => ({ value: s, label: STATUS_TAG[s].text }))}
+        />
+      </div>
 
       <Card style={{ borderRadius: 14, overflow: 'hidden' }}>
         <Table
-          dataSource={trips}
+          dataSource={items}
           columns={columns}
           rowKey="id"
+          loading={loading}
+          scroll={{ x: 860 }}
+          locale={{ emptyText: 'Bạn chưa có chuyến đi nào' }}
           pagination={{
-            pageSize: 5,
+            current: page,
+            pageSize,
+            total,
             showSizeChanger: true,
             pageSizeOptions: ['5', '10', '20'],
-            showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} chuyến đi`,
+            showTotal: (t, range) => `${range[0]}-${range[1]} của ${t} chuyến đi`,
+            onChange: (p, size) => reload({ page: size === pageSize ? p : 1, pageSize: size }),
           }}
         />
       </Card>
 
       <Modal
-        title={`Đánh giá kỳ nghỉ tại ${selectedBooking?.homestay_name}`}
-        open={reviewModalOpen}
-        onCancel={() => setReviewModalOpen(false)}
+        title="Chi tiết đơn đặt phòng"
+        open={detailLoading || !!detail}
+        loading={detailLoading}
+        onCancel={() => setDetail(null)}
+        footer={null}
+        width={640}
+      >
+        {detail && (
+          <Descriptions
+            column={1}
+            size="small"
+            bordered
+            items={[
+              { key: 'code', label: 'Mã đơn', children: <strong>{detail.booking_code}</strong> },
+              { key: 'status', label: 'Trạng thái', children: <Tag color={STATUS_TAG[detail.status].color}>{STATUS_TAG[detail.status].text}</Tag> },
+              { key: 'homestay', label: 'Homestay', children: `${detail.homestay.name} — ${detail.homestay.address}, ${detail.homestay.city}` },
+              { key: 'room', label: 'Phòng', children: detail.room.room_name },
+              { key: 'dates', label: 'Lưu trú', children: `${detail.check_in_date} ➔ ${detail.check_out_date} (${detail.nights} đêm, ${detail.num_guests} khách)` },
+              { key: 'total', label: 'Tổng tiền', children: <strong>{money(detail.total_amount)}</strong> },
+              { key: 'policy', label: 'Chính sách hủy', children: detail.homestay.cancellation_policy },
+              ...(detail.customer_note ? [{ key: 'note', label: 'Ghi chú', children: detail.customer_note }] : []),
+              ...(detail.escrow_status ? [{ key: 'escrow', label: 'Ký quỹ Escrow', children: detail.escrow_status }] : []),
+              ...detail.payments.map((p) => ({
+                key: `pay-${p.id}`,
+                label: `Thanh toán #${p.id}`,
+                children: `${money(p.amount)} — ${p.method} — ${p.status}${p.transaction_code ? ` (Mã GD ${p.transaction_code})` : ''}`,
+              })),
+            ]}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        title={`Đánh giá kỳ nghỉ tại ${reviewTarget?.homestay.name ?? ''}`}
+        open={!!reviewTarget}
+        onCancel={() => setReviewTarget(null)}
         onOk={handleSendReview}
         okText="Gửi đánh giá"
         cancelText="Hủy"

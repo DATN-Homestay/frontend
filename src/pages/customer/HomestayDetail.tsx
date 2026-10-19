@@ -259,8 +259,12 @@ export default function HomestayDetailPage() {
       message.warning('Vui lòng chọn một loại phòng');
       return;
     }
-    const checkIn = dateRange?.[0] || '2026-10-20';
-    const checkOut = dateRange?.[1] || '2026-10-22';
+    if (!dateRange?.[0] || !dateRange?.[1]) {
+      message.warning('Vui lòng chọn ngày nhận phòng và trả phòng');
+      return;
+    }
+    const checkIn = dateRange[0];
+    const checkOut = dateRange[1];
     navigate(
       `/checkout?roomId=${selectedRoom.id}&homestayId=${homestay?.id}&checkIn=${checkIn}&checkOut=${checkOut}`,
     );
