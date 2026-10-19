@@ -254,7 +254,12 @@ export default function HostPayoutsPage() {
           dataSource={balance?.eligible_bookings || []}
           columns={eligibleColumns}
           rowKey="id"
-          pagination={false}
+          pagination={{
+            pageSize: 5,
+            showSizeChanger: true,
+            pageSizeOptions: ['5', '10', '20'],
+            showTotal: (total) => `Tổng ${total} đơn`,
+          }}
           size="middle"
           loading={loading}
         />
@@ -266,7 +271,12 @@ export default function HostPayoutsPage() {
           dataSource={payoutHistory}
           columns={historyColumns}
           rowKey="id"
-          pagination={false}
+          pagination={{
+            pageSize: 5,
+            showSizeChanger: true,
+            pageSizeOptions: ['5', '10', '20'],
+            showTotal: (total) => `Tổng ${total} giao dịch`,
+          }}
         />
       </Card>
 

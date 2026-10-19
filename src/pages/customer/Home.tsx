@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Button,
   Card,
@@ -11,6 +11,7 @@ import {
   DatePicker,
   Popover,
   Select,
+  Pagination,
 } from 'antd';
 import {
   SearchOutlined,
@@ -57,6 +58,26 @@ export default function HomePage() {
     children: 0,
     rooms: 1,
   });
+
+  // PHÂN TRANG (PAGINATION) CHỐNG LAG KHI RENDER DANH SÁCH HOMESTAY LỚN
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(12);
+
+  const paginatedHomestays = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredHomestays.slice(start, start + pageSize);
+  }, [filteredHomestays, currentPage, pageSize]);
+
+  const handlePageChange = (page: number, size?: number) => {
+    setCurrentPage(page);
+    if (size && size !== pageSize) {
+      setPageSize(size);
+    }
+    const target = document.getElementById('all-homestays-section');
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   useEffect(() => {
     loadHomestays();
@@ -157,6 +178,7 @@ export default function HomePage() {
     }
 
     setFilteredHomestays(result);
+    setCurrentPage(1);
   };
 
   const handleSearchSubmit = () => {
@@ -851,7 +873,7 @@ export default function HomePage() {
       {/* ======================================================== */}
       {/* PHẦN 2: KHÁM PHÁ TẤT CẢ CHỖ NGHỈ TẠI ĐỊA ĐIỂM */}
       {/* ======================================================== */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+      <div id="all-homestays-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <Title level={3} style={{ margin: 0, color: '#0f172a' }}>
             {!searchCity || searchCity === 'Tất cả điểm đến'
@@ -913,24 +935,26 @@ export default function HomePage() {
           </Button>
         </div>
       ) : (
-        <Row gutter={[24, 24]}>
-          {filteredHomestays.map((h) => {
-            const firstRoom = h.rooms?.[0];
-            const coverImage = getHomestayCoverImage(h);
-            const price = Number(firstRoom?.base_price) || 600000;
+        <>
+          <Row gutter={[24, 24]}>
+            {paginatedHomestays.map((h) => {
+              const firstRoom = h.rooms?.[0];
+              const coverImage = getHomestayCoverImage(h);
+              const price = Number(firstRoom?.base_price) || 600000;
 
-            return (
-              <Col xs={24} sm={12} md={8} lg={6} key={h.id}>
-                <Card
-                  hoverable
-                  onClick={() => navigate(`/homestay/${h.id}`, { state: { coverImage } })}
-                  cover={
-                    <div style={{ position: 'relative', height: 210, overflow: 'hidden' }}>
-                      <img
-                        alt={h.name}
-                        src={coverImage}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
+              return (
+                <Col xs={24} sm={12} md={8} lg={6} key={h.id}>
+                  <Card
+                    hoverable
+                    onClick={() => navigate(`/homestay/${h.id}`, { state: { coverImage } })}
+                    cover={
+                      <div style={{ position: 'relative', height: 210, overflow: 'hidden' }}>
+                        <img
+                          alt={h.name}
+                          src={coverImage}
+                          loading="lazy"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
                       {h.is_claimed === 1 ? (
                         <Tag
                           color="success"
@@ -1041,7 +1065,40 @@ export default function HomePage() {
               </Col>
             );
           })}
-        </Row>
+          </Row>
+
+          {/* THANH PHÂN TRANG CHỐNG LAG */}
+          {filteredHomestays.length > pageSize && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginTop: 40,
+                padding: '16px 24px',
+                background: '#ffffff',
+                borderRadius: 14,
+                boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
+                border: '1px solid #e2e8f0',
+              }}
+            >
+              <Pagination
+                current={currentPage}
+                pageSize={pageSize}
+                total={filteredHomestays.length}
+                pageSizeOptions={['12', '24', '48']}
+                showSizeChanger
+                showQuickJumper
+                showTotal={(total, range) => (
+                  <Text type="secondary" style={{ fontSize: 13, marginRight: 8 }}>
+                    Hiển thị <strong>{range[0]}-{range[1]}</strong> trên tổng số <strong>{total}</strong> homestay
+                  </Text>
+                )}
+                onChange={handlePageChange}
+              />
+            </div>
+          )}
+        </>
       )}
     </div>
   );

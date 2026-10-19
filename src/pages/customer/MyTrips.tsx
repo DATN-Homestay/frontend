@@ -123,7 +123,17 @@ export default function MyTripsPage() {
       <Title level={2} style={{ marginBottom: 20 }}>Chuyến đi của tôi</Title>
 
       <Card style={{ borderRadius: 14, overflow: 'hidden' }}>
-        <Table dataSource={trips} columns={columns} rowKey="id" pagination={false} />
+        <Table
+          dataSource={trips}
+          columns={columns}
+          rowKey="id"
+          pagination={{
+            pageSize: 5,
+            showSizeChanger: true,
+            pageSizeOptions: ['5', '10', '20'],
+            showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} chuyến đi`,
+          }}
+        />
       </Card>
 
       <Modal

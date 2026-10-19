@@ -54,7 +54,18 @@ export default function HostVerificationsPage() {
     return (
         <div>
             <h2 style={{ marginBottom: 16 }}>Duyệt hồ sơ KYC Host</h2>
-            <Table rowKey="id" loading={loading} columns={columns} dataSource={data} />
+            <Table
+                rowKey="id"
+                loading={loading}
+                columns={columns}
+                dataSource={data}
+                pagination={{
+                    pageSize: 10,
+                    showSizeChanger: true,
+                    pageSizeOptions: ['10', '20', '50'],
+                    showTotal: (total) => `Tổng ${total} hồ sơ KYC`,
+                }}
+            />
 
             <Modal
                 title={`Duyệt hồ sơ #${selected?.id} - ${selected?.hostName}`}

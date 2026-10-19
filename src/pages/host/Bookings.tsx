@@ -373,7 +373,12 @@ export default function HostBookingsPage() {
           columns={columns}
           rowKey="id"
           loading={loading}
-          pagination={{ pageSize: 8 }}
+          pagination={{
+            pageSize: 8,
+            showSizeChanger: true,
+            pageSizeOptions: ['8', '16', '32'],
+            showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} đơn đặt phòng`,
+          }}
         />
       </Card>
     </div>

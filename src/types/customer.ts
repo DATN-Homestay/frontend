@@ -10,8 +10,19 @@ export interface HomestayItem {
   total_reviews: number;
   is_claimed: number;
   cancellation_policy: string;
+  source_url?: string;
   amenities_json?: Record<string, any>;
   rooms?: RoomItem[];
+}
+
+export interface RoomDetailsJson {
+  badges?: string[];
+  bed_rating_text?: string;
+  bathroom_amenities?: string[];
+  views?: string[];
+  room_amenities?: string[];
+  smoking_policy?: string;
+  facilities_grouped?: Record<string, string[]>;
 }
 
 export interface RoomItem {
@@ -22,6 +33,8 @@ export interface RoomItem {
   base_price: number;
   bed_info?: string;
   area_sqm?: number;
+  description?: string;
+  room_details_json?: RoomDetailsJson;
   amenities?: string[];
   images?: RoomImageItem[];
 }

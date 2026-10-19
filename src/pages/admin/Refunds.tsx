@@ -56,7 +56,18 @@ export default function RefundsPage() {
     return (
         <div>
             <h2 style={{ marginBottom: 16 }}>Yêu cầu hoàn tiền</h2>
-            <Table rowKey="id" loading={loading} columns={columns} dataSource={data} />
+            <Table
+                rowKey="id"
+                loading={loading}
+                columns={columns}
+                dataSource={data}
+                pagination={{
+                    pageSize: 10,
+                    showSizeChanger: true,
+                    pageSizeOptions: ['10', '20', '50'],
+                    showTotal: (total) => `Tổng ${total} yêu cầu hoàn tiền`,
+                }}
+            />
 
             <Modal
                 title={`Xử lý hoàn tiền #${selected?.id}`}

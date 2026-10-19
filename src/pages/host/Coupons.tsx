@@ -190,7 +190,18 @@ export default function HostCouponsPage() {
       </div>
 
       <Card style={{ borderRadius: 14 }}>
-        <Table dataSource={Array.isArray(coupons) ? coupons : []} columns={columns} rowKey="id" loading={loading} />
+        <Table
+          dataSource={Array.isArray(coupons) ? coupons : []}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={{
+            pageSize: 8,
+            showSizeChanger: true,
+            pageSizeOptions: ['8', '16', '32'],
+            showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} mã ưu đãi`,
+          }}
+        />
       </Card>
 
       {/* CREATE COUPON MODAL */}
