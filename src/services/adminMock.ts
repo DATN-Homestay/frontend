@@ -247,4 +247,21 @@ export const adminApi = {
         await delay();
         return mockAuditLogs;
     },
+
+    crawlBookingHomestays: async (city: string, limit: number) => {
+        const token = localStorage.getItem('stayai_access_token');
+        const res = await fetch('http://localhost:3000/api/v1/admin/sync/crawl-booking-homestays', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ city, limit }),
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.message || 'Lỗi khi cào dữ liệu từ RapidAPI');
+        }
+        return await res.json();
+    },
 };
