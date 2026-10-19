@@ -69,3 +69,113 @@ export interface ReviewSubmission {
   comment: string;
   photos?: string[];
 }
+
+// =========================================================
+// ĐẶT PHÒNG & THANH TOÁN (khớp API backend /bookings, /payments)
+// =========================================================
+
+export type BookingStatus =
+  | 'PENDING_PAYMENT'
+  | 'PAID_ESCROW'
+  | 'CHECKED_IN'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'DISPUTED'
+  | 'EXPIRED';
+
+/** data của POST /bookings/quote */
+export interface BookingQuote {
+  available: boolean;
+  unavailable_dates: string[];
+  room_id: string;
+  room_name: string;
+  homestay: { id: string; name: string };
+  check_in_date: string;
+  check_out_date: string;
+  nights: number;
+  num_guests: number;
+  nightly_prices: { date: string; price: number }[];
+  room_subtotal: number;
+  discount_amount: number;
+  total_amount: number;
+  cancellation_policy: string;
+  is_dropship: boolean;
+}
+
+/** data của POST /bookings */
+export interface CreatedBooking {
+  id: string;
+  booking_code: string;
+  status: BookingStatus;
+  room_name: string;
+  homestay_name: string;
+  check_in_date: string;
+  check_out_date: string;
+  nights: number;
+  num_guests: number;
+  total_amount: number;
+  is_dropship: boolean;
+  payment_deadline: string;
+}
+
+/** data của POST /bookings/:id/payment-url */
+export interface PaymentLink {
+  payment_id: string;
+  booking_code: string;
+  amount: number;
+  payment_deadline: string;
+  payment_url: string;
+}
+
+/** data của GET /payments/:id */
+export interface PaymentStatusInfo {
+  id: string;
+  booking_id: string;
+  booking_code: string;
+  booking_status: BookingStatus;
+  amount: number;
+  status: 'PENDING' | 'SUCCESS' | 'FAILED';
+  paid_at: string | null;
+}
+
+/** Một dòng của GET /users/me/bookings */
+export interface MyBookingItem {
+  id: string;
+  booking_code: string;
+  status: BookingStatus;
+  homestay: { id: string; name: string; city: string };
+  room: { id: string; room_name: string };
+  check_in_date: string;
+  check_out_date: string;
+  total_amount: number;
+  /** Hạn thanh toán, chỉ có khi đơn đang PENDING_PAYMENT */
+  expires_at: string | null;
+  created_at: string;
+}
+
+export interface Paginated<T> {
+  items: T[];
+  meta: { page: number; limit: number; total: number; total_pages: number };
+}
+
+/** data của GET /bookings/:id */
+export interface BookingDetail {
+  id: string;
+  booking_code: string;
+  status: BookingStatus;
+  is_dropship: boolean;
+  homestay: { id: string; name: string; address: string; city: string; cancellation_policy: string };
+  room: { id: string; room_name: string };
+  check_in_date: string;
+  check_out_date: string;
+  nights: number;
+  num_guests: number;
+  customer_note: string | null;
+  room_subtotal: number;
+  discount_amount: number;
+  total_amount: number;
+  payment_deadline: string | null;
+  payments: { id: string; amount: number; method: string; status: string; transaction_code: string | null; created_at: string }[];
+  escrow_status: string | null;
+  created_at: string;
+}

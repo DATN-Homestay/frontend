@@ -20,6 +20,8 @@ import HomestayDetailPage from './pages/customer/HomestayDetail';
 import CheckoutPage from './pages/customer/Checkout';
 import MyTripsPage from './pages/customer/MyTrips';
 import ProfilePage from './pages/account/Profile';
+import PaymentResultPage from './pages/customer/PaymentResult';
+import RequireAuth from './components/RequireAuth';
 
 // Host Pages (Member 2)
 import HostDashboardPage from './pages/host/Dashboard';
@@ -86,8 +88,9 @@ export default function App() {
             <Route path="/" element={<CustomerLayout />}>
               <Route index element={<HomePage />} />
               <Route path="homestay/:id" element={<HomestayDetailPage />} />
-              <Route path="checkout" element={<CheckoutPage />} />
-              <Route path="trips" element={<MyTripsPage />} />
+              <Route path="checkout" element={<RequireAuth><CheckoutPage /></RequireAuth>} />
+              <Route path="payment-result" element={<RequireAuth><PaymentResultPage /></RequireAuth>} />
+              <Route path="trips" element={<RequireAuth><MyTripsPage /></RequireAuth>} />
               <Route path="profile" element={<ProfilePage />} />
             </Route>
 
