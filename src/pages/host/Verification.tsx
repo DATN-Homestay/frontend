@@ -104,14 +104,14 @@ export default function VerificationPage() {
     try {
       const res = await hostService.getVerificationStatus(homestayId);
       if (res?.data) {
-        setTotalScore(res.data.trust_score || 0);
-        if (res.data.is_verified) {
+        setTotalScore(res.data.total_score || 0);
+        if (res.data.status === 'APPROVED') {
           setCurrentStep(3);
-        } else if (res.data.gps_verified) {
+        } else if (res.data.steps?.gps?.verified) {
           setCurrentStep(3);
-        } else if (res.data.phone_verified) {
+        } else if (res.data.steps?.otp?.verified) {
           setCurrentStep(2);
-        } else if (res.data.cccd_verified) {
+        } else if (res.data.steps?.cccd?.verified) {
           setCurrentStep(1);
         }
       }

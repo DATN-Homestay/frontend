@@ -1,6 +1,6 @@
 import { Table, Tag, Button, Space, Image, message, Modal, Card, Row, Col, Select, Typography, Alert } from 'antd';
 import { useEffect, useState } from 'react';
-import { CloudDownloadOutlined, CheckCircleOutlined, GlobalOutlined, RocketOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, GlobalOutlined, RocketOutlined } from '@ant-design/icons';
 import { adminApi } from '../../services/adminMock';
 import type { HomestayPending } from '../../types/admin';
 
@@ -206,7 +206,18 @@ export default function HomestaysPage() {
 
       {/* DANH SÁCH HOMESTAY PENDING */}
       <Card title="Danh Sách Homestay Đăng Ký Chờ Phê Duyệt" style={{ borderRadius: 14 }}>
-        <Table rowKey="id" loading={loading} columns={columns} dataSource={data} />
+        <Table
+          rowKey="id"
+          loading={loading}
+          columns={columns}
+          dataSource={data}
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50'],
+            showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} homestay chờ duyệt`,
+          }}
+        />
       </Card>
     </div>
   );

@@ -1,7 +1,7 @@
 import type { HomestayItem, RoomItem } from '../types/customer';
 
 export const DEFAULT_HOMESTAY_COVER =
-  'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1000&auto=format&fit=crop&q=80';
+  'https://cf.bstatic.com/xdata/images/hotel/max1024x768/480065094.jpg?k=5c78f14068b5558e8071869e96f8a49ba341852926715fbc35dc7452dbe34645&o=';
 
 /**
  * Lấy ảnh bìa đại diện duy nhất, nhất quán 100% giữa Homepage và HomestayDetail.

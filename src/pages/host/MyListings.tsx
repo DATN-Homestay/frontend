@@ -80,6 +80,7 @@ export default function MyListingsPage() {
   const loadListings = async () => {
     setLoading(true);
     try {
+      const res = await hostService.getMyListings();
       const list = Array.isArray(res) ? res : (res as any)?.data || [];
       setData(list);
     } catch {
@@ -436,7 +437,13 @@ export default function MyListingsPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <Text strong style={{ color: '#6b21a8' }}>Danh Sách Phòng thuộc {homestay.name}</Text>
         </div>
-        <Table dataSource={rooms} columns={roomCols} rowKey="id" pagination={false} size="small" />
+        <Table
+          dataSource={rooms}
+          columns={roomCols}
+          rowKey="id"
+          pagination={rooms.length > 5 ? { pageSize: 5, size: 'small', showSizeChanger: false } : false}
+          size="small"
+        />
       </div>
     );
   };
@@ -470,6 +477,12 @@ export default function MyListingsPage() {
           rowKey="id"
           loading={loading}
           expandable={{ expandedRowRender: expandedRoomRow }}
+          pagination={{
+            pageSize: 8,
+            showSizeChanger: true,
+            pageSizeOptions: ['8', '16', '32'],
+            showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} chỗ nghỉ`,
+          }}
         />
       </Card>
 
