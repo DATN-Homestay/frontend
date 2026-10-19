@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Card,
   Row,
@@ -33,9 +33,10 @@ import {
   TeamOutlined,
   HomeOutlined,
 } from '@ant-design/icons';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { customerService } from '../../services/customerService';
 import type { HomestayItem, RoomItem } from '../../types/customer';
+import { getHomestayCoverImage, getAllHomestayImages } from '../../utils/imageHelper';
 
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -65,10 +66,14 @@ interface ChatMessage {
 export default function HomestayDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const initialCoverFromState = (location.state as any)?.coverImage;
+
   const [homestay, setHomestay] = useState<HomestayItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedRoom, setSelectedRoom] = useState<RoomItem | null>(null);
   const [dateRange, setDateRange] = useState<[string, string] | null>(null);
+  const [activeImage, setActiveImage] = useState<string | null>(initialCoverFromState || null);
 
   // CHAT WITH HOST STATE
   const [chatOpen, setChatOpen] = useState(false);
@@ -248,11 +253,13 @@ export default function HomestayDetailPage() {
     ];
 
     try {
-      const res = await customerService.getHomestayDetail(homestayId);
+      const res: any = await customerService.getHomestayDetail(homestayId);
+      const data = res?.data ?? res;
       // If backend returned homestay with rooms, enrich with mockRooms if empty
-      const rooms = res?.rooms?.length ? res.rooms : mockRooms;
-      setHomestay({ ...res, rooms });
+      const rooms = data?.rooms?.length ? data.rooms : mockRooms;
+      setHomestay({ ...data, rooms });
       setSelectedRoom(rooms[0]);
+      setActiveImage(null);
     } catch {
       // Mock fallback
       setHomestay({
@@ -270,6 +277,7 @@ export default function HomestayDetailPage() {
         rooms: mockRooms,
       });
       setSelectedRoom(mockRooms[0]);
+      setActiveImage(null);
     } finally {
       setLoading(false);
     }
@@ -287,6 +295,21 @@ export default function HomestayDetailPage() {
     );
   };
 
+  // Ảnh bìa chính: luôn ưu tiên ảnh truyền từ trang chủ hoặc ảnh tính toán chuẩn xác từ helper
+  const primaryCover = useMemo(() => {
+    return initialCoverFromState || getHomestayCoverImage(homestay);
+  }, [homestay, initialCoverFromState]);
+
+  const coverImage = activeImage || primaryCover;
+
+  // Thu thập toàn bộ ảnh thật của homestay từ các phòng đã cào về Booking.com
+  const allImages = useMemo(() => {
+    return getAllHomestayImages(homestay, coverImage);
+  }, [homestay, coverImage]);
+
+  const secondImage = allImages[1] || allImages[0] || coverImage;
+  const thirdImage = allImages[2] || allImages[1] || coverImage;
+
   if (loading || !homestay) {
     return (
       <div style={{ textAlign: 'center', padding: '100px 0' }}>
@@ -303,14 +326,39 @@ export default function HomestayDetailPage() {
 
       {/* HEADER INFO */}
       <div style={{ marginBottom: 20 }}>
-        <Space size="small" style={{ marginBottom: 8 }}>
-          {homestay.is_claimed === 1 && (
+        <Space size="small" style={{ marginBottom: 8, flexWrap: 'wrap' }}>
+          {homestay.is_claimed === 1 ? (
             <Tag color="success" icon={<CheckCircleOutlined />}>
               Chính chủ eKYC 4 Lớp
             </Tag>
+          ) : (
+            <Tag color="blue">Booking.com Verified</Tag>
           )}
           <Tag color="blue">{homestay.city}</Tag>
           <Tag color="purple">Bảo vệ tiền đặt cọc Escrow 24h</Tag>
+          {homestay.source_url && (
+            <a
+              href={homestay.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                fontSize: 12,
+                color: '#2563eb',
+                fontWeight: 600,
+                background: '#eff6ff',
+                padding: '2px 10px',
+                borderRadius: 6,
+                border: '1px solid #bfdbfe',
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                marginLeft: 4,
+              }}
+            >
+              🌐 Xem trang gốc trên Booking.com
+            </a>
+          )}
         </Space>
         <Title level={2} style={{ margin: 0 }}>
           {homestay.name}
@@ -321,36 +369,97 @@ export default function HomestayDetailPage() {
         </Text>
       </div>
 
-      {/* GALLERY COVER */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 32 }}>
-        <Col span={16}>
-          <div style={{ height: 420, borderRadius: 16, overflow: 'hidden' }}>
-            <img
-              src="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200"
-              alt="Cover"
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-          </div>
-        </Col>
-        <Col span={8}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, height: 420 }}>
-            <div style={{ flex: 1, borderRadius: 16, overflow: 'hidden' }}>
+      {/* GALLERY COVER - HIỂN THỊ ĐÚNG ẢNH THẬT TỪ BOOKING.COM */}
+      <Image.PreviewGroup>
+        <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+          <Col span={16}>
+            <div style={{ height: 420, borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
+              <Image
+                src={coverImage}
+                alt="Cover"
+                style={{ width: '100%', height: 420, objectFit: 'cover' }}
+              />
+              <Tag
+                color="default"
+                style={{
+                  position: 'absolute',
+                  bottom: 14,
+                  left: 14,
+                  fontWeight: 600,
+                  background: 'rgba(15, 23, 42, 0.75)',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                }}
+              >
+                📸 {allImages.length || 1} ảnh thật từ Booking.com
+              </Tag>
+            </div>
+          </Col>
+          <Col span={8}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, height: 420 }}>
+              <div
+                style={{ flex: 1, borderRadius: 16, overflow: 'hidden', cursor: 'pointer' }}
+                onClick={() => setActiveImage(secondImage)}
+              >
+                <Image
+                  src={secondImage}
+                  alt="Room"
+                  style={{ width: '100%', height: 202, objectFit: 'cover' }}
+                />
+              </div>
+              <div
+                style={{ flex: 1, borderRadius: 16, overflow: 'hidden', cursor: 'pointer' }}
+                onClick={() => setActiveImage(thirdImage)}
+              >
+                <Image
+                  src={thirdImage}
+                  alt="View"
+                  style={{ width: '100%', height: 202, objectFit: 'cover' }}
+                />
+              </div>
+            </div>
+          </Col>
+        </Row>
+      </Image.PreviewGroup>
+
+      {/* THUMBNAILS BAR CHO TẤT CẢ ẢNH THẬT */}
+      {allImages.length > 3 && (
+        <div
+          style={{
+            display: 'flex',
+            gap: 10,
+            overflowX: 'auto',
+            paddingBottom: 12,
+            marginBottom: 24,
+          }}
+        >
+          {allImages.map((imgUrl, idx) => (
+            <div
+              key={idx}
+              onClick={() => setActiveImage(imgUrl)}
+              style={{
+                width: 88,
+                height: 60,
+                borderRadius: 8,
+                overflow: 'hidden',
+                flexShrink: 0,
+                cursor: 'pointer',
+                border: coverImage === imgUrl ? '2px solid #6366f1' : '1px solid #cbd5e1',
+                opacity: coverImage === imgUrl ? 1 : 0.7,
+                transition: 'all 0.2s',
+              }}
+            >
               <img
-                src="https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600"
-                alt="Room"
+                src={imgUrl}
+                alt={`Photo ${idx + 1}`}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
             </div>
-            <div style={{ flex: 1, borderRadius: 16, overflow: 'hidden' }}>
-              <img
-                src="https://images.unsplash.com/photo-1590490360182-c33d57733427?w=600"
-                alt="View"
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            </div>
-          </div>
-        </Col>
-      </Row>
+          ))}
+        </div>
+      )}
 
       {/* DETAILS & BOOKING CARD */}
       <Row gutter={[32, 32]}>
@@ -378,7 +487,12 @@ export default function HomestayDetailPage() {
                 return (
                   <div
                     key={r.id}
-                    onClick={() => setSelectedRoom(r)}
+                    onClick={() => {
+                      setSelectedRoom(r);
+                      if (r.images?.[0]?.image_url) {
+                        setActiveImage(r.images[0].image_url);
+                      }
+                    }}
                     style={{
                       padding: 18,
                       borderRadius: 14,
