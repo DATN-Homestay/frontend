@@ -70,9 +70,11 @@ export default function DropshipOrdersPage() {
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const res = await apiClient.get<any>('/admin/dropship/orders');
-      if (res.data) {
+      const res = await apiClient<any>('/admin/dropship/orders');
+      if (res?.data) {
         setData(res.data);
+      } else if (res?.items) {
+        setData(res);
       }
     } catch {
       setData({
@@ -133,7 +135,7 @@ export default function DropshipOrdersPage() {
   const handleRetry = async (orderId: string) => {
     setRetryingId(orderId);
     try {
-      await apiClient.post(`/admin/dropship/retry/${orderId}`);
+      await apiClient(`/admin/dropship/retry/${orderId}`, { method: 'POST' });
       message.success('Đã kích hoạt đặt phòng B2B Demand API thành công');
       await fetchOrders();
     } catch (err: any) {
