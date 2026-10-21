@@ -1,4 +1,8 @@
 {
+  "framework": "vite",
+  "installCommand": "npm install --include=dev",
+  "buildCommand": "npx --yes tsc -b && npx --yes vite build",
+  "outputDirectory": "dist",
   "rewrites": [
     {
       "source": "/(.*)",
