@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Card, Segmented, Tag, Tooltip, Typography, message } from 'antd';
-import { GlobalOutlined, ApiOutlined, LinkOutlined, InfoCircleOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { Card, Segmented, Tag, Typography, message } from 'antd';
+import { GlobalOutlined, ApiOutlined, LinkOutlined, ThunderboltOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
 

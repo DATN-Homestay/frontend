@@ -13,6 +13,9 @@ export interface HomestayItem {
   source_url?: string;
   amenities_json?: Record<string, any>;
   rooms?: RoomItem[];
+  host?: { id?: string; name?: string; phone?: string; avatar_url?: string };
+  reviews?: any[];
+  images?: { id?: string; image_url: string }[];
 }
 
 export interface RoomDetailsJson {
