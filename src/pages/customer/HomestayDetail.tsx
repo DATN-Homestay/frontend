@@ -13,7 +13,6 @@ import {
   Divider,
   Avatar,
   Rate,
-  Progress,
   Image,
   Drawer,
   Input,
@@ -26,7 +25,6 @@ import {
   CheckCircleOutlined,
   SafetyCertificateOutlined,
   ArrowLeftOutlined,
-  RobotOutlined,
   UserOutlined,
   CheckOutlined,
   MessageOutlined,
@@ -54,7 +52,7 @@ import { getStoredOtaMode, type OtaMode } from '../../components/OtaModeSwitcher
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
 
-interface ReviewItem {
+export interface ReviewItem {
   id: string;
   customer_name: string;
   customer_avatar: string;
@@ -965,7 +963,7 @@ export default function HomestayDetailPage() {
             title={
               <Space>
                 <StarFilled style={{ color: '#f59e0b' }} />
-                <span>Đánh giá từ khách hàng ({homestay.total_reviews || absaMetrics.total_reviews} lượt)</span>
+                <span>Đánh giá từ khách hàng ({homestay.total_reviews || 0} lượt)</span>
               </Space>
             }
             style={{ borderRadius: 16, marginBottom: 32 }}
@@ -1436,7 +1434,6 @@ export default function HomestayDetailPage() {
         destroyOnHidden
         styles={{
           body: { padding: 0, maxHeight: '90vh', overflowY: 'auto' },
-          content: { borderRadius: 12, overflow: 'hidden', padding: 0 },
         }}
         closeIcon={
           <div
@@ -1461,8 +1458,8 @@ export default function HomestayDetailPage() {
         {activeDetailRoom && (() => {
           const room = activeDetailRoom;
           const roomPhotos = (room.images && room.images.length > 0)
-            ? room.images.map((img) => img.image_url)
-            : (homestay?.images?.map((img) => img.image_url) || [getHomestayCoverImage(homestay)]);
+            ? room.images.map((img: any) => img.image_url)
+            : (homestay?.images?.map((img: any) => img.image_url) || [getHomestayCoverImage(homestay)]);
 
           const details = room.room_details_json || {};
           const badges = details.badges || [
@@ -1636,7 +1633,7 @@ export default function HomestayDetailPage() {
                         marginBottom: 12,
                       }}
                     >
-                      {roomPhotos.map((_, idx) => (
+                      {roomPhotos.map((_: any, idx: number) => (
                         <div
                           key={idx}
                           onClick={() => setModalActiveImgIndex(idx)}
@@ -1663,7 +1660,7 @@ export default function HomestayDetailPage() {
                       paddingTop: 2,
                     }}
                   >
-                    {roomPhotos.map((photo, idx) => {
+                    {roomPhotos.map((photo: any, idx: number) => {
                       const isActive = modalActiveImgIndex === idx;
                       return (
                         <div

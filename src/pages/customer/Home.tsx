@@ -24,7 +24,6 @@ import {
   MinusOutlined,
   PlusOutlined,
   HomeOutlined,
-  FireOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { customerService } from '../../services/customerService';
