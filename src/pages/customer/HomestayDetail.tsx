@@ -1079,108 +1079,6 @@ export default function HomestayDetailPage() {
 
             <Divider style={{ margin: '24px 0' }} />
 
-            {/* AI ABSA INSIGHT BANNER */}
-            <div
-              style={{
-                background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
-                padding: '20px',
-                borderRadius: 14,
-                border: '1px solid #c4b5fd',
-                marginBottom: 24,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 8,
-                    background: '#6366f1',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#fff',
-                    fontSize: 16,
-                  }}
-                >
-                  <RobotOutlined />
-                </div>
-                <div>
-                  <Text strong style={{ color: '#4338ca', fontSize: 15 }}>
-                    AI Tóm tắt Đánh giá Đa khía cạnh (ABSA Insight)
-                  </Text>
-                  <Tag color="purple" style={{ marginLeft: 8 }}>
-                    Dữ liệu thực tế Booking.com
-                  </Tag>
-                </div>
-              </div>
-              <Paragraph style={{ color: '#334155', fontSize: 13, lineHeight: 1.6, margin: 0 }}>
-                {homestay.absa_metric?.ai_summary_vn ||
-                  `Dựa trên dữ liệu thực tế từ Booking.com (${homestay.total_reviews} lượt đánh giá), cơ sở lưu trú này đạt điểm tổng thể ${(homestay.average_rating > 5 ? homestay.average_rating : (homestay.average_rating * 2)).toFixed(1).replace('.', ',')}/10. Khách hàng ấn tượng nhất với Độ sạch sẽ (${Number(reviewScores.cleanliness || 9.0).toFixed(1).replace('.', ',')}/10), Sự thoải mái (${Number(reviewScores.comfort || 9.0).toFixed(1).replace('.', ',')}/10) và Sự nhiệt tình của nhân viên (${Number(reviewScores.staff || 9.2).toFixed(1).replace('.', ',')}/10).`}
-              </Paragraph>
-            </div>
-
-            {/* 4 ASPECT-BASED RATINGS METRICS - TÍNH TOÁN 100% TỪ DỮ LIỆU BOOKING */}
-            <Row gutter={[24, 16]} style={{ marginBottom: 28 }}>
-              <Col xs={24} sm={12}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <Text strong style={{ fontSize: 13 }}>Vệ sinh (Cleanliness)</Text>
-                  <Text strong style={{ color: '#6366f1' }}>
-                    {(Number(reviewScores.cleanliness || 9.0) / 2).toFixed(1)} / 5.0
-                  </Text>
-                </div>
-                <Progress
-                  percent={Math.round((Number(reviewScores.cleanliness || 9.0) / 10) * 100)}
-                  showInfo={false}
-                  strokeColor="#6366f1"
-                />
-              </Col>
-
-              <Col xs={24} sm={12}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <Text strong style={{ fontSize: 13 }}>Độ thoải mái & Không gian (Comfort)</Text>
-                  <Text strong style={{ color: '#6366f1' }}>
-                    {(Number(reviewScores.comfort || 9.0) / 2).toFixed(1)} / 5.0
-                  </Text>
-                </div>
-                <Progress
-                  percent={Math.round((Number(reviewScores.comfort || 9.0) / 10) * 100)}
-                  showInfo={false}
-                  strokeColor="#6366f1"
-                />
-              </Col>
-
-              <Col xs={24} sm={12}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <Text strong style={{ fontSize: 13 }}>Dịch vụ & Nhân viên (Staff)</Text>
-                  <Text strong style={{ color: '#6366f1' }}>
-                    {(Number(reviewScores.staff || 9.2) / 2).toFixed(1)} / 5.0
-                  </Text>
-                </div>
-                <Progress
-                  percent={Math.round((Number(reviewScores.staff || 9.2) / 10) * 100)}
-                  showInfo={false}
-                  strokeColor="#6366f1"
-                />
-              </Col>
-
-              <Col xs={24} sm={12}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <Text strong style={{ fontSize: 13 }}>Vị trí & Địa điểm (Location)</Text>
-                  <Text strong style={{ color: '#6366f1' }}>
-                    {(Number(reviewScores.location || 9.0) / 2).toFixed(1)} / 5.0
-                  </Text>
-                </div>
-                <Progress
-                  percent={Math.round((Number(reviewScores.location || 9.0) / 10) * 100)}
-                  showInfo={false}
-                  strokeColor="#6366f1"
-                />
-              </Col>
-            </Row>
-
-            <Divider style={{ margin: '20px 0' }} />
-
             {/* REVIEWS LIST */}
             <div id="user-comments-list" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
               {homestay.reviews && homestay.reviews.length > 0 ? (
@@ -1216,19 +1114,12 @@ export default function HomestayDetailPage() {
                     padding: '36px 20px',
                     background: '#f8fafc',
                     borderRadius: 14,
-                    border: '1px solid #e2e8f0',
+                    border: '1px solid #f1f5f9',
                   }}
                 >
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>🏨 ⭐</div>
-                  <Text strong style={{ fontSize: 16, display: 'block', color: '#1e293b', marginBottom: 6 }}>
-                    Dữ liệu đánh giá được chứng thực từ Booking.com
+                  <Text type="secondary" style={{ fontSize: 14 }}>
+                    Chưa có nhận xét nào cho chỗ nghỉ này. Hãy là người đầu tiên trải nghiệm và chia sẻ đánh giá!
                   </Text>
-                  <Text style={{ fontSize: 14, color: '#475569', display: 'block', marginBottom: 14 }}>
-                    Điểm số tổng thể: <strong style={{ color: '#003b95' }}>{(homestay.average_rating > 5 ? homestay.average_rating : (homestay.average_rating * 2)).toFixed(1).replace('.', ',')}/10</strong> ({homestay.total_reviews || 50} đánh giá thực tế)
-                  </Text>
-                  <Tag color="blue" style={{ padding: '4px 12px', fontSize: 13 }}>
-                    Chưa có nhận xét nào trên website nội bộ • Hãy là người đầu tiên đặt phòng và đánh giá!
-                  </Tag>
                 </div>
               )}
             </div>
