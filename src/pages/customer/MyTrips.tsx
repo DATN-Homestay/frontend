@@ -122,7 +122,18 @@ export default function MyTripsPage() {
     {
       title: 'Mã đơn',
       dataIndex: 'booking_code',
-      render: (code: string) => <strong>{code}</strong>,
+      render: (code: string, r: MyBookingItem) => (
+        <div>
+          <strong>{code}</strong>
+          {r.is_dropship && (
+            <div style={{ marginTop: 2 }}>
+              <Tag color="#003580" style={{ fontSize: 10, borderRadius: 4, margin: 0, fontWeight: 600 }}>
+                Booking.com B2B
+              </Tag>
+            </div>
+          )}
+        </div>
+      ),
     },
     {
       title: 'Homestay & Phòng',
@@ -220,30 +231,75 @@ export default function MyTripsPage() {
         loading={detailLoading}
         onCancel={() => setDetail(null)}
         footer={null}
-        width={640}
+        width={680}
       >
         {detail && (
-          <Descriptions
-            column={1}
-            size="small"
-            bordered
-            items={[
-              { key: 'code', label: 'Mã đơn', children: <strong>{detail.booking_code}</strong> },
-              { key: 'status', label: 'Trạng thái', children: <Tag color={STATUS_TAG[detail.status].color}>{STATUS_TAG[detail.status].text}</Tag> },
-              { key: 'homestay', label: 'Homestay', children: `${detail.homestay.name} — ${detail.homestay.address}, ${detail.homestay.city}` },
-              { key: 'room', label: 'Phòng', children: detail.room.room_name },
-              { key: 'dates', label: 'Lưu trú', children: `${detail.check_in_date} ➔ ${detail.check_out_date} (${detail.nights} đêm, ${detail.num_guests} khách)` },
-              { key: 'total', label: 'Tổng tiền', children: <strong>{money(detail.total_amount)}</strong> },
-              { key: 'policy', label: 'Chính sách hủy', children: detail.homestay.cancellation_policy },
-              ...(detail.customer_note ? [{ key: 'note', label: 'Ghi chú', children: detail.customer_note }] : []),
-              ...(detail.escrow_status ? [{ key: 'escrow', label: 'Ký quỹ Escrow', children: detail.escrow_status }] : []),
-              ...detail.payments.map((p) => ({
-                key: `pay-${p.id}`,
-                label: `Thanh toán #${p.id}`,
-                children: `${money(p.amount)} — ${p.method} — ${p.status}${p.transaction_code ? ` (Mã GD ${p.transaction_code})` : ''}`,
-              })),
-            ]}
-          />
+          <div>
+            {detail.ota_fulfillment && (
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #003580 0%, #00224f 100%)',
+                  color: '#fff',
+                  borderRadius: 12,
+                  padding: '16px',
+                  marginBottom: 16,
+                  border: '1px solid #1a4d8f',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>🏨</span> Vé nhận phòng Booking.com (Demand API)
+                  </div>
+                  <Tag color="green" style={{ margin: 0, fontWeight: 700 }}>ĐÃ XÁC NHẬN B2B</Tag>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
+                  <div style={{ background: 'rgba(255,255,255,0.08)', padding: '8px 10px', borderRadius: 8 }}>
+                    <div style={{ fontSize: 10, opacity: 0.75, textTransform: 'uppercase' }}>Mã Booking.com</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#ffb700', marginTop: 2 }}>
+                      {detail.ota_fulfillment.ota_booking_code}
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.08)', padding: '8px 10px', borderRadius: 8 }}>
+                    <div style={{ fontSize: 10, opacity: 0.75, textTransform: 'uppercase' }}>Mã PIN nhận phòng</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#4ade80', marginTop: 2 }}>
+                      {detail.ota_fulfillment.pin_code}
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.08)', padding: '8px 10px', borderRadius: 8 }}>
+                    <div style={{ fontSize: 10, opacity: 0.75, textTransform: 'uppercase' }}>Mã PNR Quốc tế</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#67e8f9', marginTop: 2 }}>
+                      {detail.ota_fulfillment.pnr_code}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.9, background: 'rgba(255,255,255,0.05)', padding: '8px 10px', borderRadius: 6, lineHeight: 1.5 }}>
+                  💡 <strong>Hướng dẫn:</strong> Đơn phòng đã được thanh toán 100% bằng thẻ ảo VCC. Khi đến quầy lễ tân, bạn chỉ cần đọc <strong>Mã Booking.com</strong> hoặc <strong>Mã PIN</strong> này để nhận phòng trực tiếp.
+                </div>
+              </div>
+            )}
+
+            <Descriptions
+              column={1}
+              size="small"
+              bordered
+              items={[
+                { key: 'code', label: 'Mã đơn', children: <strong>{detail.booking_code}</strong> },
+                { key: 'status', label: 'Trạng thái', children: <Tag color={STATUS_TAG[detail.status].color}>{STATUS_TAG[detail.status].text}</Tag> },
+                { key: 'homestay', label: 'Homestay', children: `${detail.homestay.name} — ${detail.homestay.address}, ${detail.homestay.city}` },
+                { key: 'room', label: 'Phòng', children: detail.room.room_name },
+                { key: 'dates', label: 'Lưu trú', children: `${detail.check_in_date} ➔ ${detail.check_out_date} (${detail.nights} đêm, ${detail.num_guests} khách)` },
+                { key: 'total', label: 'Tổng tiền', children: <strong>{money(detail.total_amount)}</strong> },
+                { key: 'policy', label: 'Chính sách hủy', children: detail.homestay.cancellation_policy },
+                ...(detail.customer_note ? [{ key: 'note', label: 'Ghi chú', children: detail.customer_note }] : []),
+                ...(detail.escrow_status ? [{ key: 'escrow', label: 'Ký quỹ Escrow', children: detail.escrow_status }] : []),
+                ...detail.payments.map((p) => ({
+                  key: `pay-${p.id}`,
+                  label: `Thanh toán #${p.id}`,
+                  children: `${money(p.amount)} — ${p.method} — ${p.status}${p.transaction_code ? ` (Mã GD ${p.transaction_code})` : ''}`,
+                })),
+              ]}
+            />
+          </div>
         )}
       </Modal>
 
