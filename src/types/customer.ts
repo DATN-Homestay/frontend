@@ -92,6 +92,10 @@ export type BookingStatus =
 export interface BookingQuote {
   available: boolean;
   unavailable_dates: string[];
+  /** Đêm chưa có giá/lịch (homestay chưa mở bán) */
+  no_price_dates: string[];
+  /** Đêm đã có người giữ chỗ hoặc đặt */
+  held_dates: string[];
   room_id: string;
   room_name: string;
   homestay: { id: string; name: string };
