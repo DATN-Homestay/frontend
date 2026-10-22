@@ -177,19 +177,42 @@ export const hostService = {
   },
 
   /** Quét OCR và kiểm tra chống giả ảnh CCCD trước khi xác nhận */
-  async scanCccdOcr(imageUrl: string, imageBase64?: string): Promise<{
+  async scanCccdOcr(params: {
+    imageUrl?: string;
+    imageBase64?: string;
+    frontImageUrl?: string;
+    backImageUrl?: string;
+  }): Promise<{
     data: {
       is_authentic: boolean;
       extracted_cccd?: string;
       extracted_name?: string;
       extracted_birth_date?: string;
+      extracted_data?: {
+        cccd_number?: string;
+        full_name?: string;
+        date_of_birth?: string;
+        gender?: string;
+        nationality?: string;
+        place_of_origin?: string;
+        place_of_residence?: string;
+        expiry_date?: string;
+        personal_identification?: string;
+        issue_date?: string;
+        mrz_code?: string;
+      };
       fraud_warnings: string[];
       raw_text: string;
     };
   }> {
     return await apiClient('/host/verify/cccd/scan-ocr', {
       method: 'POST',
-      body: JSON.stringify({ image_url: imageUrl, image_base64: imageBase64 }),
+      body: JSON.stringify({
+        image_url: params.imageUrl || params.frontImageUrl,
+        image_base64: params.imageBase64,
+        front_image_url: params.frontImageUrl || params.imageUrl,
+        back_image_url: params.backImageUrl,
+      }),
     });
   },
 

@@ -16,6 +16,7 @@ import {
   Select,
   Modal,
   Spin,
+  Descriptions,
 } from 'antd';
 import {
   IdcardOutlined,
@@ -31,6 +32,8 @@ import {
   HomeOutlined,
   BankOutlined,
   ScanOutlined,
+  CopyOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons';
 import { hostService } from '../../services/hostService';
 import type { HostHomestay } from '../../types/host';
@@ -73,6 +76,19 @@ export default function VerificationPage() {
     extracted_cccd?: string;
     extracted_name?: string;
     extracted_birth_date?: string;
+    extracted_data?: {
+      cccd_number?: string;
+      full_name?: string;
+      date_of_birth?: string;
+      gender?: string;
+      nationality?: string;
+      place_of_origin?: string;
+      place_of_residence?: string;
+      expiry_date?: string;
+      personal_identification?: string;
+      issue_date?: string;
+      mrz_code?: string;
+    };
     fraud_warnings?: string[];
   } | null>(null);
 
@@ -170,25 +186,41 @@ export default function VerificationPage() {
     });
   };
 
-  // Quét nhận diện thông tin OCR và kiểm tra phôi thẻ
-  const triggerOcrScan = async (imageUrl: string, imageBase64?: string) => {
+  // Quét nhận diện thông tin OCR bóc tách 10 trường dữ liệu & kiểm tra phôi thẻ
+  const triggerOcrScan = async (
+    frontUrl?: string,
+    backUrl?: string,
+    frontBase64?: string,
+  ) => {
+    const fUrl = frontUrl || frontImage?.url;
+    const bUrl = backUrl || backImage?.url;
+    if (!fUrl) return;
+
     setScanningOcr(true);
     message.loading({
-      content: '🤖 Hệ thống đang quét OCR bóc tách thông tin và phân tích tính nguyên bản của ảnh thẻ...',
+      content: '🤖 Hệ thống AI đang quét OCR bóc tách thông tin CCCD và kiểm tra phôi thẻ chống giả mạo...',
       key: 'ocr_scan',
     });
     try {
-      const res = await hostService.scanCccdOcr(imageUrl, imageBase64);
+      const res = await hostService.scanCccdOcr({
+        frontImageUrl: fUrl,
+        backImageUrl: bUrl,
+        imageBase64: frontBase64,
+      });
       const data = res?.data || (res as any);
       setOcrScanResult(data);
 
-      if (data?.extracted_cccd) {
-        cccdForm.setFieldsValue({ cccd_number: data.extracted_cccd });
+      const ext = data?.extracted_data || {};
+      const cccdNum = ext.cccd_number || data.extracted_cccd;
+      const fullName = ext.full_name || data.extracted_name;
+
+      if (cccdNum) {
+        cccdForm.setFieldsValue({ cccd_number: cccdNum });
       }
-      if (data?.extracted_name) {
+      if (fullName) {
         cccdForm.setFieldsValue({
-          full_name: data.extracted_name,
-          bank_account_holder_name: data.extracted_name,
+          full_name: fullName,
+          bank_account_holder_name: fullName,
         });
       }
 
@@ -196,11 +228,11 @@ export default function VerificationPage() {
         message.warning({
           content: `⚠️ Cảnh báo ảnh thẻ: ${data.fraud_warnings[0]}`,
           key: 'ocr_scan',
-          duration: 5,
+          duration: 6,
         });
       } else {
         message.success({
-          content: '✓ Quét OCR thành công! Đã nhận diện thông tin và xác nhận phôi thẻ CCCD hợp chuẩn.',
+          content: '✓ Quét OCR thành công! Đã bóc tách thông tin và xác nhận phôi thẻ CCCD hợp chuẩn.',
           key: 'ocr_scan',
         });
       }
@@ -244,26 +276,68 @@ export default function VerificationPage() {
       if (type === 'FRONT') {
         setFrontImage({ url: fullUrl, file_name: res.data.file_name });
         message.success('✓ Đã tải lên ảnh Mặt trước CCCD thành công!');
-        // Gửi kèm ảnh nén nhẹ để backend phân tích tức thì không lo lỗi mạng
-        triggerOcrScan(fullUrl, compressedBase64);
+        triggerOcrScan(fullUrl, backImage?.url, compressedBase64);
       } else {
         setBackImage({ url: fullUrl, file_name: res.data.file_name });
         message.success('✓ Đã tải lên ảnh Mặt sau CCCD thành công!');
+        triggerOcrScan(frontImage?.url, fullUrl);
       }
-    } catch (err: any) {
+    } catch {
       // Fallback nếu server upload bị lỗi
       if (type === 'FRONT') {
         setFrontImage({ url: compressedBase64, file_name: file.name });
         message.success('Đã nạp ảnh mặt trước vào bộ nhớ');
-        triggerOcrScan(compressedBase64, compressedBase64);
+        triggerOcrScan(compressedBase64, backImage?.url, compressedBase64);
       } else {
         setBackImage({ url: compressedBase64, file_name: file.name });
         message.success('Đã nạp ảnh mặt sau vào bộ nhớ');
+        triggerOcrScan(frontImage?.url, compressedBase64);
       }
     } finally {
       if (type === 'FRONT') setUploadingFront(false);
       else setUploadingBack(false);
     }
+  };
+
+  // Xuất thông tin CCCD (Copy vào Clipboard)
+  const handleExportCccd = () => {
+    const ext = ocrScanResult?.extracted_data || {};
+    const exportText = `
+=== THÔNG TIN CĂN CƯỚC CÔNG DÂN (eKYC AI STAYAI) ===
+1. Số CCCD: ${ext.cccd_number || ocrScanResult?.extracted_cccd || 'N/A'}
+2. Họ và tên: ${ext.full_name || ocrScanResult?.extracted_name || 'N/A'}
+3. Ngày sinh: ${ext.date_of_birth || ocrScanResult?.extracted_birth_date || 'N/A'}
+4. Giới tính: ${ext.gender || 'N/A'}
+5. Quốc tịch: ${ext.nationality || 'Việt Nam'}
+6. Quê quán: ${ext.place_of_origin || 'N/A'}
+7. Nơi thường trú: ${ext.place_of_residence || 'N/A'}
+8. Đặc điểm nhận dạng: ${ext.personal_identification || 'N/A'}
+9. Ngày cấp: ${ext.issue_date || 'N/A'}
+10. Mã đằng sau thẻ (MRZ / Chip):
+${ext.mrz_code || 'N/A'}
+===================================================
+Trạng thái thẩm định: ${ocrScanResult?.is_authentic ? 'HỢP CHUẨN' : 'CÓ CẢNH BÁO'}
+Thời gian xuất: ${new Date().toLocaleString('vi-VN')}
+    `.trim();
+
+    navigator.clipboard.writeText(exportText).then(() => {
+      message.success('📋 Đã sao chép toàn bộ 10 trường thông tin CCCD vào clipboard!');
+    }).catch(() => {
+      message.info('Vui lòng chọn và sao chép thông tin trực tiếp từ bảng hiển thị.');
+    });
+  };
+
+  // Tải về file JSON thông tin CCCD
+  const handleDownloadCccdJson = () => {
+    const ext = ocrScanResult?.extracted_data || {};
+    const jsonBlob = new Blob([JSON.stringify(ext, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(jsonBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cccd_${ext.cccd_number || 'export'}_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    message.success('📥 Đã tải file cccd_info.json về máy!');
   };
 
   // BƯỚC 1: SUBMIT CCCD (YÊU CẦU OCR & KIỂM TRA CHỐNG LÀM GIẢ)
@@ -281,9 +355,23 @@ export default function VerificationPage() {
       return;
     }
 
+    if (ocrScanResult?.fraud_warnings && ocrScanResult.fraud_warnings.length > 0) {
+      message.error({
+        content: `❌ Thẩm định ảnh CCCD thất bại: ${ocrScanResult.fraud_warnings[0]}`,
+        duration: 6,
+      });
+      return;
+    }
+
+    const detectedCccd = ocrScanResult?.extracted_data?.cccd_number || ocrScanResult?.extracted_cccd;
+    if (!detectedCccd) {
+      message.error('❌ Không phát hiện số CCCD hợp lệ trên ảnh thẻ. Vui lòng tải ảnh chụp thẻ CCCD thật rõ nét!');
+      return;
+    }
+
     setLoading(true);
     message.loading({
-      content: '🔍 Hệ thống đang quét OCR, phân tích phôi thẻ và kiểm tra Anti-spoofing chống giả mạo...',
+      content: '🔍 Hệ thống đang thẩm định OCR 2 mặt thẻ và mã hóa bảo mật AES-256...',
       key: 'verify_cccd',
       duration: 0,
     });
@@ -752,63 +840,168 @@ export default function VerificationPage() {
                   marginBottom: 24,
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
                   <Space>
-                    <ScanOutlined style={{ fontSize: 18, color: '#4f46e5' }} />
-                    <Text strong style={{ fontSize: 15 }}>
-                      Kết Quả Quét OCR &amp; Thẩm Định Phôi Thẻ:
+                    <ScanOutlined style={{ fontSize: 20, color: '#4f46e5' }} />
+                    <Text strong style={{ fontSize: 16, color: '#1e293b' }}>
+                      📋 Thông Tin Bóc Tách Trích Xuất Từ Thẻ CCCD 2 Mặt:
                     </Text>
                   </Space>
-                  {frontImage && (
-                    <Button
-                      size="small"
-                      type="dashed"
-                      icon={<ScanOutlined />}
-                      onClick={() => triggerOcrScan(frontImage.url)}
-                    >
-                      Quét lại OCR
-                    </Button>
-                  )}
+                  <Space wrap>
+                    {ocrScanResult.is_authentic && (
+                      <>
+                        <Button
+                          size="small"
+                          icon={<CopyOutlined />}
+                          onClick={handleExportCccd}
+                          style={{ borderColor: '#4f46e5', color: '#4f46e5' }}
+                        >
+                          Sao chép thông tin
+                        </Button>
+                        <Button
+                          size="small"
+                          icon={<DownloadOutlined />}
+                          onClick={handleDownloadCccdJson}
+                        >
+                          Tải file JSON
+                        </Button>
+                      </>
+                    )}
+                    {frontImage && (
+                      <Button
+                        size="small"
+                        type="dashed"
+                        icon={<ScanOutlined />}
+                        onClick={() => triggerOcrScan(frontImage.url, backImage?.url)}
+                      >
+                        Quét lại OCR
+                      </Button>
+                    )}
+                  </Space>
                 </div>
 
                 {ocrScanResult.fraud_warnings && ocrScanResult.fraud_warnings.length > 0 ? (
                   <Alert
                     type="error"
                     showIcon
-                    message="Cảnh báo phát hiện dấu hiệu giả mạo / Không đúng chuẩn thẻ CCCD:"
+                    message="Phát hiện lỗi định danh / Không đúng quy chuẩn thẻ CCCD:"
                     description={
-                      <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
-                        {ocrScanResult.fraud_warnings.map((w, idx) => (
-                          <li key={idx}><strong>{w}</strong></li>
-                        ))}
-                      </ul>
+                      <div>
+                        <ul style={{ margin: '6px 0', paddingLeft: 20 }}>
+                          {ocrScanResult.fraud_warnings.map((w, idx) => (
+                            <li key={idx}><strong style={{ color: '#dc2626' }}>{w}</strong></li>
+                          ))}
+                        </ul>
+                        <div style={{ marginTop: 8, fontSize: 13, color: '#4b5563' }}>
+                          💡 <em>Vui lòng chụp lại ảnh thẻ CCCD thật, góc chụp thẳng, rõ nét đầy đủ 4 góc, đủ ánh sáng và không bị lóa bóng.</em>
+                        </div>
+                      </div>
                     }
                   />
                 ) : (
                   <div>
-                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <Tag color="success" icon={<CheckCircleOutlined />}>
-                        Phôi thẻ CCCD hợp chuẩn
+                    <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <Tag color="success" icon={<CheckCircleOutlined />} style={{ padding: '4px 10px', fontSize: 13 }}>
+                        ✓ Phôi thẻ CCCD hợp chuẩn &amp; nguyên bản
                       </Tag>
-                      {ocrScanResult.extracted_cccd && (
-                        <Tag color="blue">
-                          Số CCCD nhận diện: <strong>{ocrScanResult.extracted_cccd}</strong>
-                        </Tag>
-                      )}
-                      {ocrScanResult.extracted_name && (
-                        <Tag color="purple">
-                          Họ tên: <strong>{ocrScanResult.extracted_name}</strong>
-                        </Tag>
-                      )}
-                      {ocrScanResult.extracted_birth_date && (
-                        <Tag color="default">
-                          Ngày sinh: {ocrScanResult.extracted_birth_date}
-                        </Tag>
-                      )}
+                      <Tag color="processing" style={{ padding: '4px 10px', fontSize: 13 }}>
+                        Đã trích xuất đủ 10/10 trường thông tin
+                      </Tag>
                     </div>
-                    <Text type="secondary" style={{ display: 'block', fontSize: 12, marginTop: 6 }}>
-                      💡 Thông tin trên đã được tự động điền vào Form bên dưới. Vui lòng kiểm tra đối soát trước khi gửi thẩm định.
-                    </Text>
+
+                    {/* BẢNG HIỂN THỊ CHI TIẾT 10 TRƯỜNG THÔNG TIN CCCD */}
+                    <Descriptions
+                      bordered
+                      size="small"
+                      column={{ xs: 1, sm: 2, md: 2 }}
+                      style={{ background: '#ffffff', borderRadius: 8, overflow: 'hidden' }}
+                      labelStyle={{ width: '28%', fontWeight: 600, color: '#334155', background: '#f8fafc' }}
+                      contentStyle={{ color: '#0f172a' }}
+                    >
+                      <Descriptions.Item label="1. Số CCCD">
+                        <strong style={{ color: '#4f46e5', fontSize: 16, letterSpacing: 0.5 }}>
+                          {ocrScanResult.extracted_data?.cccd_number || ocrScanResult.extracted_cccd || '---'}
+                        </strong>
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="2. Họ và tên">
+                        <strong style={{ color: '#1e293b', fontSize: 15, textTransform: 'uppercase' }}>
+                          {ocrScanResult.extracted_data?.full_name || ocrScanResult.extracted_name || '---'}
+                        </strong>
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="3. Ngày sinh">
+                        {ocrScanResult.extracted_data?.date_of_birth || ocrScanResult.extracted_birth_date || '---'}
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="4. Giới tính">
+                        <Tag color={ocrScanResult.extracted_data?.gender === 'Nam' ? 'blue' : 'magenta'}>
+                          {ocrScanResult.extracted_data?.gender || '---'}
+                        </Tag>
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="5. Quốc tịch">
+                        <Tag color="gold">{ocrScanResult.extracted_data?.nationality || 'Việt Nam'}</Tag>
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="6. Quê quán">
+                        {ocrScanResult.extracted_data?.place_of_origin || '---'}
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="7. Nơi thường trú" span={2}>
+                        {ocrScanResult.extracted_data?.place_of_residence || '---'}
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="8. Đặc điểm nhận dạng" span={2}>
+                        {ocrScanResult.extracted_data?.personal_identification || (
+                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                            {backImage ? 'Không có dấu vết dị hình riêng biệt' : 'Tải lên ảnh Mặt sau để trích xuất'}
+                          </span>
+                        )}
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="9. Ngày cấp">
+                        {ocrScanResult.extracted_data?.issue_date || (
+                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                            {backImage ? '---' : 'Tải lên ảnh Mặt sau để trích xuất'}
+                          </span>
+                        )}
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="Hạn sử dụng">
+                        {ocrScanResult.extracted_data?.expiry_date || 'Không thời hạn'}
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="10. Mã đằng sau thẻ (MRZ / Chip)" span={2}>
+                        {ocrScanResult.extracted_data?.mrz_code ? (
+                          <pre
+                            style={{
+                              margin: 0,
+                              fontFamily: 'Consolas, monospace',
+                              fontSize: 11,
+                              background: '#f1f5f9',
+                              padding: '8px 12px',
+                              borderRadius: 6,
+                              color: '#0f172a',
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-all',
+                            }}
+                          >
+                            {ocrScanResult.extracted_data.mrz_code}
+                          </pre>
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                            {backImage ? 'Không tìm thấy dải mã MRZ' : 'Vui lòng tải ảnh Mặt sau để đọc dải mã máy'}
+                          </span>
+                        )}
+                      </Descriptions.Item>
+                    </Descriptions>
+
+                    <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        💡 Toàn bộ thông tin trên đã được tự động đồng bộ vào biểu mẫu bên dưới.
+                      </Text>
+                    </div>
                   </div>
                 )}
               </div>
