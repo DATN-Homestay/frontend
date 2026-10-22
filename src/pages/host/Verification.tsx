@@ -129,15 +129,24 @@ export default function VerificationPage() {
     }
   };
 
+  const readFileAsDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+  };
+
   // Quét nhận diện thông tin OCR và kiểm tra phôi thẻ
-  const triggerOcrScan = async (imageUrl: string) => {
+  const triggerOcrScan = async (imageUrl: string, imageBase64?: string) => {
     setScanningOcr(true);
     message.loading({
       content: '🤖 Hệ thống đang quét OCR bóc tách thông tin và phân tích tính nguyên bản của ảnh thẻ...',
       key: 'ocr_scan',
     });
     try {
-      const res = await hostService.scanCccdOcr(imageUrl);
+      const res = await hostService.scanCccdOcr(imageUrl, imageBase64);
       const data = res?.data || (res as any);
       setOcrScanResult(data);
 
@@ -190,32 +199,33 @@ export default function VerificationPage() {
     if (type === 'FRONT') setUploadingFront(true);
     else setUploadingBack(true);
 
+    const base64Data = await readFileAsDataUrl(file);
+
     try {
       const res = await hostService.uploadCccdImage(file);
-      const hostOrigin = 'http://localhost:3000';
+      const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/api\/v1\/?$/, '');
       const fullUrl = res.data.image_url.startsWith('http')
         ? res.data.image_url
-        : `${hostOrigin}${res.data.image_url}`;
+        : `${apiBase || window.location.origin}${res.data.image_url}`;
 
       if (type === 'FRONT') {
         setFrontImage({ url: fullUrl, file_name: res.data.file_name });
         message.success('✓ Đã tải lên ảnh Mặt trước CCCD thành công!');
-        // Tự động kích hoạt quét OCR ngay khi có ảnh mặt trước
-        triggerOcrScan(fullUrl);
+        // Tự động kích hoạt quét OCR ngay khi có ảnh mặt trước, gửi kèm base64 để server đọc tức thì
+        triggerOcrScan(fullUrl, base64Data);
       } else {
         setBackImage({ url: fullUrl, file_name: res.data.file_name });
         message.success('✓ Đã tải lên ảnh Mặt sau CCCD thành công!');
       }
     } catch (err: any) {
       // Fallback preview local nếu server chưa lưu file
-      const localUrl = URL.createObjectURL(file);
       if (type === 'FRONT') {
-        setFrontImage({ url: localUrl, file_name: file.name });
-        message.success('Đã tải ảnh mặt trước vào bộ nhớ tạm');
-        triggerOcrScan(localUrl);
+        setFrontImage({ url: base64Data, file_name: file.name });
+        message.success('Đã nạp ảnh mặt trước vào bộ nhớ tạm');
+        triggerOcrScan(base64Data, base64Data);
       } else {
-        setBackImage({ url: localUrl, file_name: file.name });
-        message.success('Đã tải ảnh mặt sau vào bộ nhớ tạm');
+        setBackImage({ url: base64Data, file_name: file.name });
+        message.success('Đã nạp ảnh mặt sau vào bộ nhớ tạm');
       }
     } finally {
       if (type === 'FRONT') setUploadingFront(false);

@@ -186,7 +186,7 @@ export const hostService = {
   },
 
   /** Quét OCR và kiểm tra chống giả ảnh CCCD trước khi xác nhận */
-  async scanCccdOcr(imageUrl: string): Promise<{
+  async scanCccdOcr(imageUrl: string, imageBase64?: string): Promise<{
     data: {
       is_authentic: boolean;
       extracted_cccd?: string;
@@ -198,7 +198,7 @@ export const hostService = {
   }> {
     return await apiClient('/host/verify/cccd/scan-ocr', {
       method: 'POST',
-      body: JSON.stringify({ image_url: imageUrl }),
+      body: JSON.stringify({ image_url: imageUrl, image_base64: imageBase64 }),
     });
   },
 
