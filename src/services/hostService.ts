@@ -181,7 +181,9 @@ export const hostService = {
     imageUrl?: string;
     imageBase64?: string;
     frontImageUrl?: string;
+    frontImageBase64?: string;
     backImageUrl?: string;
+    backImageBase64?: string;
   }): Promise<{
     data: {
       is_authentic: boolean;
@@ -211,7 +213,9 @@ export const hostService = {
         image_url: params.imageUrl || params.frontImageUrl,
         image_base64: params.imageBase64,
         front_image_url: params.frontImageUrl || params.imageUrl,
+        front_image_base64: params.frontImageBase64 || params.imageBase64,
         back_image_url: params.backImageUrl,
+        back_image_base64: params.backImageBase64,
       }),
     });
   },

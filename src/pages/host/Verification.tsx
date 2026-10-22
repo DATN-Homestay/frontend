@@ -66,8 +66,8 @@ export default function VerificationPage() {
   const [selectedHomestayId, setSelectedHomestayId] = useState<string>('');
 
   // Bước 1: Ảnh CCCD 2 mặt
-  const [frontImage, setFrontImage] = useState<{ url: string; file_name: string } | null>(null);
-  const [backImage, setBackImage] = useState<{ url: string; file_name: string } | null>(null);
+  const [frontImage, setFrontImage] = useState<{ url: string; file_name: string; base64?: string } | null>(null);
+  const [backImage, setBackImage] = useState<{ url: string; file_name: string; base64?: string } | null>(null);
   const [uploadingFront, setUploadingFront] = useState(false);
   const [uploadingBack, setUploadingBack] = useState(false);
   const [scanningOcr, setScanningOcr] = useState(false);
@@ -191,10 +191,13 @@ export default function VerificationPage() {
     frontUrl?: string,
     backUrl?: string,
     frontBase64?: string,
+    backBase64?: string,
   ) => {
     const fUrl = frontUrl || frontImage?.url;
     const bUrl = backUrl || backImage?.url;
-    if (!fUrl) return;
+    const fB64 = frontBase64 || frontImage?.base64;
+    const bB64 = backBase64 || backImage?.base64;
+    if (!fUrl && !fB64 && !bUrl && !bB64) return;
 
     setScanningOcr(true);
     message.loading({
@@ -204,10 +207,11 @@ export default function VerificationPage() {
     try {
       const res = await hostService.scanCccdOcr({
         frontImageUrl: fUrl,
+        frontImageBase64: fB64,
         backImageUrl: bUrl,
-        imageBase64: frontBase64,
+        backImageBase64: bB64,
       });
-      const data = res?.data || (res as any);
+      const data = (res as any)?.data?.data || (res as any)?.data || (res as any);
       setOcrScanResult(data);
 
       const ext = data?.extracted_data || {};
@@ -274,24 +278,24 @@ export default function VerificationPage() {
         : `${apiBase || window.location.origin}${res.data.image_url}`;
 
       if (type === 'FRONT') {
-        setFrontImage({ url: fullUrl, file_name: res.data.file_name });
+        setFrontImage({ url: fullUrl, file_name: res.data.file_name, base64: compressedBase64 });
         message.success('✓ Đã tải lên ảnh Mặt trước CCCD thành công!');
-        triggerOcrScan(fullUrl, backImage?.url, compressedBase64);
+        triggerOcrScan(fullUrl, backImage?.url, compressedBase64, backImage?.base64);
       } else {
-        setBackImage({ url: fullUrl, file_name: res.data.file_name });
+        setBackImage({ url: fullUrl, file_name: res.data.file_name, base64: compressedBase64 });
         message.success('✓ Đã tải lên ảnh Mặt sau CCCD thành công!');
-        triggerOcrScan(frontImage?.url, fullUrl);
+        triggerOcrScan(frontImage?.url, fullUrl, frontImage?.base64, compressedBase64);
       }
     } catch {
       // Fallback nếu server upload bị lỗi
       if (type === 'FRONT') {
-        setFrontImage({ url: compressedBase64, file_name: file.name });
+        setFrontImage({ url: compressedBase64, file_name: file.name, base64: compressedBase64 });
         message.success('Đã nạp ảnh mặt trước vào bộ nhớ');
-        triggerOcrScan(compressedBase64, backImage?.url, compressedBase64);
+        triggerOcrScan(compressedBase64, backImage?.url, compressedBase64, backImage?.base64);
       } else {
-        setBackImage({ url: compressedBase64, file_name: file.name });
+        setBackImage({ url: compressedBase64, file_name: file.name, base64: compressedBase64 });
         message.success('Đã nạp ảnh mặt sau vào bộ nhớ');
-        triggerOcrScan(frontImage?.url, compressedBase64);
+        triggerOcrScan(frontImage?.url, compressedBase64, frontImage?.base64, compressedBase64);
       }
     } finally {
       if (type === 'FRONT') setUploadingFront(false);
@@ -900,14 +904,37 @@ Thời gian xuất: ${new Date().toLocaleString('vi-VN')}
                   />
                 ) : (
                   <div>
-                    <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                      <Tag color="success" icon={<CheckCircleOutlined />} style={{ padding: '4px 10px', fontSize: 13 }}>
-                        ✓ Phôi thẻ CCCD hợp chuẩn &amp; nguyên bản
-                      </Tag>
-                      <Tag color="processing" style={{ padding: '4px 10px', fontSize: 13 }}>
-                        Đã trích xuất đủ 10/10 trường thông tin
-                      </Tag>
-                    </div>
+                    {(() => {
+                      const ext = ocrScanResult.extracted_data || {};
+                      const count = [
+                        ext.cccd_number || ocrScanResult.extracted_cccd,
+                        ext.full_name || ocrScanResult.extracted_name,
+                        ext.date_of_birth || ocrScanResult.extracted_birth_date,
+                        ext.gender,
+                        ext.nationality,
+                        ext.place_of_origin,
+                        ext.place_of_residence,
+                        ext.personal_identification && ext.personal_identification !== 'Không có dấu vết dị hình riêng biệt' ? ext.personal_identification : '',
+                        ext.issue_date,
+                        ext.mrz_code,
+                      ].filter(Boolean).length;
+
+                      return (
+                        <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                          <Tag color="success" icon={<CheckCircleOutlined />} style={{ padding: '4px 10px', fontSize: 13 }}>
+                            ✓ Phôi thẻ CCCD hợp chuẩn &amp; nguyên bản
+                          </Tag>
+                          <Tag color={count >= 6 ? 'processing' : 'warning'} style={{ padding: '4px 10px', fontSize: 13 }}>
+                            Đã bóc tách tự động {count}/10 trường thông tin
+                          </Tag>
+                          {(!backImage || !ext.mrz_code) && (
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              💡 <em>Tải thêm ảnh Mặt sau để đọc dải mã máy MRZ, Ngày cấp và Đặc điểm nhận dạng</em>
+                            </Text>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* BẢNG HIỂN THỊ CHI TIẾT 10 TRƯỜNG THÔNG TIN CCCD */}
                     <Descriptions
