@@ -13,6 +13,7 @@ import {
   Form,
   Input,
   Alert,
+  Empty,
 } from 'antd';
 import {
   WalletOutlined,
@@ -20,7 +21,6 @@ import {
   ClockCircleOutlined,
   SendOutlined,
   CheckCircleOutlined,
-  BankOutlined,
   PercentageOutlined,
 } from '@ant-design/icons';
 import { hostService } from '../../services/hostService';
@@ -31,23 +31,41 @@ const { Title, Text } = Typography;
 export default function HostPayoutsPage() {
   const [balance, setBalance] = useState<HostBalanceInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [history, setHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [payoutModalOpen, setPayoutModalOpen] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [form] = Form.useForm();
 
   useEffect(() => {
-    loadBalance();
+    loadData();
   }, []);
 
-  const loadBalance = async () => {
+  const loadData = async () => {
     setLoading(true);
+    setHistoryLoading(true);
     try {
-      const res = await hostService.getBalance();
-      setBalance(res.data);
+      const [balRes, histRes] = await Promise.allSettled([
+        hostService.getBalance(),
+        hostService.getPayoutHistory(),
+      ]);
+
+      if (balRes.status === 'fulfilled' && balRes.value) {
+        const raw: any = balRes.value;
+        const actualBalance: HostBalanceInfo = raw?.data?.data ?? raw?.data ?? raw;
+        setBalance(actualBalance);
+      }
+
+      if (histRes.status === 'fulfilled' && histRes.value) {
+        const raw: any = histRes.value;
+        const list = Array.isArray(raw) ? raw : raw?.data?.data ?? raw?.data ?? [];
+        setHistory(Array.isArray(list) ? list : []);
+      }
     } catch {
       // Fallback
     } finally {
       setLoading(false);
+      setHistoryLoading(false);
     }
   };
 
@@ -58,37 +76,13 @@ export default function HostPayoutsPage() {
       message.success('Đã gửi yêu cầu giải ngân thành công! Ban Quản trị sàn sẽ đối soát và chuyển khoản.');
       setPayoutModalOpen(false);
       form.resetFields();
-      loadBalance();
+      loadData();
     } catch (err: any) {
       message.error(err.message || 'Gửi yêu cầu giải ngân thất bại');
     } finally {
       setRequesting(false);
     }
   };
-
-  // Mock lịch sử giải ngân kết hợp
-  const payoutHistory = [
-    {
-      id: 'PO-20261015-01',
-      date: '2026-10-15',
-      gross_amount: 20000000,
-      commission: 1500000,
-      net_amount: 18500000,
-      bank: 'Vietcombank - ****4321',
-      status: 'PAID_OUT',
-      receipt_url: 'https://res.cloudinary.com/homestay/image/upload/receipt_demo.jpg',
-    },
-    {
-      id: 'PO-20261001-02',
-      date: '2026-10-01',
-      gross_amount: 28650000,
-      commission: 2148750,
-      net_amount: 26501250,
-      bank: 'Vietcombank - ****4321',
-      status: 'PAID_OUT',
-      receipt_url: 'https://res.cloudinary.com/homestay/image/upload/receipt_demo.jpg',
-    },
-  ];
 
   const eligibleColumns = [
     {
@@ -121,19 +115,60 @@ export default function HostPayoutsPage() {
   ];
 
   const historyColumns = [
-    { title: 'Mã Lệnh Rút', dataIndex: 'id', key: 'id', render: (id: string) => <strong>{id}</strong> },
-    { title: 'Ngày Yêu Cầu', dataIndex: 'date', key: 'date' },
+    {
+      title: 'Mã Lệnh Rút',
+      key: 'payout_code',
+      render: (_: any, r: any) => (
+        <div>
+          <strong style={{ color: '#4f46e5' }}>{r.payout_code || `PO-${r.id}`}</strong>
+          {r.booking_code && r.booking_code !== 'N/A' && (
+            <div style={{ fontSize: 12, color: '#64748b' }}>
+              Đơn: {r.booking_code}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: 'Chỗ Nghỉ / Phòng',
+      key: 'homestay',
+      render: (_: any, r: any) => (
+        <div>
+          <div style={{ fontWeight: 500 }}>{r.homestay_name && r.homestay_name !== 'N/A' ? r.homestay_name : 'Toàn bộ số dư'}</div>
+          {r.room_name && r.room_name !== 'N/A' && <div style={{ fontSize: 12, color: '#64748b' }}>{r.room_name}</div>}
+        </div>
+      ),
+    },
+    {
+      title: 'Ngày Yêu Cầu',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      render: (v: string) =>
+        v
+          ? new Date(v).toLocaleDateString('vi-VN', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : 'N/A',
+    },
     {
       title: 'Doanh Thu Gộp',
       dataIndex: 'gross_amount',
       key: 'gross_amount',
-      render: (v: number) => `${v.toLocaleString('vi-VN')}đ`,
+      render: (v: number) => `${Number(v || 0).toLocaleString('vi-VN')}đ`,
     },
     {
       title: 'Hoa Hồng Sàn (7.5%)',
       dataIndex: 'commission',
       key: 'commission',
-      render: (v: number) => <span style={{ color: '#ef4444' }}>-{v.toLocaleString('vi-VN')}đ</span>,
+      render: (v: number) => (
+        <span style={{ color: '#ef4444' }}>
+          -{Number(v || 0).toLocaleString('vi-VN')}đ
+        </span>
+      ),
     },
     {
       title: 'Thực Nhận (Net Payout)',
@@ -141,15 +176,9 @@ export default function HostPayoutsPage() {
       key: 'net_amount',
       render: (amount: number) => (
         <strong style={{ color: '#10b981', fontSize: 15 }}>
-          {amount.toLocaleString('vi-VN')}đ
+          +{Number(amount || 0).toLocaleString('vi-VN')}đ
         </strong>
       ),
-    },
-    {
-      title: 'Tài Khoản Thụ Hưởng',
-      dataIndex: 'bank',
-      key: 'bank',
-      render: (b: string) => <span><BankOutlined /> {b}</span>,
     },
     {
       title: 'Trạng Thái',
@@ -157,7 +186,9 @@ export default function HostPayoutsPage() {
       key: 'status',
       render: (status: string) => {
         if (status === 'PAID_OUT') return <Tag color="success">✓ Đã chuyển khoản</Tag>;
+        if (status === 'APPROVED') return <Tag color="processing">✓ Đã duyệt (Đang chuyển)</Tag>;
         if (status === 'PENDING') return <Tag color="warning" icon={<ClockCircleOutlined />}>Chờ Admin đối soát</Tag>;
+        if (status === 'REJECTED') return <Tag color="error">Đã từ chối</Tag>;
         return <Tag>{status}</Tag>;
       },
     },
@@ -231,7 +262,7 @@ export default function HostPayoutsPage() {
           <Card style={{ borderRadius: 12, border: '1px solid #e2e8f0' }}>
             <Statistic
               title="Tổng đã giải ngân về STK"
-              value={balance?.total_paid_out || 45000000}
+              value={balance?.total_paid_out ?? 0}
               formatter={(v) => Number(v).toLocaleString('vi-VN')}
               suffix="đ"
               prefix={<CheckCircleOutlined style={{ color: '#3b82f6' }} />}
@@ -266,11 +297,28 @@ export default function HostPayoutsPage() {
       </Card>
 
       {/* BẢNG LỊCH SỬ RÚT TIỀN */}
-      <Card title="Lịch Sử Các Đợt Giải Ngân Về Tài Khoản Ngân Hàng" style={{ borderRadius: 14 }}>
+      <Card
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>Lịch Sử Các Đợt Giải Ngân Về Tài Khoản Ngân Hàng</span>
+            <Tag color="blue">{history.length} giao dịch</Tag>
+          </div>
+        }
+        style={{ borderRadius: 14 }}
+      >
         <Table
-          dataSource={payoutHistory}
+          dataSource={history}
           columns={historyColumns}
           rowKey="id"
+          loading={historyLoading}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="Chưa có lịch sử giải ngân nào. Khi bạn tạo yêu cầu rút tiền và Admin chuyển khoản, các đợt giải ngân thực tế sẽ hiển thị tại đây."
+              />
+            ),
+          }}
           pagination={{
             pageSize: 5,
             showSizeChanger: true,
