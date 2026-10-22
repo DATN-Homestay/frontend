@@ -154,19 +154,10 @@ export const hostService = {
   async uploadCccdImage(file: File): Promise<{ data: { image_url: string; file_name: string } }> {
     const formData = new FormData();
     formData.append('file', file);
-    const token = localStorage.getItem('stayai_access_token');
-    const res = await fetch('http://localhost:3000/api/v1/host/verify/upload-cccd', {
+    return await apiClient('/host/verify/upload-cccd', {
       method: 'POST',
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
       body: formData,
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || 'Lỗi khi tải ảnh CCCD lên máy chủ');
-    }
-    return await res.json();
   },
 
   async verifyCccd(data: {
