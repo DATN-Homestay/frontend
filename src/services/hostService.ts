@@ -185,6 +185,23 @@ export const hostService = {
     });
   },
 
+  /** Quét OCR và kiểm tra chống giả ảnh CCCD trước khi xác nhận */
+  async scanCccdOcr(imageUrl: string): Promise<{
+    data: {
+      is_authentic: boolean;
+      extracted_cccd?: string;
+      extracted_name?: string;
+      extracted_birth_date?: string;
+      fraud_warnings: string[];
+      raw_text: string;
+    };
+  }> {
+    return await apiClient('/host/verify/cccd/scan-ocr', {
+      method: 'POST',
+      body: JSON.stringify({ image_url: imageUrl }),
+    });
+  },
+
   async sendOtp(homestayId: string, email?: string) {
     return await apiClient('/host/verify/send-otp', {
       method: 'POST',

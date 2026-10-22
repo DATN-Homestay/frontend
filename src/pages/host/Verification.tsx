@@ -30,6 +30,7 @@ import {
   LockOutlined,
   HomeOutlined,
   BankOutlined,
+  ScanOutlined,
 } from '@ant-design/icons';
 import { hostService } from '../../services/hostService';
 import type { HostHomestay } from '../../types/host';
@@ -66,6 +67,14 @@ export default function VerificationPage() {
   const [backImage, setBackImage] = useState<{ url: string; file_name: string } | null>(null);
   const [uploadingFront, setUploadingFront] = useState(false);
   const [uploadingBack, setUploadingBack] = useState(false);
+  const [scanningOcr, setScanningOcr] = useState(false);
+  const [ocrScanResult, setOcrScanResult] = useState<{
+    is_authentic?: boolean;
+    extracted_cccd?: string;
+    extracted_name?: string;
+    extracted_birth_date?: string;
+    fraud_warnings?: string[];
+  } | null>(null);
 
   // Modal xem trước ảnh lớn
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
@@ -120,6 +129,50 @@ export default function VerificationPage() {
     }
   };
 
+  // Quét nhận diện thông tin OCR và kiểm tra phôi thẻ
+  const triggerOcrScan = async (imageUrl: string) => {
+    setScanningOcr(true);
+    message.loading({
+      content: '🤖 Hệ thống đang quét OCR bóc tách thông tin và phân tích tính nguyên bản của ảnh thẻ...',
+      key: 'ocr_scan',
+    });
+    try {
+      const res = await hostService.scanCccdOcr(imageUrl);
+      const data = res?.data || (res as any);
+      setOcrScanResult(data);
+
+      if (data?.extracted_cccd) {
+        cccdForm.setFieldsValue({ cccd_number: data.extracted_cccd });
+      }
+      if (data?.extracted_name) {
+        cccdForm.setFieldsValue({
+          full_name: data.extracted_name,
+          bank_account_holder_name: data.extracted_name,
+        });
+      }
+
+      if (data?.fraud_warnings && data.fraud_warnings.length > 0) {
+        message.warning({
+          content: `⚠️ Cảnh báo ảnh thẻ: ${data.fraud_warnings[0]}`,
+          key: 'ocr_scan',
+          duration: 5,
+        });
+      } else {
+        message.success({
+          content: '✓ Quét OCR thành công! Đã nhận diện thông tin và xác nhận phôi thẻ CCCD hợp chuẩn.',
+          key: 'ocr_scan',
+        });
+      }
+    } catch (err: any) {
+      message.error({
+        content: err.message || 'Lỗi khi quét nhận diện OCR trên ảnh',
+        key: 'ocr_scan',
+      });
+    } finally {
+      setScanningOcr(false);
+    }
+  };
+
   // Upload ảnh CCCD
   const handleUploadImage = async (file: File, type: 'FRONT' | 'BACK') => {
     // Validate định dạng và dung lượng
@@ -147,6 +200,8 @@ export default function VerificationPage() {
       if (type === 'FRONT') {
         setFrontImage({ url: fullUrl, file_name: res.data.file_name });
         message.success('✓ Đã tải lên ảnh Mặt trước CCCD thành công!');
+        // Tự động kích hoạt quét OCR ngay khi có ảnh mặt trước
+        triggerOcrScan(fullUrl);
       } else {
         setBackImage({ url: fullUrl, file_name: res.data.file_name });
         message.success('✓ Đã tải lên ảnh Mặt sau CCCD thành công!');
@@ -157,6 +212,7 @@ export default function VerificationPage() {
       if (type === 'FRONT') {
         setFrontImage({ url: localUrl, file_name: file.name });
         message.success('Đã tải ảnh mặt trước vào bộ nhớ tạm');
+        triggerOcrScan(localUrl);
       } else {
         setBackImage({ url: localUrl, file_name: file.name });
         message.success('Đã tải ảnh mặt sau vào bộ nhớ tạm');
@@ -167,7 +223,7 @@ export default function VerificationPage() {
     }
   };
 
-  // BƯỚC 1: SUBMIT CCCD
+  // BƯỚC 1: SUBMIT CCCD (YÊU CẦU OCR & KIỂM TRA CHỐNG LÀM GIẢ)
   const handleStep1Cccd = async (values: any) => {
     if (!frontImage?.url) {
       message.warning('Vui lòng tải lên ảnh MẶT TRƯỚC của thẻ CCCD!');
@@ -183,6 +239,11 @@ export default function VerificationPage() {
     }
 
     setLoading(true);
+    message.loading({
+      content: '🔍 Hệ thống đang quét OCR, phân tích phôi thẻ và kiểm tra Anti-spoofing chống giả mạo...',
+      key: 'verify_cccd',
+      duration: 0,
+    });
     try {
       await hostService.verifyCccd({
         homestay_id: selectedHomestayId,
@@ -194,11 +255,20 @@ export default function VerificationPage() {
         bank_account_number: values.bank_account_number.trim(),
         bank_account_holder_name: values.bank_account_holder_name.trim().toUpperCase(),
       });
-      message.success('🎉 Bước 1: Định danh CCCD và mã hóa bảo mật AES-256 thành công (+40 điểm)!');
+      message.success({
+        content:
+          '🎉 Thẩm định thẻ CCCD hợp lệ! Xác thực danh tính & mã hóa bảo mật AES-256 thành công (+40 điểm)!',
+        key: 'verify_cccd',
+        duration: 4,
+      });
       setTotalScore((prev) => Math.max(prev, 40));
       setCurrentStep(1);
     } catch (err: any) {
-      message.error(err.message || 'Lỗi khi xác thực CCCD');
+      message.error({
+        content: err.message || 'Thẩm định CCCD thất bại: Ảnh không đạt chuẩn hoặc có dấu hiệu làm giả!',
+        key: 'verify_cccd',
+        duration: 6,
+      });
     } finally {
       setLoading(false);
     }
@@ -609,6 +679,98 @@ export default function VerificationPage() {
               </Col>
             </Row>
 
+            {/* KHUNG KẾT QUẢ QUÉT OCR & KIỂM TRA CHỐNG LÀM GIẢ */}
+            {scanningOcr ? (
+              <div
+                style={{
+                  background: '#f8fafc',
+                  border: '1px solid #c7d2fe',
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 24,
+                  textAlign: 'center',
+                }}
+              >
+                <Spin />
+                <span style={{ marginLeft: 12, color: '#4f46e5', fontWeight: 600 }}>
+                  🤖 Hệ thống AI đang quét OCR, nhận diện chữ viết và phân tích phôi thẻ CCCD chống giả mạo...
+                </span>
+              </div>
+            ) : ocrScanResult ? (
+              <div
+                style={{
+                  background: ocrScanResult.fraud_warnings && ocrScanResult.fraud_warnings.length > 0 ? '#fef2f2' : '#f0fdf4',
+                  border:
+                    ocrScanResult.fraud_warnings && ocrScanResult.fraud_warnings.length > 0
+                      ? '1px solid #fecaca'
+                      : '1px solid #bbf7d0',
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 24,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Space>
+                    <ScanOutlined style={{ fontSize: 18, color: '#4f46e5' }} />
+                    <Text strong style={{ fontSize: 15 }}>
+                      Kết Quả Quét OCR &amp; Thẩm Định Phôi Thẻ:
+                    </Text>
+                  </Space>
+                  {frontImage && (
+                    <Button
+                      size="small"
+                      type="dashed"
+                      icon={<ScanOutlined />}
+                      onClick={() => triggerOcrScan(frontImage.url)}
+                    >
+                      Quét lại OCR
+                    </Button>
+                  )}
+                </div>
+
+                {ocrScanResult.fraud_warnings && ocrScanResult.fraud_warnings.length > 0 ? (
+                  <Alert
+                    type="error"
+                    showIcon
+                    message="Cảnh báo phát hiện dấu hiệu giả mạo / Không đúng chuẩn thẻ CCCD:"
+                    description={
+                      <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+                        {ocrScanResult.fraud_warnings.map((w, idx) => (
+                          <li key={idx}><strong>{w}</strong></li>
+                        ))}
+                      </ul>
+                    }
+                  />
+                ) : (
+                  <div>
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <Tag color="success" icon={<CheckCircleOutlined />}>
+                        Phôi thẻ CCCD hợp chuẩn
+                      </Tag>
+                      {ocrScanResult.extracted_cccd && (
+                        <Tag color="blue">
+                          Số CCCD nhận diện: <strong>{ocrScanResult.extracted_cccd}</strong>
+                        </Tag>
+                      )}
+                      {ocrScanResult.extracted_name && (
+                        <Tag color="purple">
+                          Họ tên: <strong>{ocrScanResult.extracted_name}</strong>
+                        </Tag>
+                      )}
+                      {ocrScanResult.extracted_birth_date && (
+                        <Tag color="default">
+                          Ngày sinh: {ocrScanResult.extracted_birth_date}
+                        </Tag>
+                      )}
+                    </div>
+                    <Text type="secondary" style={{ display: 'block', fontSize: 12, marginTop: 6 }}>
+                      💡 Thông tin trên đã được tự động điền vào Form bên dưới. Vui lòng kiểm tra đối soát trước khi gửi thẩm định.
+                    </Text>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
             {/* FORM THÔNG TIN ĐỐI SOÁT VÀ TÀI KHOẢN NGÂN HÀNG */}
             <Title level={5} style={{ marginBottom: 16 }}>
               🏦 Thông Tin Định Danh &amp; Tài Khoản Ngân Hàng Giải Ngân:
@@ -618,13 +780,6 @@ export default function VerificationPage() {
               form={cccdForm}
               layout="vertical"
               onFinish={handleStep1Cccd}
-              initialValues={{
-                cccd_number: '038099001234',
-                full_name: 'NGUYỄN VĂN A',
-                bank_name: 'Vietcombank (Ngân hàng Ngoại thương Việt Nam)',
-                bank_account_number: '0987654321',
-                bank_account_holder_name: 'NGUYEN VAN A',
-              }}
             >
               <Row gutter={20}>
                 <Col xs={24} md={12}>
