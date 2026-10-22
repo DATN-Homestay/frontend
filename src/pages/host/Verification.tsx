@@ -129,11 +129,43 @@ export default function VerificationPage() {
     }
   };
 
-  const readFileAsDataUrl = (file: File): Promise<string> => {
+  // Nén ảnh nhẹ (~200KB - 400KB, kích thước tối đa 1600px) chuẩn hóa cho OCR
+  const compressImageForOcr = (file: File, maxDim = 1600, quality = 0.8): Promise<string> => {
     return new Promise((resolve) => {
+      const img = new Image();
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => resolve('');
+      reader.onload = (e) => {
+        img.src = e.target?.result as string;
+      };
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        } else {
+          resolve(img.src);
+        }
+      };
+      img.onerror = () => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result as string);
+        r.onerror = () => resolve('');
+        r.readAsDataURL(file);
+      };
       reader.readAsDataURL(file);
     });
   };
@@ -199,7 +231,8 @@ export default function VerificationPage() {
     if (type === 'FRONT') setUploadingFront(true);
     else setUploadingBack(true);
 
-    const base64Data = await readFileAsDataUrl(file);
+    // Chuẩn bị ảnh nén Base64 tối ưu cho OCR (~200KB)
+    const compressedBase64 = await compressImageForOcr(file);
 
     try {
       const res = await hostService.uploadCccdImage(file);
@@ -211,21 +244,21 @@ export default function VerificationPage() {
       if (type === 'FRONT') {
         setFrontImage({ url: fullUrl, file_name: res.data.file_name });
         message.success('✓ Đã tải lên ảnh Mặt trước CCCD thành công!');
-        // Tự động kích hoạt quét OCR ngay khi có ảnh mặt trước, gửi kèm base64 để server đọc tức thì
-        triggerOcrScan(fullUrl, base64Data);
+        // Gửi kèm ảnh nén nhẹ để backend phân tích tức thì không lo lỗi mạng
+        triggerOcrScan(fullUrl, compressedBase64);
       } else {
         setBackImage({ url: fullUrl, file_name: res.data.file_name });
         message.success('✓ Đã tải lên ảnh Mặt sau CCCD thành công!');
       }
     } catch (err: any) {
-      // Fallback preview local nếu server chưa lưu file
+      // Fallback nếu server upload bị lỗi
       if (type === 'FRONT') {
-        setFrontImage({ url: base64Data, file_name: file.name });
-        message.success('Đã nạp ảnh mặt trước vào bộ nhớ tạm');
-        triggerOcrScan(base64Data, base64Data);
+        setFrontImage({ url: compressedBase64, file_name: file.name });
+        message.success('Đã nạp ảnh mặt trước vào bộ nhớ');
+        triggerOcrScan(compressedBase64, compressedBase64);
       } else {
-        setBackImage({ url: base64Data, file_name: file.name });
-        message.success('Đã nạp ảnh mặt sau vào bộ nhớ tạm');
+        setBackImage({ url: compressedBase64, file_name: file.name });
+        message.success('Đã nạp ảnh mặt sau vào bộ nhớ');
       }
     } finally {
       if (type === 'FRONT') setUploadingFront(false);
