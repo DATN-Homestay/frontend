@@ -112,9 +112,10 @@ export async function apiClient<T = any>(endpoint: string, options: RequestOptio
 
   const send = () => {
     const token = tokenStorage.getAccessToken();
-    const defaultHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
+    const defaultHeaders: Record<string, string> = {};
+    if (!(customConfig.body instanceof FormData)) {
+      defaultHeaders['Content-Type'] = 'application/json';
+    }
     if (token) {
       defaultHeaders['Authorization'] = `Bearer ${token}`;
     }

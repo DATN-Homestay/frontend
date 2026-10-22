@@ -44,14 +44,20 @@ export const hostService = {
   },
 
   // 2. Rooms & Images
-  async createRoom(homestayId: string, data: { room_name: string; capacity: number; base_price: number }) {
+  async createRoom(
+    homestayId: string,
+    data: { room_name: string; capacity: number; base_price: number; images?: string[] },
+  ) {
     return await apiClient(`/host/homestays/${homestayId}/rooms`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async updateRoom(roomId: string, data: { room_name?: string; capacity?: number; base_price?: number }) {
+  async updateRoom(
+    roomId: string,
+    data: { room_name?: string; capacity?: number; base_price?: number; images?: string[] },
+  ) {
     return await apiClient(`/host/rooms/${roomId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -69,8 +75,41 @@ export const hostService = {
     });
   },
 
+  async batchAddRoomImages(roomId: string, images: string[]) {
+    return await apiClient(`/host/rooms/${roomId}/images/batch`, {
+      method: 'POST',
+      body: JSON.stringify({ images }),
+    });
+  },
+
   async deleteRoomImage(imageId: string) {
     return await apiClient(`/host/rooms/images/${imageId}`, { method: 'DELETE' });
+  },
+
+  async getHomestayPhotosCount(homestayId: string): Promise<{ count: number; max: number; remaining: number }> {
+    return await apiClient(`/host/homestays/${homestayId}/photos-count`);
+  },
+
+  /** Upload 1 ảnh lên Cloudinary CDN */
+  async uploadImage(file: File): Promise<{ url: string; public_id: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res: any = await apiClient('/upload/image', {
+      method: 'POST',
+      body: formData,
+    });
+    return res?.data ?? res;
+  },
+
+  /** Upload nhiều ảnh cùng lúc lên Cloudinary CDN */
+  async uploadMultipleImages(files: File[]): Promise<Array<{ url: string; public_id: string }>> {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('files', file));
+    const res: any = await apiClient('/upload/images', {
+      method: 'POST',
+      body: formData,
+    });
+    return res?.data ?? res;
   },
 
   // 3. Calendar & Batch Update
