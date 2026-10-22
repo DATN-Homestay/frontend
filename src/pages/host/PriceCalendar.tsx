@@ -111,9 +111,24 @@ export default function PriceCalendarPage() {
   };
 
   const safeHomestays = Array.isArray(homestays) ? homestays : [];
-  const selectedHomestay = safeHomestays.find((h) => h.id === selectedHomestayId);
+  const selectedHomestay = safeHomestays.find((h) => String(h.id) === String(selectedHomestayId));
   const currentRooms = selectedHomestay && Array.isArray(selectedHomestay.rooms) ? selectedHomestay.rooms : [];
-  const selectedRoom = currentRooms.find((r: any) => r.id === selectedRoomId);
+  const selectedRoom = currentRooms.find((r: any) => String(r.id) === String(selectedRoomId));
+
+  // Sync modal form values whenever opened or selected date changes
+  useEffect(() => {
+    if (dayModalOpen && selectedDayDate) {
+      const dayData = Array.isArray(calendarDays) ? calendarDays.find((d) => d.date === selectedDayDate) : null;
+      const basePrice = Number(selectedRoom?.base_price || 500000);
+      const initialPrice = dayData ? Number(dayData.price) : basePrice;
+      const isAvail = dayData ? dayData.is_available !== 0 : true;
+
+      dayPriceForm.setFieldsValue({
+        price: initialPrice,
+        is_available: isAvail,
+      });
+    }
+  }, [dayModalOpen, selectedDayDate, calendarDays, selectedRoom]);
 
   // Lấy gợi ý giá AI cho ngày được chọn
   const handleFetchAi = async (dateToFetch?: string) => {
@@ -126,9 +141,12 @@ export default function PriceCalendarPage() {
     setLoadingAi(true);
     try {
       const res = await hostService.getPricingSuggestions(selectedHomestayId, d, selectedRoomId || undefined);
-      if (res?.data) {
-        setAiData(res.data);
-        setAppliedPrice(res.data.suggested_price);
+      const suggestion = res?.data || (res as any);
+      if (suggestion && (suggestion.suggested_price !== undefined || suggestion.comp_set_stats)) {
+        setAiData(suggestion);
+        if (suggestion.suggested_price) {
+          setAppliedPrice(Number(suggestion.suggested_price));
+        }
       }
       message.success(`Đã tính toán mức giá tối ưu từ AI cho ngày ${d}!`);
     } catch {
@@ -186,6 +204,7 @@ export default function PriceCalendarPage() {
 
   // Mở hộp thoại (box / modal) thiết lập giá khi người dùng click vào 1 ngày trên lịch
   const handleOpenDayModal = async (dateStr: string) => {
+    if (!dateStr) return;
     if (!selectedRoomId) {
       message.warning('Vui lòng chọn loại phòng trước khi thiết lập giá!');
       return;
@@ -211,12 +230,15 @@ export default function PriceCalendarPage() {
     if (selectedHomestayId) {
       setDayAiLoading(true);
       try {
-        const res = await hostService.getPricingSuggestions(selectedHomestayId, dateStr, selectedRoomId);
-        if (res?.data) {
-          setDayAiSuggestion(res.data);
+        const res = await hostService.getPricingSuggestions(selectedHomestayId, dateStr, selectedRoomId || undefined);
+        const suggestion = res?.data || (res as any);
+        if (suggestion && (suggestion.suggested_price !== undefined || suggestion.comp_set_stats)) {
+          setDayAiSuggestion(suggestion);
+        } else {
+          setDayAiSuggestion(null);
         }
       } catch {
-        // Fallback im lặng nếu AI server bận
+        setDayAiSuggestion(null);
       } finally {
         setDayAiLoading(false);
       }
@@ -424,8 +446,8 @@ export default function PriceCalendarPage() {
                 <Title level={4} style={{ margin: 0, color: '#6b21a8' }}>
                   Đề Xuất Giá Thông Minh Cho Ngày {aiData.date}
                 </Title>
-                <Tag color={aiData.change_percentage >= 0 ? 'green' : 'orange'} style={{ fontSize: 13, fontWeight: 700 }}>
-                  {aiData.change_percentage >= 0 ? `+${aiData.change_percentage}%` : `${aiData.change_percentage}%`}
+                <Tag color={(aiData.change_percentage ?? 0) >= 0 ? 'green' : 'orange'} style={{ fontSize: 13, fontWeight: 700 }}>
+                  {(aiData.change_percentage ?? 0) >= 0 ? `+${aiData.change_percentage}%` : `${aiData.change_percentage}%`}
                 </Tag>
               </div>
 
@@ -438,7 +460,7 @@ export default function PriceCalendarPage() {
                   <div style={{ background: '#ffffff', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
                     <Text type="secondary" style={{ fontSize: 12 }}>Số đối thủ CompSet</Text>
                     <div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a' }}>
-                      {aiData.comp_set_stats.compset_size} homestay
+                      {aiData.comp_set_stats?.compset_size ?? 0} homestay
                     </div>
                   </div>
                 </Col>
@@ -446,7 +468,7 @@ export default function PriceCalendarPage() {
                   <div style={{ background: '#ffffff', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
                     <Text type="secondary" style={{ fontSize: 12 }}>Giá TB thị trường</Text>
                     <div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a' }}>
-                      {Number(aiData.comp_set_stats.market_avg_price).toLocaleString('vi-VN')}đ
+                      {Number(aiData.comp_set_stats?.market_avg_price || 0).toLocaleString('vi-VN')}đ
                     </div>
                   </div>
                 </Col>
@@ -454,7 +476,7 @@ export default function PriceCalendarPage() {
                   <div style={{ background: '#ffffff', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
                     <Text type="secondary" style={{ fontSize: 12 }}>Tỷ lệ kín phòng</Text>
                     <div style={{ fontSize: 18, fontWeight: 700, color: '#10b981' }}>
-                      {aiData.comp_set_stats.occupancy_rate}%
+                      {aiData.comp_set_stats?.occupancy_rate ?? 0}%
                     </div>
                   </div>
                 </Col>
@@ -556,7 +578,6 @@ export default function PriceCalendarPage() {
         onCancel={() => setDayModalOpen(false)}
         footer={null}
         width={540}
-        destroyOnClose
       >
         <Form form={dayPriceForm} layout="vertical" onFinish={handleSaveDayPrice} style={{ marginTop: 16 }}>
           {/* MỨC GIÁ */}
@@ -571,8 +592,8 @@ export default function PriceCalendarPage() {
               style={{ width: '100%', fontSize: 18, fontWeight: 700, color: '#4338ca' }}
               size="large"
               placeholder="Nhập giá phòng..."
-              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={(value) => (value ? Number(value.replace(/\D/g, '')) : 0) as any}
+              formatter={(value) => (value !== undefined && value !== null ? `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '')}
+              parser={(value) => (value ? Number(String(value).replace(/\D/g, '')) : 0) as any}
               addonAfter="VNĐ"
             />
           </Form.Item>
@@ -647,10 +668,10 @@ export default function PriceCalendarPage() {
               </div>
               {dayAiSuggestion && (
                 <Tag
-                  color={dayAiSuggestion.change_percentage >= 0 ? 'green' : 'orange'}
+                  color={(dayAiSuggestion.change_percentage ?? 0) >= 0 ? 'green' : 'orange'}
                   style={{ fontWeight: 700 }}
                 >
-                  {dayAiSuggestion.change_percentage >= 0
+                  {(dayAiSuggestion.change_percentage ?? 0) >= 0
                     ? `+${dayAiSuggestion.change_percentage}%`
                     : `${dayAiSuggestion.change_percentage}%`}
                 </Tag>
@@ -665,7 +686,7 @@ export default function PriceCalendarPage() {
             ) : dayAiSuggestion ? (
               <div>
                 <div style={{ fontSize: 13, color: '#4b5563', marginBottom: 10, lineHeight: 1.5 }}>
-                  {dayAiSuggestion.ai_explanation}
+                  {dayAiSuggestion.ai_explanation || 'Gợi ý mức giá tối ưu dựa trên nhu cầu thị trường và cạnh tranh lân cận.'}
                 </div>
 
                 <div
@@ -683,7 +704,7 @@ export default function PriceCalendarPage() {
                   <div>
                     <div style={{ fontSize: 11, color: '#64748b' }}>Giá đề xuất tối ưu:</div>
                     <div style={{ fontSize: 18, fontWeight: 800, color: '#7e22ce' }}>
-                      {Number(dayAiSuggestion.suggested_price).toLocaleString('vi-VN')} VNĐ
+                      {Number(dayAiSuggestion.suggested_price || 0).toLocaleString('vi-VN')} VNĐ
                     </div>
                   </div>
                   <Button
@@ -692,19 +713,23 @@ export default function PriceCalendarPage() {
                     size="small"
                     style={{ background: '#7e22ce', borderColor: '#7e22ce' }}
                     onClick={() => {
-                      dayPriceForm.setFieldsValue({ price: dayAiSuggestion.suggested_price });
-                      message.success('Đã điền mức giá gợi ý từ AI vào ô nhập!');
+                      if (dayAiSuggestion.suggested_price !== undefined) {
+                        dayPriceForm.setFieldsValue({ price: Number(dayAiSuggestion.suggested_price) });
+                        message.success('Đã điền mức giá gợi ý từ AI vào ô nhập!');
+                      }
                     }}
                   >
                     Dùng giá này
                   </Button>
                 </div>
 
-                <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#64748b', flexWrap: 'wrap' }}>
-                  <span>Đối thủ CompSet: <strong>{dayAiSuggestion.comp_set_stats.compset_size}</strong></span>
-                  <span>Giá TB: <strong>{Number(dayAiSuggestion.comp_set_stats.market_avg_price).toLocaleString('vi-VN')}đ</strong></span>
-                  <span>Tỷ lệ kín: <strong>{dayAiSuggestion.comp_set_stats.occupancy_rate}%</strong></span>
-                </div>
+                {dayAiSuggestion.comp_set_stats && (
+                  <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#64748b', flexWrap: 'wrap' }}>
+                    <span>Đối thủ CompSet: <strong>{dayAiSuggestion.comp_set_stats.compset_size ?? 0}</strong></span>
+                    <span>Giá TB: <strong>{Number(dayAiSuggestion.comp_set_stats.market_avg_price || 0).toLocaleString('vi-VN')}đ</strong></span>
+                    <span>Tỷ lệ kín: <strong>{dayAiSuggestion.comp_set_stats.occupancy_rate ?? 0}%</strong></span>
+                  </div>
+                )}
               </div>
             ) : (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
