@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Typography, Tag, Button, Space, Table, Spin, Empty } from 'antd';
+import { Card, Row, Col, Statistic, Typography, Tag, Button, Space, Table, Spin, Empty, Avatar } from 'antd';
 import {
   HomeOutlined,
   CalendarOutlined,
@@ -35,14 +35,20 @@ export default function HostDashboardPage() {
         hostService.getBookings(),
       ]);
 
-      if (statsRes.status === 'fulfilled' && statsRes.value?.data) {
-        setStats(statsRes.value.data);
+      if (statsRes.status === 'fulfilled' && statsRes.value) {
+        const raw: any = statsRes.value;
+        const actualStats: HostDashboardStats = raw?.data?.data ?? raw?.data ?? raw;
+        setStats(actualStats);
       }
-      if (balanceRes.status === 'fulfilled' && balanceRes.value?.data) {
-        setBalance(balanceRes.value.data);
+      if (balanceRes.status === 'fulfilled' && balanceRes.value) {
+        const raw: any = balanceRes.value;
+        const actualBalance: HostBalanceInfo = raw?.data?.data ?? raw?.data ?? raw;
+        setBalance(actualBalance);
       }
-      if (bookingsRes.status === 'fulfilled' && bookingsRes.value?.data) {
-        setRecentBookings(bookingsRes.value.data.slice(0, 5));
+      if (bookingsRes.status === 'fulfilled' && bookingsRes.value) {
+        const raw: any = bookingsRes.value;
+        const list = Array.isArray(raw) ? raw : raw?.data?.data ?? raw?.data ?? [];
+        setRecentBookings(Array.isArray(list) ? list.slice(0, 5) : []);
       }
     } catch {
       // Fallback
@@ -262,6 +268,99 @@ export default function HostDashboardPage() {
               </Card>
             </Col>
           </Row>
+
+          {/* HOMESTAYS LIST SECTION */}
+          <Card
+            title={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <HomeOutlined style={{ color: '#4f46e5' }} />
+                <span style={{ fontSize: 16 }}>Chỗ Nghỉ Của Bạn</span>
+                <Tag color="purple">{stats?.totalHomestays ?? 0} chỗ nghỉ</Tag>
+              </div>
+            }
+            extra={
+              <Button type="link" onClick={() => navigate('/host/listings')}>
+                Quản lý chi tiết &gt;
+              </Button>
+            }
+            style={{ borderRadius: 14, marginBottom: 24 }}
+          >
+            {(!stats?.homestays || stats.homestays.length === 0) ? (
+              <Empty
+                description="Bạn chưa có chỗ nghỉ nào. Hãy bấm nút '+ Đăng Homestay mới' để bắt đầu kinh doanh!"
+                style={{ padding: '24px 0' }}
+              />
+            ) : (
+              <Table
+                dataSource={stats.homestays}
+                rowKey="id"
+                pagination={false}
+                size="small"
+                columns={[
+                  {
+                    title: 'Chỗ Nghỉ & Địa Chỉ',
+                    key: 'name',
+                    render: (_: any, r) => (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <Avatar
+                          shape="square"
+                          size={46}
+                          src={r.cover_image}
+                          icon={<HomeOutlined />}
+                          style={{ backgroundColor: '#e2e8f0', borderRadius: 8, flexShrink: 0 }}
+                        />
+                        <div>
+                          <Text strong style={{ fontSize: 14 }}>{r.name}</Text>
+                          <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+                            📍 {r.address}, {r.city}
+                          </Text>
+                        </div>
+                      </div>
+                    ),
+                  },
+                  {
+                    title: 'Số Loại Phòng',
+                    dataIndex: 'rooms_count',
+                    key: 'rooms_count',
+                    render: (cnt: number) => <Tag color="geekblue">{cnt} phòng</Tag>,
+                  },
+                  {
+                    title: 'Đánh Giá',
+                    key: 'rating',
+                    render: (_: any, r) => (
+                      <span>
+                        <strong style={{ color: '#f59e0b' }}>⭐ {Number(r.average_rating || 5.0).toFixed(1)}</strong>
+                        <span style={{ color: '#94a3b8', fontSize: 12 }}> ({r.total_reviews || 0})</span>
+                      </span>
+                    ),
+                  },
+                  {
+                    title: 'Xác Thực eKYC',
+                    key: 'is_claimed',
+                    render: (_: any, r) =>
+                      r.is_claimed === 1 ? (
+                        <Tag color="success" icon={<CheckCircleOutlined />}>Chính chủ</Tag>
+                      ) : (
+                        <Tag color="warning">Chưa eKYC</Tag>
+                      ),
+                  },
+                  {
+                    title: 'Thao Tác',
+                    key: 'action',
+                    render: () => (
+                      <Button
+                        size="small"
+                        type="link"
+                        onClick={() => navigate('/host/listings')}
+                      >
+                        Quản lý &gt;
+                      </Button>
+                    ),
+                  },
+                ]}
+              />
+            )}
+          </Card>
         </>
       )}
     </div>
