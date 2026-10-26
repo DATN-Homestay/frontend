@@ -13,6 +13,9 @@ import {
     UserOutlined,
     MenuFoldOutlined,
     MenuUnfoldOutlined,
+    GlobalOutlined,
+    SyncOutlined,
+    ShoppingOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -22,8 +25,9 @@ const { Header, Sider, Content } = Layout;
 const menuItems = [
     { key: '/admin', icon: <DashboardOutlined />, label: 'Dashboard' },
     { key: '/admin/users', icon: <TeamOutlined />, label: 'Quản lý người dùng' },
+    { key: '/admin/hosts', icon: <UserOutlined />, label: 'Quản lý Host' },
     { key: '/admin/host-verifications', icon: <SafetyCertificateOutlined />, label: 'Duyệt KYC Host' },
-    { key: '/admin/homestays', icon: <HomeOutlined />, label: 'Duyệt Homestay' },
+    { key: '/admin/homestays', icon: <HomeOutlined />, label: 'Quản lý Homestay' },
     {
         key: 'finance',
         icon: <DollarOutlined />,
@@ -32,6 +36,15 @@ const menuItems = [
             { key: '/admin/revenues', label: 'Doanh thu & Hoa hồng' },
             { key: '/admin/payouts', label: 'Đối soát Payout' },
             { key: '/admin/refunds', label: 'Yêu cầu hoàn tiền' },
+        ],
+    },
+    {
+        key: 'data',
+        icon: <GlobalOutlined />,
+        label: 'Dữ liệu & Tự động',
+        children: [
+            { key: '/admin/dropship-orders', icon: <ShoppingOutlined />, label: 'Đơn Dropship B2B' },
+            { key: '/admin/sync-market-data', icon: <SyncOutlined />, label: 'Đồng bộ RapidAPI' },
         ],
     },
     { key: '/admin/configs', icon: <SettingOutlined />, label: 'Cấu hình hệ thống' },
@@ -78,7 +91,7 @@ export default function AdminLayout() {
                     theme="dark"
                     mode="inline"
                     selectedKeys={[location.pathname]}
-                    defaultOpenKeys={['finance']}
+                    defaultOpenKeys={['finance', 'data']}
                     items={menuItems}
                     onClick={({ key }) => navigate(key)}
                     style={{ borderRight: 0 }}
