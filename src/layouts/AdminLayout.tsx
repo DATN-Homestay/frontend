@@ -66,11 +66,21 @@ export default function AdminLayout() {
                 collapsed={collapsed}
                 theme="dark" 
                 width={260}
+                collapsedWidth={80}
                 breakpoint="lg"
                 onBreakpoint={(broken) => {
                     if (broken) {
                         setCollapsed(true);
                     }
+                }}
+                style={{
+                    position: 'fixed',
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    height: '100vh',
+                    overflow: 'auto',
+                    zIndex: 100,
                 }}
             >
                 <div style={{
@@ -98,15 +108,17 @@ export default function AdminLayout() {
                 />
             </Sider>
 
-            <Layout>
+            <Layout style={{ marginLeft: collapsed ? 80 : 260, transition: 'margin-left 0.2s' }}>
                 <Header style={{
                     background: token.colorBgContainer,
                     padding: '0 24px 0 0',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.03)',
-                    zIndex: 1
+                    boxShadow: '0 1px 4px 0 rgba(0, 0, 0, 0.08)',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 99,
                 }}>
                     <Button
                         type="text"
@@ -162,4 +174,4 @@ export default function AdminLayout() {
             </Layout>
         </Layout>
     );
-}
+}

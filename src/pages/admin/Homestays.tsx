@@ -189,38 +189,43 @@ export default function HomestaysPage() {
     {
       title: 'Homestay',
       key: 'info',
-      minWidth: 240,
+      width: 260,
       render: (_: any, record: AdminHomestayItem) => (
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {record.cover_image ? (
-            <Image
-              src={record.cover_image}
-              width={64} height={48}
-              style={{ objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
-              preview={false}
-            />
-          ) : (
-            <div style={{
-              width: 64, height: 48, borderRadius: 6, background: '#f1f5f9',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <div style={{
+            width: 64, height: 48, borderRadius: 6, flexShrink: 0,
+            overflow: 'hidden', background: '#f1f5f9',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {record.cover_image ? (
+              <img
+                src={record.cover_image}
+                alt={record.name}
+                style={{ width: 64, height: 48, objectFit: 'cover', display: 'block' }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            ) : (
               <HomeOutlined style={{ color: '#94a3b8' }} />
-            </div>
-          )}
-          <div>
-            <div style={{ fontWeight: 500, marginBottom: 2 }}>{record.name}</div>
+            )}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 500, marginBottom: 2, lineHeight: 1.4 }}>{record.name}</div>
             <Text type="secondary" style={{ fontSize: 12 }}>{record.city}</Text>
           </div>
         </div>
       ),
     },
+
     {
       title: 'Host',
       key: 'host',
+      width: 160,
       render: (_: any, record: AdminHomestayItem) =>
         record.host_name ? (
           <div>
-            <div style={{ fontSize: 13 }}>{record.host_name}</div>
+            <div style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.host_name}</div>
             {record.is_claimed ? <Tag color="blue" style={{ fontSize: 10 }}>Chính chủ</Tag> : <Tag style={{ fontSize: 10 }}>Chưa nhận</Tag>}
           </div>
         ) : <Text type="secondary">—</Text>,
@@ -228,15 +233,18 @@ export default function HomestaysPage() {
     {
       title: 'Phòng',
       dataIndex: 'rooms_count',
+      width: 70,
+      align: 'center' as const,
       render: (v: number) => <Badge count={v} showZero style={{ backgroundColor: v > 0 ? '#6366f1' : '#d9d9d9' }} />,
     },
     {
       title: 'Đánh giá',
       key: 'rating',
+      width: 160,
       render: (_: any, record: AdminHomestayItem) =>
         record.average_rating > 0 ? (
           <div>
-            <Rate disabled defaultValue={Math.round(record.average_rating)} count={5} style={{ fontSize: 12 }} />
+            <Rate disabled defaultValue={Math.round(record.average_rating)} count={5} style={{ fontSize: 11 }} />
             <div style={{ fontSize: 11, color: '#64748b' }}>{(Number(record.average_rating) || 0).toFixed(1)} ({record.total_reviews})</div>
           </div>
         ) : <Text type="secondary">—</Text>,
@@ -244,6 +252,7 @@ export default function HomestaysPage() {
     {
       title: 'Trạng thái',
       dataIndex: 'status',
+      width: 120,
       render: (status: string) => {
         const info = STATUS_MAP[status] ?? { color: 'default', label: status };
         return <Badge status={info.color as any} text={info.label} />;
@@ -252,12 +261,14 @@ export default function HomestaysPage() {
     {
       title: 'Ngày tạo',
       dataIndex: 'created_at',
+      width: 100,
       render: (v: string) => v ? new Date(v).toLocaleDateString('vi-VN') : '—',
     },
     {
       title: 'Hành động',
       key: 'actions',
-      width: 180,
+      width: 148,
+      fixed: 'right' as const,
       render: (_: any, record: AdminHomestayItem) => (
         <Space size={4}>
           <Tooltip title="Chi tiết">
@@ -322,7 +333,7 @@ export default function HomestaysPage() {
       </Row>
 
       {/* CRAWLER */}
-      <Card
+      {/* <Card
         style={{ borderRadius: 14, marginBottom: 20, border: '1px solid #c7d2fe', background: 'linear-gradient(180deg, #f8faff 0%, #fff 100%)' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
@@ -361,7 +372,7 @@ export default function HomestaysPage() {
             </Col>
           )}
         </Row>
-      </Card>
+      </Card> */}
 
       {/* FILTER */}
       <Card style={{ borderRadius: 14, marginBottom: 20 }}>
@@ -398,7 +409,8 @@ export default function HomestaysPage() {
           loading={loading}
           columns={columns}
           dataSource={data}
-          scroll={{ x: 'max-content' }}
+          scroll={{ x: 1020 }}
+          size="middle"
           pagination={{
             current: pagination.page,
             pageSize: pagination.limit,
@@ -439,7 +451,7 @@ export default function HomestaysPage() {
               </Descriptions.Item>
               <Descriptions.Item label="SĐT crawl">{detailData.crawled_phone || '—'}</Descriptions.Item>
               <Descriptions.Item label="Đánh giá">
-                ⭐ {detailData.average_rating.toFixed(1)} ({detailData.total_reviews} đánh giá)
+                ⭐ {(Number(detailData.average_rating) || 0).toFixed(1)} ({detailData.total_reviews ?? 0} đánh giá)
               </Descriptions.Item>
               <Descriptions.Item label="Ngày tạo" span={2}>
                 {new Date(detailData.created_at).toLocaleString('vi-VN')}
@@ -464,12 +476,12 @@ export default function HomestaysPage() {
                   <Col span={16}>
                     <div style={{ fontWeight: 500 }}>{r.room_name}</div>
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      {r.capacity} người · {r.area_sqm}m² · {r.bed_info}
+                      {r.capacity} người{r.area_sqm != null ? ` · ${r.area_sqm}m²` : ''}{r.bed_info ? ` · ${r.bed_info}` : ''}
                     </Text>
                   </Col>
                   <Col span={8} style={{ textAlign: 'right' }}>
                     <div style={{ fontWeight: 600, color: '#6366f1' }}>
-                      {r.base_price.toLocaleString('vi-VN')}đ/đêm
+                      {(r.base_price ?? 0).toLocaleString('vi-VN')}đ/đêm
                     </div>
                     <Text type="secondary" style={{ fontSize: 11 }}>{r.images_count} ảnh</Text>
                   </Col>
