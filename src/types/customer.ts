@@ -212,5 +212,50 @@ export interface BookingDetail {
   payment_deadline: string | null;
   payments: { id: string; amount: number; method: string; status: string; transaction_code: string | null; created_at: string }[];
   escrow_status: string | null;
+  cancelled_at?: string | null;
+  cancelled_by?: 'CUSTOMER' | 'HOST' | 'ADMIN' | 'SYSTEM' | null;
+  cancel_reason?: string | null;
+  refunds?: BookingRefund[];
+  created_at: string;
+}
+
+// =========================================================
+// HỦY ĐƠN & HOÀN TIỀN (khớp API backend)
+// =========================================================
+
+/** data của GET /bookings/:id/cancellation-quote */
+export interface CancellationQuote {
+  booking_code: string;
+  status: BookingStatus;
+  policy: 'FLEXIBLE' | 'MODERATE' | 'STRICT' | 'NON_REFUNDABLE';
+  can_cancel: boolean;
+  reason_cannot: string | null;
+  paid_amount: number;
+  refund_amount: number;
+  retained_amount: number;
+  refund_percent: number;
+  hours_before_check_in: number | null;
+  rule: string | null;
+}
+
+/** data của POST /bookings/:id/cancel */
+export interface CancelResult {
+  booking_id: string;
+  status: BookingStatus;
+  refund: { id: string; amount: number; status: RefundStatus } | null;
+  retained_amount: number;
+  rule: string;
+  message: string;
+}
+
+export type RefundStatus = 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
+
+export interface BookingRefund {
+  id: string;
+  amount: number;
+  status: RefundStatus;
+  source: string;
+  reason: string | null;
+  processed_at: string | null;
   created_at: string;
 }
