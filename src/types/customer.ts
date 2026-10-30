@@ -13,9 +13,11 @@ export interface HomestayItem {
   source_url?: string;
   amenities_json?: Record<string, any>;
   rooms?: RoomItem[];
-  host?: { id?: string; name?: string; phone?: string; avatar_url?: string };
+  /** Backend trả kèm khi xem chi tiết (GET /homestays/:id); có thể thiếu hoặc null */
+  host?: { name?: string } | null;
+  images?: { image_url: string }[];
   reviews?: any[];
-  images?: { id?: string; image_url: string }[];
+  absa_metric?: { ai_summary_vn?: string | null } | null;
 }
 
 export interface RoomDetailsJson {
@@ -90,6 +92,10 @@ export type BookingStatus =
 export interface BookingQuote {
   available: boolean;
   unavailable_dates: string[];
+  /** Đêm chưa có giá/lịch (homestay chưa mở bán) */
+  no_price_dates: string[];
+  /** Đêm đã có người giữ chỗ hoặc đặt */
+  held_dates: string[];
   room_id: string;
   room_name: string;
   homestay: { id: string; name: string };
@@ -212,5 +218,50 @@ export interface BookingDetail {
   payment_deadline: string | null;
   payments: { id: string; amount: number; method: string; status: string; transaction_code: string | null; created_at: string }[];
   escrow_status: string | null;
+  cancelled_at?: string | null;
+  cancelled_by?: 'CUSTOMER' | 'HOST' | 'ADMIN' | 'SYSTEM' | null;
+  cancel_reason?: string | null;
+  refunds?: BookingRefund[];
+  created_at: string;
+}
+
+// =========================================================
+// HỦY ĐƠN & HOÀN TIỀN (khớp API backend)
+// =========================================================
+
+/** data của GET /bookings/:id/cancellation-quote */
+export interface CancellationQuote {
+  booking_code: string;
+  status: BookingStatus;
+  policy: 'FLEXIBLE' | 'MODERATE' | 'STRICT' | 'NON_REFUNDABLE';
+  can_cancel: boolean;
+  reason_cannot: string | null;
+  paid_amount: number;
+  refund_amount: number;
+  retained_amount: number;
+  refund_percent: number;
+  hours_before_check_in: number | null;
+  rule: string | null;
+}
+
+/** data của POST /bookings/:id/cancel */
+export interface CancelResult {
+  booking_id: string;
+  status: BookingStatus;
+  refund: { id: string; amount: number; status: RefundStatus } | null;
+  retained_amount: number;
+  rule: string;
+  message: string;
+}
+
+export type RefundStatus = 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
+
+export interface BookingRefund {
+  id: string;
+  amount: number;
+  status: RefundStatus;
+  source: string;
+  reason: string | null;
+  processed_at: string | null;
   created_at: string;
 }
