@@ -13,7 +13,6 @@ import {
   Divider,
   Avatar,
   Rate,
-  Progress,
   Image,
   Drawer,
   Input,
@@ -26,7 +25,6 @@ import {
   CheckCircleOutlined,
   SafetyCertificateOutlined,
   ArrowLeftOutlined,
-  RobotOutlined,
   UserOutlined,
   CheckOutlined,
   MessageOutlined,
@@ -49,6 +47,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { customerService } from '../../services/customerService';
 import type { HomestayItem, RoomItem } from '../../types/customer';
 import { getHomestayCoverImage, getAllHomestayImages } from '../../utils/imageHelper';
+import { getStoredOtaMode, type OtaMode } from '../../components/OtaModeSwitcher';
 
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -109,6 +108,19 @@ export default function HomestayDetailPage() {
   const [selectedRoom, setSelectedRoom] = useState<RoomItem | null>(null);
   const [dateRange, setDateRange] = useState<[string, string] | null>(null);
   const [activeImage, setActiveImage] = useState<string | null>(initialCoverFromState || null);
+
+  // OTA INTEGRATION MODE (DEMO GVHD: B2B DEMAND API vs AFFILIATE PARTNER)
+  const [otaMode, setOtaMode] = useState<OtaMode>(getStoredOtaMode());
+  const [affiliateModalOpen, setAffiliateModalOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const customEvent = e as CustomEvent<OtaMode>;
+      if (customEvent.detail) setOtaMode(customEvent.detail);
+    };
+    window.addEventListener('ota_mode_changed', handler);
+    return () => window.removeEventListener('ota_mode_changed', handler);
+  }, []);
 
   // ROOM DETAIL MODAL STATE
   const [roomDetailModalOpen, setRoomDetailModalOpen] = useState(false);
@@ -250,6 +262,14 @@ export default function HomestayDetailPage() {
     }
     const checkIn = dateRange[0];
     const checkOut = dateRange[1];
+
+    // NẾU Ở CHẾ ĐỘ AFFILIATE PARTNER VÀ CƠ SỞ LIÊN KẾT BOOKING.COM (CHƯA CLAIM)
+    if (otaMode === 'AFFILIATE_PARTNER' && homestay?.is_claimed === 0) {
+      setAffiliateModalOpen(true);
+      return;
+    }
+
+    // MẶC ĐỊNH HOẶC CHẾ ĐỘ B2B DEMAND API: ĐƯA VÀO CHECKOUT NỘI BỘ SÀN (MoR MODEL)
     navigate(
       `/checkout?roomId=${selectedRoom.id}&homestayId=${homestay?.id}&checkIn=${checkIn}&checkOut=${checkOut}`,
     );
@@ -1064,108 +1084,6 @@ export default function HomestayDetailPage() {
 
             <Divider style={{ margin: '24px 0' }} />
 
-            {/* AI ABSA INSIGHT BANNER */}
-            <div
-              style={{
-                background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
-                padding: '20px',
-                borderRadius: 14,
-                border: '1px solid #c4b5fd',
-                marginBottom: 24,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 8,
-                    background: '#6366f1',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#fff',
-                    fontSize: 16,
-                  }}
-                >
-                  <RobotOutlined />
-                </div>
-                <div>
-                  <Text strong style={{ color: '#4338ca', fontSize: 15 }}>
-                    AI Tóm tắt Đánh giá Đa khía cạnh (ABSA Insight)
-                  </Text>
-                  <Tag color="purple" style={{ marginLeft: 8 }}>
-                    Dữ liệu thực tế Booking.com
-                  </Tag>
-                </div>
-              </div>
-              <Paragraph style={{ color: '#334155', fontSize: 13, lineHeight: 1.6, margin: 0 }}>
-                {homestay.absa_metric?.ai_summary_vn ||
-                  `Dựa trên dữ liệu thực tế từ Booking.com (${homestay.total_reviews} lượt đánh giá), cơ sở lưu trú này đạt điểm tổng thể ${(homestay.average_rating > 5 ? homestay.average_rating : (homestay.average_rating * 2)).toFixed(1).replace('.', ',')}/10. Khách hàng ấn tượng nhất với Độ sạch sẽ (${Number(reviewScores.cleanliness || 9.0).toFixed(1).replace('.', ',')}/10), Sự thoải mái (${Number(reviewScores.comfort || 9.0).toFixed(1).replace('.', ',')}/10) và Sự nhiệt tình của nhân viên (${Number(reviewScores.staff || 9.2).toFixed(1).replace('.', ',')}/10).`}
-              </Paragraph>
-            </div>
-
-            {/* 4 ASPECT-BASED RATINGS METRICS - TÍNH TOÁN 100% TỪ DỮ LIỆU BOOKING */}
-            <Row gutter={[24, 16]} style={{ marginBottom: 28 }}>
-              <Col xs={24} sm={12}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <Text strong style={{ fontSize: 13 }}>Vệ sinh (Cleanliness)</Text>
-                  <Text strong style={{ color: '#6366f1' }}>
-                    {(Number(reviewScores.cleanliness || 9.0) / 2).toFixed(1)} / 5.0
-                  </Text>
-                </div>
-                <Progress
-                  percent={Math.round((Number(reviewScores.cleanliness || 9.0) / 10) * 100)}
-                  showInfo={false}
-                  strokeColor="#6366f1"
-                />
-              </Col>
-
-              <Col xs={24} sm={12}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <Text strong style={{ fontSize: 13 }}>Độ thoải mái & Không gian (Comfort)</Text>
-                  <Text strong style={{ color: '#6366f1' }}>
-                    {(Number(reviewScores.comfort || 9.0) / 2).toFixed(1)} / 5.0
-                  </Text>
-                </div>
-                <Progress
-                  percent={Math.round((Number(reviewScores.comfort || 9.0) / 10) * 100)}
-                  showInfo={false}
-                  strokeColor="#6366f1"
-                />
-              </Col>
-
-              <Col xs={24} sm={12}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <Text strong style={{ fontSize: 13 }}>Dịch vụ & Nhân viên (Staff)</Text>
-                  <Text strong style={{ color: '#6366f1' }}>
-                    {(Number(reviewScores.staff || 9.2) / 2).toFixed(1)} / 5.0
-                  </Text>
-                </div>
-                <Progress
-                  percent={Math.round((Number(reviewScores.staff || 9.2) / 10) * 100)}
-                  showInfo={false}
-                  strokeColor="#6366f1"
-                />
-              </Col>
-
-              <Col xs={24} sm={12}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <Text strong style={{ fontSize: 13 }}>Vị trí & Địa điểm (Location)</Text>
-                  <Text strong style={{ color: '#6366f1' }}>
-                    {(Number(reviewScores.location || 9.0) / 2).toFixed(1)} / 5.0
-                  </Text>
-                </div>
-                <Progress
-                  percent={Math.round((Number(reviewScores.location || 9.0) / 10) * 100)}
-                  showInfo={false}
-                  strokeColor="#6366f1"
-                />
-              </Col>
-            </Row>
-
-            <Divider style={{ margin: '20px 0' }} />
-
             {/* REVIEWS LIST */}
             <div id="user-comments-list" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
               {homestay.reviews && homestay.reviews.length > 0 ? (
@@ -1201,19 +1119,12 @@ export default function HomestayDetailPage() {
                     padding: '36px 20px',
                     background: '#f8fafc',
                     borderRadius: 14,
-                    border: '1px solid #e2e8f0',
+                    border: '1px solid #f1f5f9',
                   }}
                 >
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>🏨 ⭐</div>
-                  <Text strong style={{ fontSize: 16, display: 'block', color: '#1e293b', marginBottom: 6 }}>
-                    Dữ liệu đánh giá được chứng thực từ Booking.com
+                  <Text type="secondary" style={{ fontSize: 14 }}>
+                    Chưa có nhận xét nào cho chỗ nghỉ này. Hãy là người đầu tiên trải nghiệm và chia sẻ đánh giá!
                   </Text>
-                  <Text style={{ fontSize: 14, color: '#475569', display: 'block', marginBottom: 14 }}>
-                    Điểm số tổng thể: <strong style={{ color: '#003b95' }}>{(homestay.average_rating > 5 ? homestay.average_rating : (homestay.average_rating * 2)).toFixed(1).replace('.', ',')}/10</strong> ({homestay.total_reviews || 50} đánh giá thực tế)
-                  </Text>
-                  <Tag color="blue" style={{ padding: '4px 12px', fontSize: 13 }}>
-                    Chưa có nhận xét nào trên website nội bộ • Hãy là người đầu tiên đặt phòng và đánh giá!
-                  </Tag>
                 </div>
               )}
             </div>
@@ -1274,21 +1185,40 @@ export default function HomestayDetailPage() {
               />
             </div>
 
-            <Button
-              type="primary"
-              size="large"
-              block
-              onClick={handleBooking}
-              style={{
-                height: 48,
-                borderRadius: 10,
-                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                fontWeight: 600,
-                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
-              }}
-            >
-              Đặt phòng ngay
-            </Button>
+            {otaMode === 'AFFILIATE_PARTNER' && homestay?.is_claimed === 0 ? (
+              <Button
+                type="primary"
+                size="large"
+                block
+                onClick={handleBooking}
+                style={{
+                  height: 48,
+                  borderRadius: 10,
+                  background: '#003580',
+                  borderColor: '#003580',
+                  fontWeight: 700,
+                  boxShadow: '0 4px 12px rgba(0, 53, 128, 0.35)',
+                }}
+              >
+                🌐 Đặt qua Đối tác Booking.com
+              </Button>
+            ) : (
+              <Button
+                type="primary"
+                size="large"
+                block
+                onClick={handleBooking}
+                style={{
+                  height: 48,
+                  borderRadius: 10,
+                  background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                  fontWeight: 600,
+                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                }}
+              >
+                Đặt phòng ngay
+              </Button>
+            )}
 
             <Button
               size="large"
@@ -1312,7 +1242,9 @@ export default function HomestayDetailPage() {
               type="secondary"
               style={{ fontSize: 12, textAlign: 'center', display: 'block', marginTop: 14 }}
             >
-              🛡️ Bảo vệ thanh toán: Giữ tiền trong Escrow 24h
+              {otaMode === 'AFFILIATE_PARTNER' && homestay?.is_claimed === 0
+                ? '🔗 Chương trình Đối tác Ủy quyền Booking.com Affiliate'
+                : '🛡️ Bảo vệ thanh toán: Ký quỹ Escrow & Tự động xuất vé B2B'}
             </Text>
           </Card>
         </Col>
@@ -1519,8 +1451,8 @@ export default function HomestayDetailPage() {
         {activeDetailRoom && (() => {
           const room = activeDetailRoom;
           const roomPhotos = (room.images && room.images.length > 0)
-            ? room.images.map((img) => img.image_url)
-            : (homestay?.images?.map((img) => img.image_url) || [getHomestayCoverImage(homestay)]);
+            ? room.images.map((img: any) => img.image_url)
+            : (homestay?.images?.map((img: any) => img.image_url) || [getHomestayCoverImage(homestay)]);
 
           const details = room.room_details_json || {};
           const badges = details.badges || [
@@ -1694,7 +1626,7 @@ export default function HomestayDetailPage() {
                         marginBottom: 12,
                       }}
                     >
-                      {roomPhotos.map((_, idx) => (
+                      {roomPhotos.map((_: any, idx: number) => (
                         <div
                           key={idx}
                           onClick={() => setModalActiveImgIndex(idx)}
@@ -1721,7 +1653,7 @@ export default function HomestayDetailPage() {
                       paddingTop: 2,
                     }}
                   >
-                    {roomPhotos.map((photo, idx) => {
+                    {roomPhotos.map((photo: any, idx: number) => {
                       const isActive = modalActiveImgIndex === idx;
                       return (
                         <div
@@ -1943,6 +1875,109 @@ export default function HomestayDetailPage() {
             </div>
           );
         })()}
+      </Modal>
+
+      {/* ========================================================= */}
+      {/* MODAL CHUYỂN TIẾP ĐỐI TÁC BOOKING.COM AFFILIATE (DEMO GVHD) */}
+      {/* ========================================================= */}
+      <Modal
+        title={null}
+        open={affiliateModalOpen}
+        onCancel={() => setAffiliateModalOpen(false)}
+        footer={null}
+        width={560}
+        centered
+        styles={{ body: { padding: 0 } }}
+      >
+        <div style={{ borderRadius: 12, overflow: 'hidden' }}>
+          {/* Header Xanh Booking.com */}
+          <div style={{ background: '#003580', color: '#fff', padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 24 }}>🌐</span>
+                <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: -0.3 }}>Booking.com</span>
+                <span style={{ fontSize: 14, opacity: 0.9 }}>Affiliate Network</span>
+              </div>
+              <Tag color="#00ba74" style={{ fontWeight: 700, margin: 0, padding: '2px 8px' }}>
+                ĐỐI TÁC ỦY QUYỀN
+              </Tag>
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>
+              Chuyển hướng đặt phòng an toàn qua Booking.com
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.85, marginTop: 4 }}>
+              Mã đối tác tiếp thị liên kết: <strong>aid=2409182</strong> (StayAI Official Partner)
+            </div>
+          </div>
+
+          <div style={{ padding: '24px' }}>
+            <div style={{ background: '#f8fafc', padding: '16px', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 20 }}>
+              <div style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                Thông tin phòng lưu trú:
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>
+                {homestay?.name}
+              </div>
+              <div style={{ fontSize: 14, color: '#006ce4', fontWeight: 600, marginTop: 2 }}>
+                {selectedRoom?.room_name}
+              </div>
+              <div style={{ fontSize: 13, color: '#475569', marginTop: 6 }}>
+                📅 Thời gian: <strong>{dateRange?.[0]} ➔ {dateRange?.[1]}</strong>
+              </div>
+              <div style={{ fontSize: 13, color: '#475569', marginTop: 2 }}>
+                💰 Giá niêm yết: <strong>{(selectedRoom?.base_price || 0).toLocaleString('vi-VN')}đ</strong> / đêm
+              </div>
+            </div>
+
+            <div style={{ background: '#eff6ff', padding: '12px 16px', borderRadius: 8, border: '1px solid #bfdbfe', fontSize: 13, color: '#1e40af', lineHeight: 1.5, marginBottom: 24 }}>
+              🛡️ <strong>Chính sách minh bạch:</strong> Bạn sẽ được chuyển trực tiếp sang giao diện Booking.com để nhập thông tin và thanh toán. Nền tảng StayAI nhận hoa hồng chia sẻ (25% - 40%) từ Booking.com sau khi kỳ nghỉ kết thúc.
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <Button size="large" onClick={() => setAffiliateModalOpen(false)}>
+                Hủy
+              </Button>
+              <Button
+                type="primary"
+                size="large"
+                style={{
+                  background: '#003580',
+                  borderColor: '#003580',
+                  fontWeight: 700,
+                  padding: '0 24px',
+                }}
+                onClick={() => {
+                  // Ghi nhận lượt click Affiliate vào localStorage để Admin thống kê
+                  const clicks = JSON.parse(localStorage.getItem('stayai_affiliate_clicks') || '[]');
+                  clicks.unshift({
+                    id: String(Date.now()),
+                    homestay_id: homestay?.id,
+                    homestay_name: homestay?.name,
+                    room_name: selectedRoom?.room_name,
+                    check_in: dateRange?.[0],
+                    check_out: dateRange?.[1],
+                    price: selectedRoom?.base_price || 0,
+                    estimated_commission: Math.round((Number(selectedRoom?.base_price) || 600000) * 0.4),
+                    timestamp: new Date().toISOString(),
+                    affiliate_id: '2409182',
+                  });
+                  localStorage.setItem('stayai_affiliate_clicks', JSON.stringify(clicks.slice(0, 50)));
+
+                  const sourceUrl = homestay?.source_url || 'https://www.booking.com';
+                  const redirectUrl = sourceUrl.includes('?')
+                    ? `${sourceUrl}&aid=2409182&label=stayai_affiliate_demo`
+                    : `${sourceUrl}?aid=2409182&label=stayai_affiliate_demo`;
+
+                  message.success('Đang chuyển hướng sang Booking.com qua mã đối tác aid=2409182...');
+                  setAffiliateModalOpen(false);
+                  window.open(redirectUrl, '_blank');
+                }}
+              >
+                Xác nhận đến Booking.com ➔
+              </Button>
+            </div>
+          </div>
+        </div>
       </Modal>
     </div>
   );

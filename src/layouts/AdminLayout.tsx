@@ -13,6 +13,7 @@ import {
     UserOutlined,
     MenuFoldOutlined,
     MenuUnfoldOutlined,
+    GlobalOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -21,6 +22,7 @@ const { Header, Sider, Content } = Layout;
 
 const menuItems = [
     { key: '/admin', icon: <DashboardOutlined />, label: 'Dashboard' },
+    { key: '/admin/dropship', icon: <GlobalOutlined />, label: 'Đơn Dropship Booking.com' },
     { key: '/admin/users', icon: <TeamOutlined />, label: 'Quản lý người dùng' },
     { key: '/admin/host-verifications', icon: <SafetyCertificateOutlined />, label: 'Duyệt KYC Host' },
     { key: '/admin/homestays', icon: <HomeOutlined />, label: 'Duyệt Homestay' },

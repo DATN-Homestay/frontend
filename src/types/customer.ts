@@ -136,6 +136,33 @@ export interface PaymentLink {
   payment_url: string;
 }
 
+export interface OtaFulfillmentInfo {
+  provider: 'BOOKING_COM';
+  mode: 'SANDBOX' | 'PRODUCTION';
+  api_spec: string;
+  ota_booking_code: string;
+  pnr_code: string;
+  pin_code: string;
+  status: 'CONFIRMED' | 'PENDING' | 'FAILED';
+  hotel_name: string;
+  hotel_address: string;
+  hotel_source_url?: string | null;
+  room_name: string;
+  guest_name: string;
+  guest_email: string;
+  guest_phone: string;
+  check_in_date: string;
+  check_out_date: string;
+  num_guests: number;
+  payment_method_b2b: string;
+  vcc_card_last4: string;
+  retail_amount: number;
+  wholesale_amount: number;
+  profit_margin: number;
+  fulfilled_at: string;
+  notes: string;
+}
+
 /** data của GET /payments/:id */
 export interface PaymentStatusInfo {
   id: string;
@@ -145,6 +172,8 @@ export interface PaymentStatusInfo {
   amount: number;
   status: 'PENDING' | 'SUCCESS' | 'FAILED';
   paid_at: string | null;
+  is_dropship?: boolean;
+  ota_fulfillment?: OtaFulfillmentInfo | null;
 }
 
 /** Một dòng của GET /users/me/bookings */
@@ -152,6 +181,8 @@ export interface MyBookingItem {
   id: string;
   booking_code: string;
   status: BookingStatus;
+  is_dropship?: boolean;
+  ota_fulfillment?: OtaFulfillmentInfo | null;
   homestay: { id: string; name: string; city: string };
   room: { id: string; room_name: string };
   check_in_date: string;
@@ -173,6 +204,7 @@ export interface BookingDetail {
   booking_code: string;
   status: BookingStatus;
   is_dropship: boolean;
+  ota_fulfillment?: OtaFulfillmentInfo | null;
   homestay: { id: string; name: string; address: string; city: string; cancellation_policy: string };
   room: { id: string; room_name: string };
   check_in_date: string;
