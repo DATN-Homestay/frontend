@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { App, Button, Card, Descriptions, Input, Modal, Rate, Select, Table, Tag, Typography } from 'antd';
 import { CheckCircleOutlined, StarOutlined } from '@ant-design/icons';
 import { customerService } from '../../services/customerService';
-import type { BookingDetail, BookingStatus, MyBookingItem } from '../../types/customer';
+import CancelBookingModal from '../../components/CancelBookingModal';
+import type { BookingDetail, BookingStatus, MyBookingItem, RefundStatus } from '../../types/customer';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -17,6 +18,21 @@ const STATUS_TAG: Record<BookingStatus, { color: string; text: string }> = {
   CANCELLED: { color: 'red', text: 'Đã hủy' },
   DISPUTED: { color: 'volcano', text: 'Đang khiếu nại' },
   EXPIRED: { color: 'default', text: 'Hết hạn giữ chỗ' },
+};
+
+/** Trạng thái hoàn tiền hiển thị cho khách; FAILED là việc của hệ thống nên nói là đang chờ xử lý */
+const REFUND_TAG: Record<RefundStatus, { color: string; text: string }> = {
+  PENDING: { color: 'orange', text: 'Đang xử lý hoàn tiền' },
+  PROCESSING: { color: 'orange', text: 'Đang xử lý hoàn tiền' },
+  PROCESSED: { color: 'success', text: 'Đã hoàn tiền' },
+  FAILED: { color: 'gold', text: 'Đang chờ quản trị viên xử lý' },
+};
+
+const POLICY_LABEL: Record<string, string> = {
+  FLEXIBLE: 'Linh hoạt (hoàn 100% nếu hủy trước 24 giờ)',
+  MODERATE: 'Tiêu chuẩn (hoàn 100% nếu hủy trước 5 ngày, sau đó 50%)',
+  STRICT: 'Nghiêm ngặt (100% trước 14 ngày, 50% từ 7–14 ngày, sau đó không hoàn)',
+  NON_REFUNDABLE: 'Không hoàn tiền',
 };
 
 /** Đếm ngược hạn thanh toán của đơn đang giữ chỗ */
@@ -52,6 +68,7 @@ export default function MyTripsPage() {
   const [reloadKey, setReloadKey] = useState(0);
   const [payingId, setPayingId] = useState<string | null>(null);
 
+  const [cancelTarget, setCancelTarget] = useState<MyBookingItem | null>(null);
   const [detail, setDetail] = useState<BookingDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
@@ -122,7 +139,18 @@ export default function MyTripsPage() {
     {
       title: 'Mã đơn',
       dataIndex: 'booking_code',
-      render: (code: string) => <strong>{code}</strong>,
+      render: (code: string, r: MyBookingItem) => (
+        <div>
+          <strong>{code}</strong>
+          {r.is_dropship && (
+            <div style={{ marginTop: 2 }}>
+              <Tag color="#003580" style={{ fontSize: 10, borderRadius: 4, margin: 0, fontWeight: 600 }}>
+                Booking.com B2B
+              </Tag>
+            </div>
+          )}
+        </div>
+      ),
     },
     {
       title: 'Homestay & Phòng',
@@ -175,6 +203,11 @@ export default function MyTripsPage() {
             </Button>
           )}
           <Button size="small" onClick={() => openDetail(r.id)}>Chi tiết</Button>
+          {(r.status === 'PENDING_PAYMENT' || r.status === 'PAID_ESCROW') && (
+            <Button size="small" danger onClick={() => setCancelTarget(r)}>
+              Hủy đơn
+            </Button>
+          )}
         </div>
       ),
     },
@@ -214,36 +247,112 @@ export default function MyTripsPage() {
         />
       </Card>
 
+      {cancelTarget && (
+        <CancelBookingModal
+          key={cancelTarget.id}
+          booking={cancelTarget}
+          onClose={() => setCancelTarget(null)}
+          onCancelled={() => reload()}
+        />
+      )}
+
       <Modal
         title="Chi tiết đơn đặt phòng"
         open={detailLoading || !!detail}
         loading={detailLoading}
         onCancel={() => setDetail(null)}
         footer={null}
-        width={640}
+        width={680}
       >
         {detail && (
-          <Descriptions
-            column={1}
-            size="small"
-            bordered
-            items={[
-              { key: 'code', label: 'Mã đơn', children: <strong>{detail.booking_code}</strong> },
-              { key: 'status', label: 'Trạng thái', children: <Tag color={STATUS_TAG[detail.status].color}>{STATUS_TAG[detail.status].text}</Tag> },
-              { key: 'homestay', label: 'Homestay', children: `${detail.homestay.name} — ${detail.homestay.address}, ${detail.homestay.city}` },
-              { key: 'room', label: 'Phòng', children: detail.room.room_name },
-              { key: 'dates', label: 'Lưu trú', children: `${detail.check_in_date} ➔ ${detail.check_out_date} (${detail.nights} đêm, ${detail.num_guests} khách)` },
-              { key: 'total', label: 'Tổng tiền', children: <strong>{money(detail.total_amount)}</strong> },
-              { key: 'policy', label: 'Chính sách hủy', children: detail.homestay.cancellation_policy },
-              ...(detail.customer_note ? [{ key: 'note', label: 'Ghi chú', children: detail.customer_note }] : []),
-              ...(detail.escrow_status ? [{ key: 'escrow', label: 'Ký quỹ Escrow', children: detail.escrow_status }] : []),
-              ...detail.payments.map((p) => ({
-                key: `pay-${p.id}`,
-                label: `Thanh toán #${p.id}`,
-                children: `${money(p.amount)} — ${p.method} — ${p.status}${p.transaction_code ? ` (Mã GD ${p.transaction_code})` : ''}`,
-              })),
-            ]}
-          />
+          <div>
+            {detail.ota_fulfillment && (
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #003580 0%, #00224f 100%)',
+                  color: '#fff',
+                  borderRadius: 12,
+                  padding: '16px',
+                  marginBottom: 16,
+                  border: '1px solid #1a4d8f',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>🏨</span> Vé nhận phòng Booking.com (Demand API)
+                  </div>
+                  <Tag color="green" style={{ margin: 0, fontWeight: 700 }}>ĐÃ XÁC NHẬN B2B</Tag>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
+                  <div style={{ background: 'rgba(255,255,255,0.08)', padding: '8px 10px', borderRadius: 8 }}>
+                    <div style={{ fontSize: 10, opacity: 0.75, textTransform: 'uppercase' }}>Mã Booking.com</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#ffb700', marginTop: 2 }}>
+                      {detail.ota_fulfillment.ota_booking_code}
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.08)', padding: '8px 10px', borderRadius: 8 }}>
+                    <div style={{ fontSize: 10, opacity: 0.75, textTransform: 'uppercase' }}>Mã PIN nhận phòng</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#4ade80', marginTop: 2 }}>
+                      {detail.ota_fulfillment.pin_code}
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.08)', padding: '8px 10px', borderRadius: 8 }}>
+                    <div style={{ fontSize: 10, opacity: 0.75, textTransform: 'uppercase' }}>Mã PNR Quốc tế</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#67e8f9', marginTop: 2 }}>
+                      {detail.ota_fulfillment.pnr_code}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.9, background: 'rgba(255,255,255,0.05)', padding: '8px 10px', borderRadius: 6, lineHeight: 1.5 }}>
+                  💡 <strong>Hướng dẫn:</strong> Đơn phòng đã được thanh toán 100% bằng thẻ ảo VCC. Khi đến quầy lễ tân, bạn chỉ cần đọc <strong>Mã Booking.com</strong> hoặc <strong>Mã PIN</strong> này để nhận phòng trực tiếp.
+                </div>
+              </div>
+            )}
+
+            <Descriptions
+              column={1}
+              size="small"
+              bordered
+              items={[
+                { key: 'code', label: 'Mã đơn', children: <strong>{detail.booking_code}</strong> },
+                { key: 'status', label: 'Trạng thái', children: <Tag color={STATUS_TAG[detail.status].color}>{STATUS_TAG[detail.status].text}</Tag> },
+                { key: 'homestay', label: 'Homestay', children: `${detail.homestay.name} — ${detail.homestay.address}, ${detail.homestay.city}` },
+                { key: 'room', label: 'Phòng', children: detail.room.room_name },
+                { key: 'dates', label: 'Lưu trú', children: `${detail.check_in_date} ➔ ${detail.check_out_date} (${detail.nights} đêm, ${detail.num_guests} khách)` },
+                { key: 'total', label: 'Tổng tiền', children: <strong>{money(detail.total_amount)}</strong> },
+                { key: 'policy', label: 'Chính sách hủy', children: POLICY_LABEL[detail.homestay.cancellation_policy] ?? detail.homestay.cancellation_policy },
+                ...(detail.customer_note ? [{ key: 'note', label: 'Ghi chú', children: detail.customer_note }] : []),
+                ...(detail.escrow_status ? [{ key: 'escrow', label: 'Ký quỹ Escrow', children: detail.escrow_status }] : []),
+                ...(detail.status === 'CANCELLED' && detail.cancelled_at
+                  ? [
+                      {
+                        key: 'cancel',
+                        label: 'Đã hủy',
+                        children: `${new Date(detail.cancelled_at).toLocaleString('vi-VN')} bởi ${
+                          { CUSTOMER: 'khách hàng', HOST: 'chủ nhà', ADMIN: 'quản trị viên', SYSTEM: 'hệ thống' }[detail.cancelled_by ?? 'SYSTEM']
+                        }${detail.cancel_reason ? ` — ${detail.cancel_reason}` : ''}`,
+                      },
+                    ]
+                  : []),
+                ...(detail.refunds ?? []).map((r) => ({
+                  key: `refund-${r.id}`,
+                  label: `Hoàn tiền #${r.id}`,
+                  children: (
+                    <span>
+                      <strong>{money(r.amount)}</strong>{' '}
+                      <Tag color={REFUND_TAG[r.status].color}>{REFUND_TAG[r.status].text}</Tag>
+                      {r.processed_at && <Text type="secondary">({new Date(r.processed_at).toLocaleString('vi-VN')})</Text>}
+                    </span>
+                  ),
+                })),
+                ...detail.payments.map((p) => ({
+                  key: `pay-${p.id}`,
+                  label: `Thanh toán #${p.id}`,
+                  children: `${money(p.amount)} — ${p.method} — ${p.status}${p.transaction_code ? ` (Mã GD ${p.transaction_code})` : ''}`,
+                })),
+              ]}
+            />
+          </div>
         )}
       </Modal>
 

@@ -44,13 +44,13 @@ const menuItems = [
         label: 'Dữ liệu & Tự động',
         children: [
             { key: '/admin/dropship-orders', icon: <ShoppingOutlined />, label: 'Đơn Dropship B2B' },
+            { key: '/admin/dropship', icon: <GlobalOutlined />, label: 'Dropship Booking.com (MoR & Affiliate)' },
             { key: '/admin/sync-market-data', icon: <SyncOutlined />, label: 'Đồng bộ RapidAPI' },
         ],
     },
     { key: '/admin/configs', icon: <SettingOutlined />, label: 'Cấu hình hệ thống' },
     { key: '/admin/audit-logs', icon: <AuditOutlined />, label: 'Nhật ký Audit' },
 ];
-
 export default function AdminLayout() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -107,7 +107,6 @@ export default function AdminLayout() {
                     style={{ borderRight: 0 }}
                 />
             </Sider>
-
             <Layout style={{ marginLeft: collapsed ? 80 : 260, transition: 'margin-left 0.2s' }}>
                 <Header style={{
                     background: token.colorBgContainer,
@@ -174,4 +173,4 @@ export default function AdminLayout() {
             </Layout>
         </Layout>
     );
-}
+}

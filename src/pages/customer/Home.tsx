@@ -24,7 +24,6 @@ import {
   MinusOutlined,
   PlusOutlined,
   HomeOutlined,
-  FireOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { customerService } from '../../services/customerService';
@@ -181,9 +180,21 @@ export default function HomePage() {
     setCurrentPage(1);
   };
 
-  const handleSearchSubmit = () => {
+  const handleSearchSubmit = async () => {
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const res: any = await customerService.getHomestays(undefined, 1000);
+      const items = res?.items || res?.data?.items || (Array.isArray(res) ? res : allHomestays);
+      setAllHomestays(items);
+      applyFilter(
+        items,
+        searchCity,
+        searchDistrict,
+        filterByGuests,
+        filterByGuests ? guestConfig.adults + guestConfig.children : 0,
+        filterByGuests ? guestConfig.rooms : 1,
+      );
+    } catch {
       applyFilter(
         allHomestays,
         searchCity,
@@ -192,8 +203,9 @@ export default function HomePage() {
         filterByGuests ? guestConfig.adults + guestConfig.children : 0,
         filterByGuests ? guestConfig.rooms : 1,
       );
+    } finally {
       setLoading(false);
-    }, 150);
+    }
   };
 
   const handleResetFilters = () => {
@@ -700,16 +712,13 @@ export default function HomePage() {
                 <ThunderboltOutlined />
               </div>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div>
                   <Title level={3} style={{ margin: 0, color: '#1e1b4b', fontSize: 20 }}>
                     Đề xuất dành riêng cho bạn
                   </Title>
-                  <Tag color="purple" style={{ margin: 0, fontWeight: 600 }}>
-                    <FireOutlined /> AI Gợi ý ngầm (Invisible RAG)
-                  </Tag>
                 </div>
                 <Text type="secondary" style={{ fontSize: 13 }}>
-                  Tối ưu dựa trên hành vi tìm kiếm: Ưu tiên view đẹp · Yên tĩnh · Bếp BBQ · eKYC chính chủ 4 lớp
+                  Phù hợp với sở thích của bạn: Ưu tiên không gian đẹp · Yên tĩnh · Tiện nghi BBQ
                 </Text>
               </div>
             </Space>
@@ -719,7 +728,7 @@ export default function HomePage() {
             </Tag>
           </div>
 
-          {/* Grid các Homestay được AI đẩy lên Top */}
+          {/* Grid các Homestay được đẩy lên Top */}
           <Row gutter={[20, 20]}>
             {aiRecommendedHomestays.map((h) => {
               const firstRoom = h.rooms?.[0];
@@ -738,19 +747,6 @@ export default function HomePage() {
                           src={coverImage}
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         />
-                        <Tag
-                          color="purple"
-                          style={{
-                            position: 'absolute',
-                            top: 12,
-                            left: 12,
-                            fontWeight: 700,
-                            borderRadius: 6,
-                            boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
-                          }}
-                        >
-                          ⭐ AI Đề xuất
-                        </Tag>
                         {h.is_claimed === 1 ? (
                           <Tag
                             color="success"
@@ -881,10 +877,10 @@ export default function HomePage() {
               : `Tất cả chỗ nghỉ tại ${searchCity} ${searchDistrict && searchDistrict !== 'Tất cả quận/huyện' ? `• ${searchDistrict}` : ''}`}
           </Title>
           <Text type="secondary" style={{ fontSize: 14 }}>
-            Tìm thấy <strong>{filteredHomestays.length}</strong> homestay{' '}
+            Tìm thấy <strong>{filteredHomestays.length}</strong> chỗ nghỉ
             {filterByGuests
-              ? `phù hợp cho ${guestConfig.adults + guestConfig.children} khách (${guestConfig.rooms} phòng)`
-              : '(Hiển thị toàn bộ dữ liệu cào về thực tế trong CSDL)'}
+              ? ` phù hợp cho ${guestConfig.adults + guestConfig.children} khách (${guestConfig.rooms} phòng)`
+              : ''}
             {dateRange ? ` • ${dateRange[0]} đến ${dateRange[1]}` : ''}
           </Text>
         </div>
@@ -898,9 +894,6 @@ export default function HomePage() {
               Hiển thị tất cả ({allHomestays.length} căn)
             </Button>
           )}
-          <Tag color="purple" style={{ padding: '4px 10px', fontSize: 13 }}>
-            Dữ liệu thật Booking.com • Đầy đủ phòng & ảnh
-          </Tag>
         </Space>
       </div>
 

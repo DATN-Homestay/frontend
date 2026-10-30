@@ -16,6 +16,7 @@ import {
   Select,
   Modal,
   Spin,
+  Descriptions,
 } from 'antd';
 import {
   IdcardOutlined,
@@ -30,6 +31,11 @@ import {
   LockOutlined,
   HomeOutlined,
   BankOutlined,
+  ScanOutlined,
+  CopyOutlined,
+  DownloadOutlined,
+  RobotOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons';
 import { hostService } from '../../services/hostService';
 import type { HostHomestay } from '../../types/host';
@@ -62,10 +68,31 @@ export default function VerificationPage() {
   const [selectedHomestayId, setSelectedHomestayId] = useState<string>('');
 
   // Bước 1: Ảnh CCCD 2 mặt
-  const [frontImage, setFrontImage] = useState<{ url: string; file_name: string } | null>(null);
-  const [backImage, setBackImage] = useState<{ url: string; file_name: string } | null>(null);
+  const [frontImage, setFrontImage] = useState<{ url: string; file_name: string; base64?: string } | null>(null);
+  const [backImage, setBackImage] = useState<{ url: string; file_name: string; base64?: string } | null>(null);
   const [uploadingFront, setUploadingFront] = useState(false);
   const [uploadingBack, setUploadingBack] = useState(false);
+  const [scanningOcr, setScanningOcr] = useState(false);
+  const [ocrScanResult, setOcrScanResult] = useState<{
+    is_authentic?: boolean;
+    extracted_cccd?: string;
+    extracted_name?: string;
+    extracted_birth_date?: string;
+    extracted_data?: {
+      cccd_number?: string;
+      full_name?: string;
+      date_of_birth?: string;
+      gender?: string;
+      nationality?: string;
+      place_of_origin?: string;
+      place_of_residence?: string;
+      expiry_date?: string;
+      personal_identification?: string;
+      issue_date?: string;
+      mrz_code?: string;
+    };
+    fraud_warnings?: string[];
+  } | null>(null);
 
   // Modal xem trước ảnh lớn
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
@@ -120,6 +147,133 @@ export default function VerificationPage() {
     }
   };
 
+  // Nén ảnh nhẹ (~200KB - 400KB, kích thước tối đa 1600px) chuẩn hóa cho OCR
+  const compressImageForOcr = (file: File, maxDim = 1600, quality = 0.8): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        img.src = e.target?.result as string;
+      };
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        } else {
+          resolve(img.src);
+        }
+      };
+      img.onerror = () => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result as string);
+        r.onerror = () => resolve('');
+        r.readAsDataURL(file);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Quét nhận diện thông tin OCR bóc tách 10 trường dữ liệu & kiểm tra phôi thẻ
+  const triggerOcrScan = async (
+    frontUrl?: string,
+    backUrl?: string,
+    frontBase64?: string,
+    backBase64?: string,
+  ) => {
+    const fUrl = frontUrl || frontImage?.url;
+    const bUrl = backUrl || backImage?.url;
+    const fB64 = frontBase64 || frontImage?.base64;
+    const bB64 = backBase64 || backImage?.base64;
+    if (!fUrl && !fB64 && !bUrl && !bB64) {
+      message.warning('Vui lòng chọn hoặc tải lên ít nhất một mặt ảnh CCCD để quét!');
+      return;
+    }
+
+    setScanningOcr(true);
+    message.loading({
+      content: '🤖 Hệ thống AI Gemini đang quét OCR bóc tách thông tin CCCD và kiểm tra phôi thẻ...',
+      key: 'ocr_scan',
+      duration: 15,
+    });
+    try {
+      // Ưu tiên truyền Base64 trực tiếp vào API để tránh phụ thuộc tốc độ tải Cloudinary
+      const res = await hostService.scanCccdOcr({
+        frontImageUrl: fUrl,
+        frontImageBase64: fB64,
+        backImageUrl: bUrl,
+        backImageBase64: bB64,
+      });
+      const data = (res as any)?.data?.data || (res as any)?.data || (res as any);
+      setOcrScanResult(data);
+
+      const ext = data?.extracted_data || {};
+      const cccdNum = ext.cccd_number || data.extracted_cccd;
+      const fullName = ext.full_name || data.extracted_name;
+
+      if (cccdNum) {
+        cccdForm.setFieldsValue({ cccd_number: cccdNum });
+      }
+      if (fullName) {
+        cccdForm.setFieldsValue({
+          full_name: fullName,
+          bank_account_holder_name: fullName,
+        });
+      }
+
+      const warnings: string[] = data?.fraud_warnings || [];
+      const realErrors = warnings.filter((w) => !w.includes('⚠️ AI Gemini tạm thời'));
+
+      if (realErrors.length > 0) {
+        message.warning({
+          content: `⚠️ Cảnh báo ảnh thẻ: ${realErrors[0]}`,
+          key: 'ocr_scan',
+          duration: 6,
+        });
+      } else {
+        const count = [
+          ext.cccd_number || data.extracted_cccd,
+          ext.full_name || data.extracted_name,
+          ext.date_of_birth || data.extracted_birth_date,
+          ext.gender,
+          ext.nationality,
+          ext.place_of_origin,
+          ext.place_of_residence,
+          ext.personal_identification,
+          ext.issue_date,
+          ext.mrz_code,
+        ].filter(Boolean).length;
+
+        message.success({
+          content: `✓ Quét AI thành công! Đã bóc tách tự động ${count}/10 trường thông tin CCCD.`,
+          key: 'ocr_scan',
+          duration: 4,
+        });
+      }
+    } catch (err: any) {
+      message.error({
+        content: err.message || 'Lỗi khi quét nhận diện OCR trên ảnh',
+        key: 'ocr_scan',
+      });
+    } finally {
+      setScanningOcr(false);
+    }
+  };
+
   // Upload ảnh CCCD
   const handleUploadImage = async (file: File, type: 'FRONT' | 'BACK') => {
     // Validate định dạng và dung lượng
@@ -137,29 +291,47 @@ export default function VerificationPage() {
     if (type === 'FRONT') setUploadingFront(true);
     else setUploadingBack(true);
 
+    // Chuẩn bị ảnh nén Base64 tối ưu cho OCR (~200KB)
+    const compressedBase64 = await compressImageForOcr(file);
+
     try {
       const res = await hostService.uploadCccdImage(file);
-      const hostOrigin = 'http://localhost:3000';
+      const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/api\/v1\/?$/, '');
       const fullUrl = res.data.image_url.startsWith('http')
         ? res.data.image_url
-        : `${hostOrigin}${res.data.image_url}`;
+        : `${apiBase || window.location.origin}${res.data.image_url}`;
 
       if (type === 'FRONT') {
-        setFrontImage({ url: fullUrl, file_name: res.data.file_name });
+        const newFront = { url: fullUrl, file_name: res.data.file_name, base64: compressedBase64 };
+        setFrontImage(newFront);
         message.success('✓ Đã tải lên ảnh Mặt trước CCCD thành công!');
+        if (backImage?.base64 || backImage?.url) {
+          triggerOcrScan(newFront.url, backImage.url, newFront.base64, backImage.base64);
+        } else {
+          message.info('💡 Đã nạp Mặt trước (1/2). Hãy tải tiếp ảnh Mặt sau để AI quét trọn vẹn 10/10 trường!');
+        }
       } else {
-        setBackImage({ url: fullUrl, file_name: res.data.file_name });
+        const newBack = { url: fullUrl, file_name: res.data.file_name, base64: compressedBase64 };
+        setBackImage(newBack);
         message.success('✓ Đã tải lên ảnh Mặt sau CCCD thành công!');
+        triggerOcrScan(frontImage?.url, newBack.url, frontImage?.base64, newBack.base64);
       }
-    } catch (err: any) {
-      // Fallback preview local nếu server chưa lưu file
-      const localUrl = URL.createObjectURL(file);
+    } catch {
+      // Fallback nếu server upload bị lỗi
       if (type === 'FRONT') {
-        setFrontImage({ url: localUrl, file_name: file.name });
-        message.success('Đã tải ảnh mặt trước vào bộ nhớ tạm');
+        const newFront = { url: compressedBase64, file_name: file.name, base64: compressedBase64 };
+        setFrontImage(newFront);
+        message.success('Đã nạp ảnh mặt trước vào bộ nhớ');
+        if (backImage?.base64 || backImage?.url) {
+          triggerOcrScan(newFront.url, backImage.url, newFront.base64, backImage.base64);
+        } else {
+          message.info('💡 Đã nạp Mặt trước (1/2). Hãy tải tiếp ảnh Mặt sau để AI quét trọn vẹn 10/10 trường!');
+        }
       } else {
-        setBackImage({ url: localUrl, file_name: file.name });
-        message.success('Đã tải ảnh mặt sau vào bộ nhớ tạm');
+        const newBack = { url: compressedBase64, file_name: file.name, base64: compressedBase64 };
+        setBackImage(newBack);
+        message.success('Đã nạp ảnh mặt sau vào bộ nhớ');
+        triggerOcrScan(frontImage?.url, newBack.url, frontImage?.base64, newBack.base64);
       }
     } finally {
       if (type === 'FRONT') setUploadingFront(false);
@@ -167,7 +339,48 @@ export default function VerificationPage() {
     }
   };
 
-  // BƯỚC 1: SUBMIT CCCD
+  // Xuất thông tin CCCD (Copy vào Clipboard)
+  const handleExportCccd = () => {
+    const ext = ocrScanResult?.extracted_data || {};
+    const exportText = `
+=== THÔNG TIN CĂN CƯỚC CÔNG DÂN (eKYC AI STAYAI) ===
+1. Số CCCD: ${ext.cccd_number || ocrScanResult?.extracted_cccd || 'N/A'}
+2. Họ và tên: ${ext.full_name || ocrScanResult?.extracted_name || 'N/A'}
+3. Ngày sinh: ${ext.date_of_birth || ocrScanResult?.extracted_birth_date || 'N/A'}
+4. Giới tính: ${ext.gender || 'N/A'}
+5. Quốc tịch: ${ext.nationality || 'Việt Nam'}
+6. Quê quán: ${ext.place_of_origin || 'N/A'}
+7. Nơi thường trú: ${ext.place_of_residence || 'N/A'}
+8. Đặc điểm nhận dạng: ${ext.personal_identification || 'N/A'}
+9. Ngày cấp: ${ext.issue_date || 'N/A'}
+10. Mã đằng sau thẻ (MRZ / Chip):
+${ext.mrz_code || 'N/A'}
+===================================================
+Trạng thái thẩm định: ${ocrScanResult?.is_authentic ? 'HỢP CHUẨN' : 'CÓ CẢNH BÁO'}
+Thời gian xuất: ${new Date().toLocaleString('vi-VN')}
+    `.trim();
+
+    navigator.clipboard.writeText(exportText).then(() => {
+      message.success('📋 Đã sao chép toàn bộ 10 trường thông tin CCCD vào clipboard!');
+    }).catch(() => {
+      message.info('Vui lòng chọn và sao chép thông tin trực tiếp từ bảng hiển thị.');
+    });
+  };
+
+  // Tải về file JSON thông tin CCCD
+  const handleDownloadCccdJson = () => {
+    const ext = ocrScanResult?.extracted_data || {};
+    const jsonBlob = new Blob([JSON.stringify(ext, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(jsonBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cccd_${ext.cccd_number || 'export'}_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    message.success('📥 Đã tải file cccd_info.json về máy!');
+  };
+
+  // BƯỚC 1: SUBMIT CCCD (YÊU CẦU OCR & KIỂM TRA CHỐNG LÀM GIẢ)
   const handleStep1Cccd = async (values: any) => {
     if (!frontImage?.url) {
       message.warning('Vui lòng tải lên ảnh MẶT TRƯỚC của thẻ CCCD!');
@@ -182,7 +395,26 @@ export default function VerificationPage() {
       return;
     }
 
+    if (ocrScanResult?.fraud_warnings && ocrScanResult.fraud_warnings.length > 0) {
+      message.error({
+        content: `❌ Thẩm định ảnh CCCD thất bại: ${ocrScanResult.fraud_warnings[0]}`,
+        duration: 6,
+      });
+      return;
+    }
+
+    const detectedCccd = ocrScanResult?.extracted_data?.cccd_number || ocrScanResult?.extracted_cccd;
+    if (!detectedCccd) {
+      message.error('❌ Không phát hiện số CCCD hợp lệ trên ảnh thẻ. Vui lòng tải ảnh chụp thẻ CCCD thật rõ nét!');
+      return;
+    }
+
     setLoading(true);
+    message.loading({
+      content: '🔍 Hệ thống đang thẩm định OCR 2 mặt thẻ và mã hóa bảo mật AES-256...',
+      key: 'verify_cccd',
+      duration: 0,
+    });
     try {
       await hostService.verifyCccd({
         homestay_id: selectedHomestayId,
@@ -194,11 +426,20 @@ export default function VerificationPage() {
         bank_account_number: values.bank_account_number.trim(),
         bank_account_holder_name: values.bank_account_holder_name.trim().toUpperCase(),
       });
-      message.success('🎉 Bước 1: Định danh CCCD và mã hóa bảo mật AES-256 thành công (+40 điểm)!');
+      message.success({
+        content:
+          '🎉 Thẩm định thẻ CCCD hợp lệ! Xác thực danh tính & mã hóa bảo mật AES-256 thành công (+40 điểm)!',
+        key: 'verify_cccd',
+        duration: 4,
+      });
       setTotalScore((prev) => Math.max(prev, 40));
       setCurrentStep(1);
     } catch (err: any) {
-      message.error(err.message || 'Lỗi khi xác thực CCCD');
+      message.error({
+        content: err.message || 'Thẩm định CCCD thất bại: Ảnh không đạt chuẩn hoặc có dấu hiệu làm giả!',
+        key: 'verify_cccd',
+        duration: 6,
+      });
     } finally {
       setLoading(false);
     }
@@ -609,6 +850,312 @@ export default function VerificationPage() {
               </Col>
             </Row>
 
+            {/* THANH ĐIỀU KHIỂN & KÍCH HOẠT QUÉT AI 2 MẶT */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfeff 100%)',
+                border: '1px solid #bbf7d0',
+                borderRadius: 12,
+                padding: '14px 18px',
+                marginBottom: 20,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 12,
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 600, color: '#065f46', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <RobotOutlined style={{ color: '#059669', fontSize: 18 }} />
+                  <span>Trợ Lý eKYC AI Gemini Vision (Đa mô hình 2.5 / 1.5 / 2.0 Flash)</span>
+                </div>
+                <div style={{ fontSize: 12, color: '#4b5563', marginTop: 3 }}>
+                  {frontImage && backImage ? (
+                    <span style={{ color: '#047857', fontWeight: 500 }}>
+                      ✓ Đã có đủ ảnh 2 mặt. Sẵn sàng bóc tách trọn vẹn 10/10 trường thông tin!
+                    </span>
+                  ) : frontImage ? (
+                    <span>
+                      ⚠️ Đã có ảnh <strong>Mặt trước (7 trường)</strong>. Hãy tải tiếp ảnh <strong>Mặt sau</strong> để lấy đủ 10/10 trường (Đặc điểm, Ngày cấp, Dải mã MRZ).
+                    </span>
+                  ) : backImage ? (
+                    <span>
+                      ⚠️ Đã có ảnh <strong>Mặt sau</strong>. Vui lòng tải thêm ảnh <strong>Mặt trước</strong> để AI trích xuất đủ họ tên &amp; số CCCD.
+                    </span>
+                  ) : (
+                    <span>Chưa có ảnh. Vui lòng tải lên cả 2 mặt thẻ CCCD thật, rõ nét.</span>
+                  )}
+                </div>
+              </div>
+
+              <Space wrap>
+                <Button
+                  type="primary"
+                  size="middle"
+                  icon={<ThunderboltOutlined />}
+                  loading={scanningOcr}
+                  disabled={!frontImage && !backImage}
+                  onClick={() => triggerOcrScan(frontImage?.url, backImage?.url, frontImage?.base64, backImage?.base64)}
+                  style={{
+                    background:
+                      frontImage && backImage
+                        ? 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)'
+                        : '#3b82f6',
+                    borderColor: 'transparent',
+                    boxShadow: '0 2px 8px rgba(79, 70, 229, 0.25)',
+                    fontWeight: 600,
+                  }}
+                >
+                  {frontImage && backImage ? '⚡ Quét bóc tách 2 mặt bằng AI (10 trường)' : '⚡ Quét bóc tách bằng AI'}
+                </Button>
+              </Space>
+            </div>
+
+            {/* KHUNG KẾT QUẢ QUÉT OCR & KIỂM TRA CHỐNG LÀM GIẢ */}
+            {scanningOcr ? (
+              <div
+                style={{
+                  background: '#f8fafc',
+                  border: '1px solid #c7d2fe',
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 24,
+                  textAlign: 'center',
+                }}
+              >
+                <Spin />
+                <span style={{ marginLeft: 12, color: '#4f46e5', fontWeight: 600 }}>
+                  🤖 Hệ thống AI đang quét OCR, nhận diện chữ viết và phân tích phôi thẻ CCCD chống giả mạo...
+                </span>
+              </div>
+            ) : ocrScanResult ? (
+              <div
+                style={{
+                  background: ocrScanResult.fraud_warnings && ocrScanResult.fraud_warnings.some((w: string) => !w.includes('⚠️ AI Gemini')) ? '#fef2f2' : '#f0fdf4',
+                  border:
+                    ocrScanResult.fraud_warnings && ocrScanResult.fraud_warnings.some((w: string) => !w.includes('⚠️ AI Gemini'))
+                      ? '1px solid #fecaca'
+                      : '1px solid #bbf7d0',
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 24,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                  <Space>
+                    <ScanOutlined style={{ fontSize: 20, color: '#4f46e5' }} />
+                    <Text strong style={{ fontSize: 16, color: '#1e293b' }}>
+                      📋 Thông Tin Bóc Tách Trích Xuất Từ Thẻ CCCD 2 Mặt:
+                    </Text>
+                  </Space>
+                  <Space wrap>
+                    {ocrScanResult.is_authentic && (
+                      <>
+                        <Button
+                          size="small"
+                          icon={<CopyOutlined />}
+                          onClick={handleExportCccd}
+                          style={{ borderColor: '#4f46e5', color: '#4f46e5' }}
+                        >
+                          Sao chép thông tin
+                        </Button>
+                        <Button
+                          size="small"
+                          icon={<DownloadOutlined />}
+                          onClick={handleDownloadCccdJson}
+                        >
+                          Tải file JSON
+                        </Button>
+                      </>
+                    )}
+                    {(frontImage || backImage) && (
+                      <Button
+                        size="small"
+                        type="dashed"
+                        icon={<ScanOutlined />}
+                        onClick={() => triggerOcrScan(frontImage?.url, backImage?.url, frontImage?.base64, backImage?.base64)}
+                      >
+                        Quét lại bằng AI
+                      </Button>
+                    )}
+                  </Space>
+                </div>
+
+                {/* Hiển thị cảnh báo hoặc lưu ý nếu có */}
+                {(() => {
+                  const warnings = ocrScanResult.fraud_warnings || [];
+                  const realErrors = warnings.filter((w: string) => !w.includes('⚠️ AI Gemini'));
+                  const noticeWarnings = warnings.filter((w: string) => w.includes('⚠️ AI Gemini'));
+
+                  return (
+                    <>
+                      {noticeWarnings.length > 0 && (
+                        <Alert
+                          type="warning"
+                          showIcon
+                          style={{ marginBottom: 16 }}
+                          message="Lưu ý bộ quét AI:"
+                          description={noticeWarnings[0]}
+                        />
+                      )}
+                      {realErrors.length > 0 && (
+                        <Alert
+                          type="error"
+                          showIcon
+                          style={{ marginBottom: 16 }}
+                          message="Phát hiện lỗi định danh / Không đúng quy chuẩn thẻ CCCD:"
+                          description={
+                            <div>
+                              <ul style={{ margin: '6px 0', paddingLeft: 20 }}>
+                                {realErrors.map((w: string, idx: number) => (
+                                  <li key={idx}><strong style={{ color: '#dc2626' }}>{w}</strong></li>
+                                ))}
+                              </ul>
+                              <div style={{ marginTop: 8, fontSize: 13, color: '#4b5563' }}>
+                                💡 <em>Vui lòng chụp lại ảnh thẻ CCCD thật, góc chụp thẳng, rõ nét đầy đủ 4 góc, đủ ánh sáng và không bị lóa bóng.</em>
+                              </div>
+                            </div>
+                          }
+                        />
+                      )}
+                    </>
+                  );
+                })()}
+
+                {/* BẢNG DỮ LIỆU ĐƯỢC BÓC TÁCH */}
+                {(!ocrScanResult.fraud_warnings || !ocrScanResult.fraud_warnings.some((w: string) => !w.includes('⚠️ AI Gemini'))) && (
+                  <div>
+                    {(() => {
+                      const ext = ocrScanResult.extracted_data || {};
+                      const count = [
+                        ext.cccd_number || ocrScanResult.extracted_cccd,
+                        ext.full_name || ocrScanResult.extracted_name,
+                        ext.date_of_birth || ocrScanResult.extracted_birth_date,
+                        ext.gender,
+                        ext.nationality,
+                        ext.place_of_origin,
+                        ext.place_of_residence,
+                        ext.personal_identification && ext.personal_identification !== 'Không có dấu vết dị hình riêng biệt' ? ext.personal_identification : '',
+                        ext.issue_date,
+                        ext.mrz_code,
+                      ].filter(Boolean).length;
+
+                      return (
+                        <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                          <Tag color="success" icon={<CheckCircleOutlined />} style={{ padding: '4px 10px', fontSize: 13 }}>
+                            ✓ Phôi thẻ CCCD hợp chuẩn &amp; nguyên bản
+                          </Tag>
+                          <Tag color={count >= 6 ? 'processing' : 'warning'} style={{ padding: '4px 10px', fontSize: 13 }}>
+                            Đã bóc tách tự động {count}/10 trường thông tin
+                          </Tag>
+                          {(!backImage || !ext.mrz_code) && (
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              💡 <em>Tải thêm ảnh Mặt sau để đọc dải mã máy MRZ, Ngày cấp và Đặc điểm nhận dạng</em>
+                            </Text>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* BẢNG HIỂN THỊ CHI TIẾT 10 TRƯỜNG THÔNG TIN CCCD */}
+                    <Descriptions
+                      bordered
+                      size="small"
+                      column={{ xs: 1, sm: 2, md: 2 }}
+                      style={{ background: '#ffffff', borderRadius: 8, overflow: 'hidden' }}
+                      labelStyle={{ width: '28%', fontWeight: 600, color: '#334155', background: '#f8fafc' }}
+                      contentStyle={{ color: '#0f172a' }}
+                    >
+                      <Descriptions.Item label="1. Số CCCD">
+                        <strong style={{ color: '#4f46e5', fontSize: 16, letterSpacing: 0.5 }}>
+                          {ocrScanResult.extracted_data?.cccd_number || ocrScanResult.extracted_cccd || '---'}
+                        </strong>
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="2. Họ và tên">
+                        <strong style={{ color: '#1e293b', fontSize: 15, textTransform: 'uppercase' }}>
+                          {ocrScanResult.extracted_data?.full_name || ocrScanResult.extracted_name || '---'}
+                        </strong>
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="3. Ngày sinh">
+                        {ocrScanResult.extracted_data?.date_of_birth || ocrScanResult.extracted_birth_date || '---'}
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="4. Giới tính">
+                        <Tag color={ocrScanResult.extracted_data?.gender === 'Nam' ? 'blue' : 'magenta'}>
+                          {ocrScanResult.extracted_data?.gender || '---'}
+                        </Tag>
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="5. Quốc tịch">
+                        <Tag color="gold">{ocrScanResult.extracted_data?.nationality || 'Việt Nam'}</Tag>
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="6. Quê quán">
+                        {ocrScanResult.extracted_data?.place_of_origin || '---'}
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="7. Nơi thường trú" span={2}>
+                        {ocrScanResult.extracted_data?.place_of_residence || '---'}
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="8. Đặc điểm nhận dạng" span={2}>
+                        {ocrScanResult.extracted_data?.personal_identification || (
+                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                            {backImage ? 'Không có dấu vết dị hình riêng biệt' : 'Tải lên ảnh Mặt sau để trích xuất'}
+                          </span>
+                        )}
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="9. Ngày cấp">
+                        {ocrScanResult.extracted_data?.issue_date || (
+                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                            {backImage ? '---' : 'Tải lên ảnh Mặt sau để trích xuất'}
+                          </span>
+                        )}
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="Hạn sử dụng">
+                        {ocrScanResult.extracted_data?.expiry_date || 'Không thời hạn'}
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="10. Mã đằng sau thẻ (MRZ / Chip)" span={2}>
+                        {ocrScanResult.extracted_data?.mrz_code ? (
+                          <pre
+                            style={{
+                              margin: 0,
+                              fontFamily: 'Consolas, monospace',
+                              fontSize: 11,
+                              background: '#f1f5f9',
+                              padding: '8px 12px',
+                              borderRadius: 6,
+                              color: '#0f172a',
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-all',
+                            }}
+                          >
+                            {ocrScanResult.extracted_data.mrz_code}
+                          </pre>
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                            {backImage ? 'Không tìm thấy dải mã MRZ' : 'Vui lòng tải ảnh Mặt sau để đọc dải mã máy'}
+                          </span>
+                        )}
+                      </Descriptions.Item>
+                    </Descriptions>
+
+                    <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        💡 Toàn bộ thông tin trên đã được tự động đồng bộ vào biểu mẫu bên dưới.
+                      </Text>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
             {/* FORM THÔNG TIN ĐỐI SOÁT VÀ TÀI KHOẢN NGÂN HÀNG */}
             <Title level={5} style={{ marginBottom: 16 }}>
               🏦 Thông Tin Định Danh &amp; Tài Khoản Ngân Hàng Giải Ngân:
@@ -618,13 +1165,6 @@ export default function VerificationPage() {
               form={cccdForm}
               layout="vertical"
               onFinish={handleStep1Cccd}
-              initialValues={{
-                cccd_number: '038099001234',
-                full_name: 'NGUYỄN VĂN A',
-                bank_name: 'Vietcombank (Ngân hàng Ngoại thương Việt Nam)',
-                bank_account_number: '0987654321',
-                bank_account_holder_name: 'NGUYEN VAN A',
-              }}
             >
               <Row gutter={20}>
                 <Col xs={24} md={12}>

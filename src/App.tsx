@@ -3,6 +3,8 @@ import { App as AntApp, ConfigProvider } from 'antd';
 import { AuthProvider } from './contexts/AuthContext';
 
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import OtaModeSwitcher from './components/OtaModeSwitcher';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Layouts
 import CustomerLayout from './layouts/CustomerLayout';
@@ -46,6 +48,7 @@ import AuditLogsPage from './pages/admin/AuditLogs';
 import DropshipOrdersPage from './pages/admin/DropshipOrders';
 import SyncMarketDataPage from './pages/admin/SyncMarketData';
 
+
 export default function App() {
   return (
     <ConfigProvider
@@ -84,8 +87,9 @@ export default function App() {
       }}
     >
       <AntApp>
-      <AuthProvider>
-        <BrowserRouter>
+        <ErrorBoundary>
+          <AuthProvider>
+            <BrowserRouter>
           <Routes>
             {/* PHÂN HỆ 1: KHÁCH HÀNG (CUSTOMER PORTAL) */}
             <Route path="/" element={<CustomerLayout />}>
@@ -114,6 +118,7 @@ export default function App() {
             <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<DashboardPage />} />
+                <Route path="dropship" element={<DropshipOrdersPage />} />
                 <Route path="users" element={<UsersPage />} />
                 <Route path="hosts" element={<HostsPage />} />
                 <Route path="host-verifications" element={<HostVerificationsPage />} />
@@ -137,8 +142,10 @@ export default function App() {
             {/* MẶC ĐỊNH CHUYỂN HƯỚNG VỀ TRANG CHỦ KHÁCH HÀNG */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </BrowserRouter>
-      </AuthProvider>
+          <OtaModeSwitcher />
+              </BrowserRouter>
+            </AuthProvider>
+          </ErrorBoundary>
       </AntApp>
     </ConfigProvider>
   );
