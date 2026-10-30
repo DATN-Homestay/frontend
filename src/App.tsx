@@ -37,6 +37,7 @@ import HostCouponsPage from './pages/host/Coupons';
 // Admin Pages (Member 3 - Intact)
 import DashboardPage from './pages/admin/Dashboard';
 import UsersPage from './pages/admin/Users';
+import HostsPage from './pages/admin/Hosts';
 import HostVerificationsPage from './pages/admin/HostVerifications';
 import HomestaysPage from './pages/admin/Homestays';
 import RevenuesPage from './pages/admin/Revenues';
@@ -45,6 +46,8 @@ import RefundsPage from './pages/admin/Refunds';
 import ConfigsPage from './pages/admin/Configs';
 import AuditLogsPage from './pages/admin/AuditLogs';
 import DropshipOrdersPage from './pages/admin/DropshipOrders';
+import SyncMarketDataPage from './pages/admin/SyncMarketData';
+
 
 export default function App() {
   return (
@@ -117,6 +120,7 @@ export default function App() {
                 <Route index element={<DashboardPage />} />
                 <Route path="dropship" element={<DropshipOrdersPage />} />
                 <Route path="users" element={<UsersPage />} />
+                <Route path="hosts" element={<HostsPage />} />
                 <Route path="host-verifications" element={<HostVerificationsPage />} />
                 <Route path="homestays" element={<HomestaysPage />} />
                 <Route path="revenues" element={<RevenuesPage />} />
@@ -124,6 +128,8 @@ export default function App() {
                 <Route path="refunds" element={<RefundsPage />} />
                 <Route path="configs" element={<ConfigsPage />} />
                 <Route path="audit-logs" element={<AuditLogsPage />} />
+                <Route path="dropship-orders" element={<DropshipOrdersPage />} />
+                <Route path="sync-market-data" element={<SyncMarketDataPage />} />
               </Route>
             </Route>
 

@@ -14,6 +14,8 @@ import {
     MenuFoldOutlined,
     MenuUnfoldOutlined,
     GlobalOutlined,
+    SyncOutlined,
+    ShoppingOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -22,10 +24,10 @@ const { Header, Sider, Content } = Layout;
 
 const menuItems = [
     { key: '/admin', icon: <DashboardOutlined />, label: 'Dashboard' },
-    { key: '/admin/dropship', icon: <GlobalOutlined />, label: 'Đơn Dropship Booking.com' },
     { key: '/admin/users', icon: <TeamOutlined />, label: 'Quản lý người dùng' },
+    { key: '/admin/hosts', icon: <UserOutlined />, label: 'Quản lý Host' },
     { key: '/admin/host-verifications', icon: <SafetyCertificateOutlined />, label: 'Duyệt KYC Host' },
-    { key: '/admin/homestays', icon: <HomeOutlined />, label: 'Duyệt Homestay' },
+    { key: '/admin/homestays', icon: <HomeOutlined />, label: 'Quản lý Homestay' },
     {
         key: 'finance',
         icon: <DollarOutlined />,
@@ -36,10 +38,19 @@ const menuItems = [
             { key: '/admin/refunds', label: 'Yêu cầu hoàn tiền' },
         ],
     },
+    {
+        key: 'data',
+        icon: <GlobalOutlined />,
+        label: 'Dữ liệu & Tự động',
+        children: [
+            { key: '/admin/dropship-orders', icon: <ShoppingOutlined />, label: 'Đơn Dropship B2B' },
+            { key: '/admin/dropship', icon: <GlobalOutlined />, label: 'Dropship Booking.com (MoR & Affiliate)' },
+            { key: '/admin/sync-market-data', icon: <SyncOutlined />, label: 'Đồng bộ RapidAPI' },
+        ],
+    },
     { key: '/admin/configs', icon: <SettingOutlined />, label: 'Cấu hình hệ thống' },
     { key: '/admin/audit-logs', icon: <AuditOutlined />, label: 'Nhật ký Audit' },
 ];
-
 export default function AdminLayout() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -55,11 +66,21 @@ export default function AdminLayout() {
                 collapsed={collapsed}
                 theme="dark" 
                 width={260}
+                collapsedWidth={80}
                 breakpoint="lg"
                 onBreakpoint={(broken) => {
                     if (broken) {
                         setCollapsed(true);
                     }
+                }}
+                style={{
+                    position: 'fixed',
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    height: '100vh',
+                    overflow: 'auto',
+                    zIndex: 100,
                 }}
             >
                 <div style={{
@@ -80,22 +101,23 @@ export default function AdminLayout() {
                     theme="dark"
                     mode="inline"
                     selectedKeys={[location.pathname]}
-                    defaultOpenKeys={['finance']}
+                    defaultOpenKeys={['finance', 'data']}
                     items={menuItems}
                     onClick={({ key }) => navigate(key)}
                     style={{ borderRight: 0 }}
                 />
             </Sider>
-
-            <Layout>
+            <Layout style={{ marginLeft: collapsed ? 80 : 260, transition: 'margin-left 0.2s' }}>
                 <Header style={{
                     background: token.colorBgContainer,
                     padding: '0 24px 0 0',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.03)',
-                    zIndex: 1
+                    boxShadow: '0 1px 4px 0 rgba(0, 0, 0, 0.08)',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 99,
                 }}>
                     <Button
                         type="text"
