@@ -209,8 +209,24 @@ export default function CheckoutPage() {
                     type="error"
                     showIcon
                     style={{ marginBottom: 16 }}
-                    title="Rất tiếc, phòng không còn trống"
-                    description={`Các đêm đã hết: ${quote.unavailable_dates.join(', ')}. Vui lòng chọn ngày hoặc phòng khác.`}
+                    title="Rất tiếc, không thể đặt các ngày này"
+                    description={
+                      <div>
+                        {quote.no_price_dates.length > 0 && (
+                          <div>
+                            Chủ nhà chưa mở bán các đêm: {quote.no_price_dates.join(', ')}. Vui lòng chọn ngày trong
+                            khoảng đã có giá.
+                          </div>
+                        )}
+                        {quote.held_dates.length > 0 && (
+                          <div>
+                            Các đêm đã có người giữ chỗ hoặc đã đặt: {quote.held_dates.join(', ')}. Nếu bạn vừa bấm
+                            thanh toán, phòng đang được giữ cho đơn chờ thanh toán của chính bạn trong 15 phút: hãy vào{' '}
+                            <a onClick={() => navigate('/trips')}>Chuyến đi của tôi</a> để thanh toán tiếp.
+                          </div>
+                        )}
+                      </div>
+                    }
                   />
                 )}
                 {booking && (

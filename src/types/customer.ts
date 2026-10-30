@@ -13,9 +13,11 @@ export interface HomestayItem {
   source_url?: string;
   amenities_json?: Record<string, any>;
   rooms?: RoomItem[];
-  host?: { id?: string; name?: string; phone?: string; avatar_url?: string };
+  /** Backend trả kèm khi xem chi tiết (GET /homestays/:id); có thể thiếu hoặc null */
+  host?: { name?: string } | null;
+  images?: { image_url: string }[];
   reviews?: any[];
-  images?: { id?: string; image_url: string }[];
+  absa_metric?: { ai_summary_vn?: string | null } | null;
 }
 
 export interface RoomDetailsJson {
@@ -90,6 +92,10 @@ export type BookingStatus =
 export interface BookingQuote {
   available: boolean;
   unavailable_dates: string[];
+  /** Đêm chưa có giá/lịch (homestay chưa mở bán) */
+  no_price_dates: string[];
+  /** Đêm đã có người giữ chỗ hoặc đặt */
+  held_dates: string[];
   room_id: string;
   room_name: string;
   homestay: { id: string; name: string };
