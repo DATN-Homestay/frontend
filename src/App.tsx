@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import OtaModeSwitcher from './components/OtaModeSwitcher';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Layouts
 import CustomerLayout from './layouts/CustomerLayout';
@@ -83,8 +84,9 @@ export default function App() {
       }}
     >
       <AntApp>
-      <AuthProvider>
-        <BrowserRouter>
+        <ErrorBoundary>
+          <AuthProvider>
+            <BrowserRouter>
           <Routes>
             {/* PHÂN HỆ 1: KHÁCH HÀNG (CUSTOMER PORTAL) */}
             <Route path="/" element={<CustomerLayout />}>
@@ -135,8 +137,9 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           <OtaModeSwitcher />
-        </BrowserRouter>
-      </AuthProvider>
+              </BrowserRouter>
+            </AuthProvider>
+          </ErrorBoundary>
       </AntApp>
     </ConfigProvider>
   );

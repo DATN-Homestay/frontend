@@ -44,14 +44,20 @@ export const hostService = {
   },
 
   // 2. Rooms & Images
-  async createRoom(homestayId: string, data: { room_name: string; capacity: number; base_price: number }) {
+  async createRoom(
+    homestayId: string,
+    data: { room_name: string; capacity: number; base_price: number; images?: string[] },
+  ) {
     return await apiClient(`/host/homestays/${homestayId}/rooms`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async updateRoom(roomId: string, data: { room_name?: string; capacity?: number; base_price?: number }) {
+  async updateRoom(
+    roomId: string,
+    data: { room_name?: string; capacity?: number; base_price?: number; images?: string[] },
+  ) {
     return await apiClient(`/host/rooms/${roomId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -69,8 +75,41 @@ export const hostService = {
     });
   },
 
+  async batchAddRoomImages(roomId: string, images: string[]) {
+    return await apiClient(`/host/rooms/${roomId}/images/batch`, {
+      method: 'POST',
+      body: JSON.stringify({ images }),
+    });
+  },
+
   async deleteRoomImage(imageId: string) {
     return await apiClient(`/host/rooms/images/${imageId}`, { method: 'DELETE' });
+  },
+
+  async getHomestayPhotosCount(homestayId: string): Promise<{ count: number; max: number; remaining: number }> {
+    return await apiClient(`/host/homestays/${homestayId}/photos-count`);
+  },
+
+  /** Upload 1 ảnh lên Cloudinary CDN */
+  async uploadImage(file: File): Promise<{ url: string; public_id: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res: any = await apiClient('/upload/image', {
+      method: 'POST',
+      body: formData,
+    });
+    return res?.data ?? res;
+  },
+
+  /** Upload nhiều ảnh cùng lúc lên Cloudinary CDN */
+  async uploadMultipleImages(files: File[]): Promise<Array<{ url: string; public_id: string }>> {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('files', file));
+    const res: any = await apiClient('/upload/images', {
+      method: 'POST',
+      body: formData,
+    });
+    return res?.data ?? res;
   },
 
   // 3. Calendar & Batch Update
@@ -115,19 +154,10 @@ export const hostService = {
   async uploadCccdImage(file: File): Promise<{ data: { image_url: string; file_name: string } }> {
     const formData = new FormData();
     formData.append('file', file);
-    const token = localStorage.getItem('stayai_access_token');
-    const res = await fetch('http://localhost:3000/api/v1/host/verify/upload-cccd', {
+    return await apiClient('/host/verify/upload-cccd', {
       method: 'POST',
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
       body: formData,
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || 'Lỗi khi tải ảnh CCCD lên máy chủ');
-    }
-    return await res.json();
   },
 
   async verifyCccd(data: {
@@ -143,6 +173,50 @@ export const hostService = {
     return await apiClient('/host/verify/cccd', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+
+  /** Quét OCR và kiểm tra chống giả ảnh CCCD trước khi xác nhận */
+  async scanCccdOcr(params: {
+    imageUrl?: string;
+    imageBase64?: string;
+    frontImageUrl?: string;
+    frontImageBase64?: string;
+    backImageUrl?: string;
+    backImageBase64?: string;
+  }): Promise<{
+    data: {
+      is_authentic: boolean;
+      extracted_cccd?: string;
+      extracted_name?: string;
+      extracted_birth_date?: string;
+      extracted_data?: {
+        cccd_number?: string;
+        full_name?: string;
+        date_of_birth?: string;
+        gender?: string;
+        nationality?: string;
+        place_of_origin?: string;
+        place_of_residence?: string;
+        expiry_date?: string;
+        personal_identification?: string;
+        issue_date?: string;
+        mrz_code?: string;
+      };
+      fraud_warnings: string[];
+      raw_text: string;
+    };
+  }> {
+    return await apiClient('/host/verify/cccd/scan-ocr', {
+      method: 'POST',
+      body: JSON.stringify({
+        image_url: params.imageUrl || params.frontImageUrl,
+        image_base64: params.imageBase64,
+        front_image_url: params.frontImageUrl || params.imageUrl,
+        front_image_base64: params.frontImageBase64 || params.imageBase64,
+        back_image_url: params.backImageUrl,
+        back_image_base64: params.backImageBase64,
+      }),
     });
   },
 

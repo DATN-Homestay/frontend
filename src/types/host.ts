@@ -95,6 +95,7 @@ export interface HostDashboardStats {
     average_rating: number;
     total_reviews: number;
     rooms_count: number;
+    cover_image?: string | null;
   }>;
 }
 

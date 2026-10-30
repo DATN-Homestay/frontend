@@ -180,9 +180,21 @@ export default function HomePage() {
     setCurrentPage(1);
   };
 
-  const handleSearchSubmit = () => {
+  const handleSearchSubmit = async () => {
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const res: any = await customerService.getHomestays(undefined, 1000);
+      const items = res?.items || res?.data?.items || (Array.isArray(res) ? res : allHomestays);
+      setAllHomestays(items);
+      applyFilter(
+        items,
+        searchCity,
+        searchDistrict,
+        filterByGuests,
+        filterByGuests ? guestConfig.adults + guestConfig.children : 0,
+        filterByGuests ? guestConfig.rooms : 1,
+      );
+    } catch {
       applyFilter(
         allHomestays,
         searchCity,
@@ -191,8 +203,9 @@ export default function HomePage() {
         filterByGuests ? guestConfig.adults + guestConfig.children : 0,
         filterByGuests ? guestConfig.rooms : 1,
       );
+    } finally {
       setLoading(false);
-    }, 150);
+    }
   };
 
   const handleResetFilters = () => {
