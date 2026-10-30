@@ -3,7 +3,6 @@ import { App as AntApp, ConfigProvider } from 'antd';
 import { AuthProvider } from './contexts/AuthContext';
 
 import ProtectedRoute from './components/auth/ProtectedRoute';
-import OtaModeSwitcher from './components/OtaModeSwitcher';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Layouts
@@ -136,7 +135,6 @@ export default function App() {
             {/* MẶC ĐỊNH CHUYỂN HƯỚNG VỀ TRANG CHỦ KHÁCH HÀNG */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-          <OtaModeSwitcher />
               </BrowserRouter>
             </AuthProvider>
           </ErrorBoundary>
