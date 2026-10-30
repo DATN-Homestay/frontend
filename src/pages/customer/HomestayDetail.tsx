@@ -2006,13 +2006,50 @@ export default function HomestayDetailPage() {
               </div>
             </div>
 
-            <div style={{ background: '#eff6ff', padding: '12px 16px', borderRadius: 8, border: '1px solid #bfdbfe', fontSize: 13, color: '#1e40af', lineHeight: 1.5, marginBottom: 24 }}>
+            <div style={{ background: '#eff6ff', padding: '12px 16px', borderRadius: 8, border: '1px solid #bfdbfe', fontSize: 13, color: '#1e40af', lineHeight: 1.5, marginBottom: 16 }}>
               🛡️ <strong>Chính sách minh bạch:</strong> Bạn sẽ được chuyển trực tiếp sang giao diện Booking.com để nhập thông tin và thanh toán. Nền tảng StayAI nhận hoa hồng chia sẻ (25% - 40%) từ Booking.com sau khi kỳ nghỉ kết thúc.
             </div>
 
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+            <div style={{ background: '#fffbeb', padding: '10px 14px', borderRadius: 8, border: '1px solid #fde68a', fontSize: 12, color: '#92400e', lineHeight: 1.5, marginBottom: 20 }}>
+              💡 <strong>Lưu ý với Brave / AdBlock:</strong> Nếu trình duyệt chặn mã liên kết làm trắng màn hình, bạn hãy tạm tắt <strong>Khiên chắn (Brave Shields)</strong> cho Booking.com hoặc bấm nút <strong>"Mở link gốc không tracking"</strong> bên dưới.
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <Button size="large" onClick={() => setAffiliateModalOpen(false)}>
                 Hủy
+              </Button>
+              <Button
+                size="large"
+                onClick={() => {
+                  let base = homestay?.source_url || `https://www.booking.com/searchresults.vi.html?ss=${encodeURIComponent(homestay?.name || 'Homestay')}`;
+                  if (!base.startsWith('http://') && !base.startsWith('https://')) {
+                    base = `https://${base.replace(/^\/+/, '')}`;
+                  }
+                  const [cleanBase, existingQuery] = base.split('?');
+                  const params = new URLSearchParams(existingQuery || '');
+                  if (dateRange?.[0] && dateRange?.[1]) {
+                    params.set('checkin', dateRange[0]);
+                    params.set('checkout', dateRange[1]);
+                  }
+                  params.set('group_adults', '2');
+                  params.set('no_rooms', '1');
+                  params.delete('aid');
+                  params.delete('label');
+
+                  const directUrl = `${cleanBase}?${params.toString()}`;
+                  const link = document.createElement('a');
+                  link.href = directUrl;
+                  link.target = '_blank';
+                  link.rel = 'noopener noreferrer';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+
+                  message.info('Đang mở link trực tiếp Booking.com không kèm tracking...');
+                  setAffiliateModalOpen(false);
+                }}
+              >
+                Mở link gốc không tracking
               </Button>
               <Button
                 type="primary"
@@ -2021,7 +2058,7 @@ export default function HomestayDetailPage() {
                   background: '#003580',
                   borderColor: '#003580',
                   fontWeight: 700,
-                  padding: '0 24px',
+                  padding: '0 20px',
                 }}
                 onClick={() => {
                   // Ghi nhận lượt click Affiliate vào localStorage để Admin thống kê
@@ -2040,17 +2077,37 @@ export default function HomestayDetailPage() {
                   });
                   localStorage.setItem('stayai_affiliate_clicks', JSON.stringify(clicks.slice(0, 50)));
 
-                  const sourceUrl = homestay?.source_url || 'https://www.booking.com';
-                  const redirectUrl = sourceUrl.includes('?')
-                    ? `${sourceUrl}&aid=2409182&label=stayai_affiliate_demo`
-                    : `${sourceUrl}?aid=2409182&label=stayai_affiliate_demo`;
+                  let base = homestay?.source_url || `https://www.booking.com/searchresults.vi.html?ss=${encodeURIComponent(homestay?.name || 'Homestay')}`;
+                  if (!base.startsWith('http://') && !base.startsWith('https://')) {
+                    base = `https://${base.replace(/^\/+/, '')}`;
+                  }
+                  const [cleanBase, existingQuery] = base.split('?');
+                  const params = new URLSearchParams(existingQuery || '');
+                  if (dateRange?.[0] && dateRange?.[1]) {
+                    params.set('checkin', dateRange[0]);
+                    params.set('checkout', dateRange[1]);
+                  }
+                  params.set('group_adults', '2');
+                  params.set('no_rooms', '1');
+                  params.set('aid', '2409182');
+                  params.set('label', 'stayai');
 
-                  message.success('Đang chuyển hướng sang Booking.com qua mã đối tác aid=2409182...');
+                  const redirectUrl = `${cleanBase}?${params.toString()}`;
+
+                  // Mở bằng thẻ anchor có rel="noopener noreferrer" để tránh lộ Referer localhost và tránh bị WAF chặn
+                  const link = document.createElement('a');
+                  link.href = redirectUrl;
+                  link.target = '_blank';
+                  link.rel = 'noopener noreferrer';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+
+                  message.success('Đang chuyển hướng sang Booking.com qua mã đối tác StayAI...');
                   setAffiliateModalOpen(false);
-                  window.open(redirectUrl, '_blank');
                 }}
               >
-                Xác nhận đến Booking.com ➔
+                Xác nhận đến Booking.com (Affiliate) ➔
               </Button>
             </div>
           </div>
