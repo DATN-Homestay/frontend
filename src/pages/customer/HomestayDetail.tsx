@@ -313,6 +313,10 @@ export default function HomestayDetailPage() {
     );
   };
 
+  const handleClaimHomestay = () => {
+    navigate(`/host/verification?homestay_id=${homestay?.id}`);
+  };
+
   // Ảnh bìa chính: luôn ưu tiên ảnh truyền từ trang chủ hoặc ảnh tính toán chuẩn xác từ helper
   const primaryCover = useMemo(() => {
     return initialCoverFromState || getHomestayCoverImage(homestay);
@@ -446,7 +450,25 @@ export default function HomestayDetailPage() {
               Chính chủ eKYC 4 Lớp
             </Tag>
           ) : (
-            <Tag color="blue">Booking.com Verified</Tag>
+            <Space size={6} style={{ display: 'inline-flex', alignItems: 'center' }}>
+              <Tag color="blue">Booking.com Verified</Tag>
+              <Tag color="orange">Chưa có chủ chính thức</Tag>
+              <Button
+                type="link"
+                size="small"
+                icon={<SafetyCertificateOutlined />}
+                onClick={handleClaimHomestay}
+                style={{
+                  color: '#6366f1',
+                  fontWeight: 600,
+                  fontSize: 12,
+                  padding: '0 4px',
+                  height: 'auto',
+                }}
+              >
+                Xác thực chủ nhà ↗
+              </Button>
+            </Space>
           )}
           <Tag color="blue">{homestay.city}</Tag>
           <Tag color="purple">Bảo vệ tiền đặt cọc Escrow 24h</Tag>
@@ -1046,6 +1068,70 @@ export default function HomestayDetailPage() {
             </Card>
           )}
 
+          {/* OWNER CLAIM CARD CHO CHỦ HOMESTAY (HIỂN THỊ KHI CHƯA CÓ CHỦ CHÍNH THỨC) */}
+          {homestay?.is_claimed === 0 && (
+            <Card
+              style={{
+                borderRadius: 16,
+                marginBottom: 24,
+                border: '1.5px dashed #6366f1',
+                background: 'linear-gradient(135deg, #f5f3ff 0%, #ffffff 100%)',
+                boxShadow: '0 4px 16px rgba(99, 102, 241, 0.08)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 16,
+                }}
+              >
+                <Space size="middle">
+                  <Avatar
+                    size={52}
+                    style={{
+                      backgroundColor: '#6366f1',
+                      color: '#ffffff',
+                      fontSize: 22,
+                      boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)',
+                    }}
+                    icon={<SafetyCertificateOutlined />}
+                  />
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                      <Text strong style={{ fontSize: 16, color: '#1e1b4b' }}>
+                        Bạn là chủ sở hữu của chỗ nghỉ này?
+                      </Text>
+                      <Tag color="purple">Dành cho Chủ Nhà</Tag>
+                      <Tag color="cyan">Chưa có chủ chính thức</Tag>
+                    </div>
+                    <Text type="secondary" style={{ fontSize: 13, display: 'block', maxWidth: 640 }}>
+                      Tiếp nhận quyền quản trị chỗ nghỉ, tự do cập nhật giá & đóng/mở phòng, nhận tiền cọc minh bạch qua tài khoản Ký quỹ Escrow StayAI bằng cách hoàn tất quy trình Xác thực 4 Lớp eKYC.
+                    </Text>
+                  </div>
+                </Space>
+
+                <Button
+                  type="primary"
+                  icon={<SafetyCertificateOutlined />}
+                  size="large"
+                  onClick={handleClaimHomestay}
+                  style={{
+                    height: 44,
+                    borderRadius: 10,
+                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                    fontWeight: 600,
+                    boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
+                  }}
+                >
+                  Xác thực làm chủ homestay
+                </Button>
+              </div>
+            </Card>
+          )}
+
           {/* ESCROW & POLICIES */}
           <Card title="Chính sách bảo đảm & Hoàn hủy" style={{ borderRadius: 14, marginBottom: 32 }}>
             <Space direction="vertical" size="small">
@@ -1347,6 +1433,26 @@ export default function HomestayDetailPage() {
                 >
                   Đặt phòng tại Booking.com ↗
                 </Button>
+
+                <div style={{ textAlign: 'center', marginTop: 14, paddingTop: 12, borderTop: '1px dashed #e2e8f0' }}>
+                  <Text style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4 }}>
+                    Bạn là chủ sở hữu của chỗ nghỉ này?
+                  </Text>
+                  <Button
+                    type="link"
+                    icon={<SafetyCertificateOutlined />}
+                    onClick={handleClaimHomestay}
+                    style={{
+                      color: '#6366f1',
+                      fontWeight: 600,
+                      fontSize: 13,
+                      padding: 0,
+                      height: 'auto',
+                    }}
+                  >
+                    Xác thực làm chủ homestay ↗
+                  </Button>
+                </div>
 
                 <Text
                   type="secondary"

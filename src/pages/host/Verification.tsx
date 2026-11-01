@@ -37,7 +37,9 @@ import {
   RobotOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
+import { useSearchParams } from 'react-router-dom';
 import { hostService } from '../../services/hostService';
+import { customerService } from '../../services/customerService';
 import type { HostHomestay } from '../../types/host';
 
 const { Title, Text, Paragraph } = Typography;
@@ -106,20 +108,40 @@ export default function VerificationPage() {
   const [cccdForm] = Form.useForm();
   const [otpCode, setOtpCode] = useState('');
 
+  const [searchParams] = useSearchParams();
+  const queryHomestayId = searchParams.get('homestay_id') || searchParams.get('homestayId');
+
   // Load danh sách homestay và trạng thái xác thực ban đầu
   useEffect(() => {
     loadHomestays();
-  }, []);
+  }, [queryHomestayId]);
 
   const loadHomestays = async () => {
     try {
       const res = await hostService.getMyListings();
-      const list = Array.isArray(res) ? res : (res as any)?.data || [];
+      let list = Array.isArray(res) ? res : (res as any)?.data || [];
+
+      // Nếu có query param homestay_id và chưa có trong list của host (ví dụ homestay chưa có chủ):
+      if (queryHomestayId && !list.some((h: any) => String(h.id) === String(queryHomestayId))) {
+        try {
+          const detailRes: any = await customerService.getHomestayDetail(queryHomestayId);
+          const detail = detailRes?.data || detailRes;
+          if (detail && detail.id) {
+            list = [detail as any, ...list];
+          }
+        } catch {
+          // Bỏ qua nếu lỗi
+        }
+      }
+
       setHomestays(list);
-      if (list.length > 0) {
-        const firstId = list[0].id;
-        setSelectedHomestayId(firstId);
-        loadStatus(firstId);
+      const targetId = queryHomestayId && list.some((h: any) => String(h.id) === String(queryHomestayId))
+        ? String(queryHomestayId)
+        : (list[0]?.id ? String(list[0].id) : '');
+
+      if (targetId) {
+        setSelectedHomestayId(targetId);
+        loadStatus(targetId);
       }
     } catch {
       // Fallback
