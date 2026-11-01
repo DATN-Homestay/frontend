@@ -5,12 +5,10 @@ import {
   Modal,
   Input,
   message,
-  Space,
   Alert,
   Progress,
   Typography,
   Descriptions,
-  Tooltip,
 } from 'antd';
 import {
   CheckCircleOutlined,
@@ -25,7 +23,7 @@ import {
 import { useEffect, useState } from 'react';
 import { adminService, type PendingClaim } from '../../services/adminService';
 
-const { Text, Paragraph } = Typography;
+const { Text } = Typography;
 
 // Score badge màu sắc
 const getScoreColor = (score: number, max: number) => {

@@ -1,12 +1,12 @@
 import {
   Table, Tag, Button, Space, Input, Select, Card, Row, Col,
   Statistic, Drawer, Descriptions, Badge, Typography, Tooltip,
-  Popconfirm, Modal, Form, message, Image, Rate,
+  Popconfirm, Modal, Form, message, Rate,
 } from 'antd';
 import {
   SearchOutlined, EyeOutlined, HomeOutlined, DeleteOutlined,
   EditOutlined, CheckCircleOutlined, StopOutlined, UserAddOutlined,
-  GlobalOutlined, RocketOutlined, CheckOutlined,
+  CheckOutlined,
   AlertOutlined,
 } from '@ant-design/icons';
 import { useEffect, useState, useCallback } from 'react';
@@ -14,9 +14,8 @@ import { adminService } from '../../services/adminService';
 import type {
   AdminHomestayItem, AdminHomestayDetail, AdminListHomestaysQuery,
 } from '../../services/adminService';
-import { Alert } from 'antd';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 const STATUS_OPTIONS = ['DRAFT', 'PENDING_VERIFICATION', 'ACTIVE', 'BANNED'];
 const STATUS_MAP: Record<string, { color: string; label: string }> = {
@@ -62,12 +61,6 @@ export default function HomestaysPage() {
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignForm] = Form.useForm();
   const [assigningId, setAssigningId] = useState<string | null>(null);
-
-  // Crawler
-  const [selectedCity, setSelectedCity] = useState('Đà Lạt');
-  const [limitCount, setLimitCount] = useState(10);
-  const [crawling, setCrawling] = useState(false);
-  const [crawlResult, setCrawlResult] = useState<any | null>(null);
 
   // Stats
   const [totalCount, setTotalCount] = useState(0);
@@ -167,21 +160,6 @@ export default function HomestaysPage() {
       fetchHomestays(pagination.page);
     } catch (err: any) {
       message.error(err.message || 'Lỗi khi xóa homestay');
-    }
-  };
-
-  const handleCrawl = async () => {
-    setCrawling(true);
-    setCrawlResult(null);
-    try {
-      const res = await adminService.crawlBookingHomestays(selectedCity, limitCount);
-      setCrawlResult(res);
-      message.success(`✓ Đã cào ${res.total_saved} homestay tại ${selectedCity}`);
-      fetchHomestays(1);
-    } catch (err: any) {
-      message.error(err.message || 'Lỗi khi cào dữ liệu');
-    } finally {
-      setCrawling(false);
     }
   };
 

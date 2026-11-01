@@ -6,9 +6,11 @@ import {
   UserOutlined,
   SwapOutlined,
   LogoutOutlined,
+  MessageOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import ChatNavBadge from '../features/chat/ChatNavBadge';
 
 const { Header, Content, Footer } = Layout;
 const { Title, Text } = Typography;
@@ -21,6 +23,7 @@ export default function CustomerLayout() {
   const menuItems = [
     { key: '/', icon: <HomeOutlined />, label: 'Khám phá Homestay' },
     { key: '/trips', icon: <CalendarOutlined />, label: 'Chuyến đi của tôi' },
+    { key: '/messages', icon: <MessageOutlined />, label: <ChatNavBadge role={isAdmin ? 'ADMIN' : 'CUSTOMER'} /> },
   ];
 
   // Các mục menu theo vai trò của người dùng
@@ -63,7 +66,7 @@ export default function CustomerLayout() {
   ];
 
   return (
-    <Layout style={{ minHeight: '100vh', background: '#f8fafc' }}>
+    <Layout className={location.pathname === '/messages' ? 'chat-route-layout' : undefined} style={{ minHeight: '100vh', background: '#f8fafc' }}>
       <Header
         style={{
           background: '#ffffff',
@@ -105,7 +108,7 @@ export default function CustomerLayout() {
           selectedKeys={[location.pathname]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
-          style={{ flex: 1, maxWidth: 350, borderBottom: 'none', marginLeft: 32 }}
+          style={{ flex: 1, maxWidth: 550, borderBottom: 'none', marginLeft: 32, minWidth: 0 }}
         />
 
         <Space size="middle">
@@ -169,7 +172,7 @@ export default function CustomerLayout() {
         </Space>
       </Header>
 
-      <Content style={{ padding: '24px 32px', maxWidth: 1280, margin: '0 auto', width: '100%' }}>
+      <Content style={{ padding: '24px 32px', maxWidth: 1280, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
         <Outlet />
       </Content>
 

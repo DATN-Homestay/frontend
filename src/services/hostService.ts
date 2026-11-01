@@ -1,8 +1,10 @@
-import { apiClient } from './apiClient';
+import { apiClient, type ApiResponse } from './apiClient';
 import type {
   HostHomestay,
   PriceCalendarDay,
   PricingSuggestion,
+  ApplyPricingRequest,
+  ApplyPricingResult,
   VerificationStatusResponse,
   HostBookingItem,
   HostBalanceInfo,
@@ -18,7 +20,11 @@ export const hostService = {
 
   // 1. Homestays Management
   async getMyListings(): Promise<HostHomestay[]> {
-    return await apiClient('/host/homestays/my-listings');
+    const response = await apiClient<ApiResponse<HostHomestay[]>>('/host/homestays/my-listings');
+    if (!response || !Array.isArray(response.data)) {
+      throw new Error('Dữ liệu danh sách homestay không hợp lệ');
+    }
+    return response.data;
   },
 
   async getHomestayDetail(id: string): Promise<HostHomestay> {
@@ -114,9 +120,13 @@ export const hostService = {
 
   // 3. Calendar & Batch Update
   async getCalendar(roomId: string, fromDate?: string, toDate?: string): Promise<PriceCalendarDay[]> {
-    return await apiClient(`/host/rooms/${roomId}/calendar`, {
+    const response = await apiClient<ApiResponse<PriceCalendarDay[]>>(`/host/rooms/${roomId}/calendar`, {
       params: { from_date: fromDate, to_date: toDate },
     });
+    if (!response || !Array.isArray(response.data)) {
+      throw new Error('Dữ liệu lịch giá phòng không hợp lệ');
+    }
+    return response.data;
   },
 
   async updateCalendar(roomId: string, data: { date: string; price: number; is_available?: number }) {
@@ -137,14 +147,14 @@ export const hostService = {
   },
 
   // 4. Dynamic Pricing AI
-  async getPricingSuggestions(homestayId: string, date: string, roomId?: string): Promise<{ data: PricingSuggestion }> {
-    return await apiClient('/host/pricing/suggestions', {
+  async getPricingSuggestions(homestayId: string, date: string, roomId?: string): Promise<ApiResponse<PricingSuggestion>> {
+    return await apiClient<ApiResponse<PricingSuggestion>>('/host/pricing/suggestions', {
       params: { homestay_id: homestayId, date, room_id: roomId },
     });
   },
 
-  async applyPricing(data: { homestay_id: string; date: string; applied_price?: number; new_price?: number; room_id?: string }) {
-    return await apiClient('/host/pricing/apply', {
+  async applyPricing(data: ApplyPricingRequest): Promise<ApiResponse<ApplyPricingResult>> {
+    return await apiClient<ApiResponse<ApplyPricingResult>>('/host/pricing/apply', {
       method: 'PUT',
       body: JSON.stringify(data),
     });

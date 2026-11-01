@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { App as AntApp, ConfigProvider } from 'antd';
 import { AuthProvider } from './contexts/AuthContext';
+import ChatProvider from './features/chat/ChatProvider';
+import ChatPage from './features/chat/ChatPage';
 
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import OtaModeSwitcher from './components/OtaModeSwitcher';
@@ -89,63 +91,68 @@ export default function App() {
       <AntApp>
         <ErrorBoundary>
           <AuthProvider>
-            <BrowserRouter>
-          <Routes>
-            {/* PHÂN HỆ 1: KHÁCH HÀNG (CUSTOMER PORTAL) */}
-            <Route path="/" element={<CustomerLayout />}>
-              <Route index element={<HomePage />} />
-              <Route path="homestay/:id" element={<HomestayDetailPage />} />
-              <Route path="checkout" element={<RequireAuth><CheckoutPage /></RequireAuth>} />
-              <Route path="payment-result" element={<RequireAuth><PaymentResultPage /></RequireAuth>} />
-              <Route path="trips" element={<RequireAuth><MyTripsPage /></RequireAuth>} />
-              <Route path="profile" element={<ProfilePage />} />
-            </Route>
+            <ChatProvider>
+              <BrowserRouter>
+                <Routes>
+                  {/* PHÂN HỆ 1: KHÁCH HÀNG (CUSTOMER PORTAL) */}
+                  <Route path="/" element={<CustomerLayout />}>
+                    <Route index element={<HomePage />} />
+                    <Route path="homestay/:id" element={<HomestayDetailPage />} />
+                    <Route path="checkout" element={<RequireAuth><CheckoutPage /></RequireAuth>} />
+                    <Route path="payment-result" element={<RequireAuth><PaymentResultPage /></RequireAuth>} />
+                    <Route path="trips" element={<RequireAuth><MyTripsPage /></RequireAuth>} />
+                    <Route path="messages" element={<RequireAuth><ChatPage portalRole="CUSTOMER" /></RequireAuth>} />
+                    <Route path="profile" element={<ProfilePage />} />
+                  </Route>
 
-            {/* PHÂN HỆ 2: CHỦ NHÀ (HOST PORTAL) - CHỈ TÀI KHOẢN ĐĂNG KÝ LÀM HOST MỚI VÀO ĐƯỢC */}
-            <Route element={<ProtectedRoute allowedRoles={['HOST', 'ADMIN']} />}>
-              <Route path="/host" element={<HostLayout />}>
-                <Route index element={<HostDashboardPage />} />
-                <Route path="listings" element={<MyListingsPage />} />
-                <Route path="pricing" element={<PriceCalendarPage />} />
-                <Route path="verification" element={<VerificationPage />} />
-                <Route path="bookings" element={<HostBookingsPage />} />
-                <Route path="payouts" element={<HostPayoutsPage />} />
-                <Route path="coupons" element={<HostCouponsPage />} />
-              </Route>
-            </Route>
+                  {/* PHÂN HỆ 2: CHỦ NHÀ (HOST PORTAL) - CHỈ TÀI KHOẢN ĐĂNG KÝ LÀM HOST MỚI VÀO ĐƯỢC */}
+                  <Route element={<ProtectedRoute allowedRoles={['HOST', 'ADMIN']} />}>
+                    <Route path="/host" element={<HostLayout />}>
+                      <Route index element={<HostDashboardPage />} />
+                      <Route path="listings" element={<MyListingsPage />} />
+                      <Route path="pricing" element={<PriceCalendarPage />} />
+                      <Route path="verification" element={<VerificationPage />} />
+                      <Route path="bookings" element={<HostBookingsPage />} />
+                      <Route path="payouts" element={<HostPayoutsPage />} />
+                      <Route path="coupons" element={<HostCouponsPage />} />
+                      <Route path="messages" element={<ChatPage portalRole="HOST" />} />
+                    </Route>
+                  </Route>
 
-            {/* PHÂN HỆ 3: QUẢN TRỊ VIÊN (ADMIN PORTAL) - CHỈ TÀI KHOẢN ADMIN MỚI VÀO ĐƯỢC */}
-            <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-              <Route path="/admin" element={<AdminLayout />}>
-                <Route index element={<DashboardPage />} />
-                <Route path="dropship" element={<DropshipOrdersPage />} />
-                <Route path="users" element={<UsersPage />} />
-                <Route path="hosts" element={<HostsPage />} />
-                <Route path="host-verifications" element={<HostVerificationsPage />} />
-                <Route path="homestays" element={<HomestaysPage />} />
-                <Route path="revenues" element={<RevenuesPage />} />
-                <Route path="payouts" element={<PayoutsPage />} />
-                <Route path="refunds" element={<RefundsPage />} />
-                <Route path="configs" element={<ConfigsPage />} />
-                <Route path="audit-logs" element={<AuditLogsPage />} />
-                <Route path="dropship-orders" element={<DropshipOrdersPage />} />
-                <Route path="sync-market-data" element={<SyncMarketDataPage />} />
-              </Route>
-            </Route>
+                  {/* PHÂN HỆ 3: QUẢN TRỊ VIÊN (ADMIN PORTAL) - CHỈ TÀI KHOẢN ADMIN MỚI VÀO ĐƯỢC */}
+                  <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                    <Route path="/admin" element={<AdminLayout />}>
+                      <Route index element={<DashboardPage />} />
+                      <Route path="dropship" element={<DropshipOrdersPage />} />
+                      <Route path="users" element={<UsersPage />} />
+                      <Route path="hosts" element={<HostsPage />} />
+                      <Route path="host-verifications" element={<HostVerificationsPage />} />
+                      <Route path="homestays" element={<HomestaysPage />} />
+                      <Route path="revenues" element={<RevenuesPage />} />
+                      <Route path="payouts" element={<PayoutsPage />} />
+                      <Route path="refunds" element={<RefundsPage />} />
+                      <Route path="configs" element={<ConfigsPage />} />
+                      <Route path="audit-logs" element={<AuditLogsPage />} />
+                      <Route path="dropship-orders" element={<DropshipOrdersPage />} />
+                      <Route path="sync-market-data" element={<SyncMarketDataPage />} />
+                      <Route path="messages" element={<ChatPage portalRole="ADMIN" />} />
+                    </Route>
+                  </Route>
 
-            {/* PHÂN HỆ AUTHENTICATION */}
-            <Route path="/auth" element={<AuthLayout />}>
-              <Route path="login" element={<LoginPage />} />
-              <Route path="register" element={<RegisterPage />} />
-            </Route>
+                  {/* PHÂN HỆ AUTHENTICATION */}
+                  <Route path="/auth" element={<AuthLayout />}>
+                    <Route path="login" element={<LoginPage />} />
+                    <Route path="register" element={<RegisterPage />} />
+                  </Route>
 
-            {/* MẶC ĐỊNH CHUYỂN HƯỚNG VỀ TRANG CHỦ KHÁCH HÀNG */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-          <OtaModeSwitcher />
+                  {/* MẶC ĐỊNH CHUYỂN HƯỚNG VỀ TRANG CHỦ KHÁCH HÀNG */}
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+                <OtaModeSwitcher />
               </BrowserRouter>
-            </AuthProvider>
-          </ErrorBoundary>
+            </ChatProvider>
+          </AuthProvider>
+        </ErrorBoundary>
       </AntApp>
     </ConfigProvider>
   );

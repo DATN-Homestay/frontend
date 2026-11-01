@@ -1,806 +1,1145 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Card,
-  Row,
-  Col,
-  Typography,
+  Alert,
+  App,
   Button,
-  Tag,
-  InputNumber,
+  Card,
+  Col,
+  ConfigProvider,
   DatePicker,
-  Select,
-  message,
-  Spin,
-  Modal,
+  Empty,
   Form,
-  Calendar,
+  InputNumber,
+  Modal,
+  Row,
+  Select,
+  Skeleton,
+  Space,
   Switch,
-  Divider,
+  Tag,
+  Typography,
 } from 'antd';
+import viVN from 'antd/locale/vi_VN';
 import {
-  RobotOutlined,
-  CheckCircleFilled,
-  ThunderboltOutlined,
   CalendarOutlined,
-  HomeOutlined,
+  CheckOutlined,
+  LeftOutlined,
+  LockOutlined,
+  ReloadOutlined,
+  RightOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
-import { useSearchParams } from 'react-router-dom';
+import 'dayjs/locale/vi';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ApiError } from '../../services/apiClient';
 import { hostService } from '../../services/hostService';
-import type { HostHomestay, PriceCalendarDay, PricingSuggestion } from '../../types/host';
+import type {
+  HostHomestay,
+  PriceCalendarDay,
+  PricingSuggestion,
+} from '../../types/host';
+import PricingSuggestionPanel from '../../features/pricing/PricingSuggestionPanel';
+import {
+  formatVnd,
+  isPriceWithinBounds,
+  suggestionMatchesSelection,
+  todayInVietnam,
+} from '../../features/pricing/pricing.utils';
+import './PriceCalendar.css';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
+const QUOTE_LIFETIME = 6 * 60 * 60 * 1000;
+const WEEK_DAYS = [
+  'Thứ 2',
+  'Thứ 3',
+  'Thứ 4',
+  'Thứ 5',
+  'Thứ 6',
+  'Thứ 7',
+  'Chủ nhật',
+];
+
+interface Selection {
+  homestayId: string | null;
+  roomId: string | null;
+  date: string;
+}
+interface CalendarSnapshot {
+  roomId: string;
+  from: string;
+  to: string;
+  rows: PriceCalendarDay[];
+}
+interface Quote {
+  data: PricingSuggestion;
+  receivedAt: number;
+}
+interface Confirmation {
+  suggestion: PricingSuggestion;
+  price: number;
+}
+interface BatchContext {
+  roomId: string;
+  roomName: string;
+  homestayName: string;
+}
+interface BatchValues {
+  date_range: [Dayjs, Dayjs];
+  price: number;
+}
+interface DayContext extends BatchContext {
+  date: string;
+}
+interface DayValues {
+  price: number;
+  is_available: boolean;
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function isHeld(day: PriceCalendarDay | undefined, now: number): boolean {
+  return Boolean(
+    day?.locked_until && new Date(day.locked_until).getTime() > now,
+  );
+}
 
 export default function PriceCalendarPage() {
+  const { message } = App.useApp();
   const [searchParams] = useSearchParams();
   const initialHomestayId = searchParams.get('homestay_id');
   const initialRoomId = searchParams.get('room_id');
-
+  const [selection, setSelection] = useState<Selection>(() => ({
+    homestayId: initialHomestayId,
+    roomId: initialRoomId,
+    date: dayjs(todayInVietnam()).add(2, 'day').format('YYYY-MM-DD'),
+  }));
+  const selectionRef = useRef(selection);
+  const [visibleMonth, setVisibleMonth] = useState(() =>
+    dayjs(selection.date).locale('vi').startOf('month'),
+  );
   const [homestays, setHomestays] = useState<HostHomestay[]>([]);
-  const [selectedHomestayId, setSelectedHomestayId] = useState<string | null>(initialHomestayId);
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(initialRoomId);
-
-  const [targetDate, setTargetDate] = useState<string>(dayjs().add(2, 'day').format('YYYY-MM-DD'));
+  const [listingRevision, setListingRevision] = useState(0);
+  const [loadedListingsKey, setLoadedListingsKey] = useState<string | null>(
+    null,
+  );
+  const [listingFailure, setListingFailure] = useState<{
+    key: string;
+    message: string;
+  } | null>(null);
+  const [calendar, setCalendar] = useState<CalendarSnapshot | null>(null);
+  const [calendarRevision, setCalendarRevision] = useState(0);
+  const [loadedCalendarKey, setLoadedCalendarKey] = useState<string | null>(
+    null,
+  );
+  const [calendarFailure, setCalendarFailure] = useState<{
+    key: string;
+    message: string;
+  } | null>(null);
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [appliedPrice, setAppliedPrice] = useState<number | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
-  const [aiData, setAiData] = useState<PricingSuggestion | null>(null);
-  const [appliedPrice, setAppliedPrice] = useState<number>(0);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [applying, setApplying] = useState(false);
-
-  const [calendarDays, setCalendarDays] = useState<PriceCalendarDay[]>([]);
-  const [loadingCalendar, setLoadingCalendar] = useState(false);
-
-  // Single Day Price Setting Modal (Hộp thoại thiết lập giá cho từng ngày khi bấm vào lịch)
-  const [dayModalOpen, setDayModalOpen] = useState(false);
-  const [selectedDayDate, setSelectedDayDate] = useState<string>('');
-  const [dayPriceForm] = Form.useForm();
-  const [dayPriceUpdating, setDayPriceUpdating] = useState(false);
-  const [dayAiLoading, setDayAiLoading] = useState(false);
-  const [dayAiSuggestion, setDayAiSuggestion] = useState<PricingSuggestion | null>(null);
-
-  // Batch Update Modal
-  const [batchModalOpen, setBatchModalOpen] = useState(false);
-  const [batchForm] = Form.useForm();
+  const [dayContext, setDayContext] = useState<DayContext | null>(null);
+  const [dayError, setDayError] = useState<string | null>(null);
+  const [dayUpdating, setDayUpdating] = useState(false);
+  const [dayForm] = Form.useForm<DayValues>();
+  const [batchContext, setBatchContext] = useState<BatchContext | null>(null);
+  const [batchError, setBatchError] = useState<string | null>(null);
   const [batchUpdating, setBatchUpdating] = useState(false);
+  const [batchForm] = Form.useForm<BatchValues>();
+  const [now, setNow] = useState(Date.now);
+  const aiRequest = useRef(0);
+  const mounted = useRef(true);
 
-  useEffect(() => {
-    loadHomestays();
+  const changeSelection = useCallback((next: Selection) => {
+    selectionRef.current = next;
+    setSelection(next);
+    aiRequest.current++;
+    setQuote(null);
+    setAppliedPrice(null);
+    setAiError(null);
+    setLoadingAi(false);
+    setConfirmation(null);
   }, []);
 
   useEffect(() => {
-    if (selectedRoomId) {
-      loadRoomCalendar(selectedRoomId);
-    }
-  }, [selectedRoomId]);
+    mounted.current = true;
+    const clock = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => {
+      mounted.current = false;
+      window.clearInterval(clock);
+    };
+  }, []);
 
-  const loadHomestays = async () => {
-    try {
-      const res = await hostService.getMyListings();
-      const list = Array.isArray(res) ? res : (res as any)?.data || [];
-      setHomestays(list);
-      if (list.length > 0) {
-        const defaultHs = initialHomestayId
-          ? list.find((h: HostHomestay) => h.id === initialHomestayId) || list[0]
-          : list[0];
-        setSelectedHomestayId(defaultHs.id);
+  const listingsKey = `${initialHomestayId}:${initialRoomId}:${listingRevision}`;
+  const listingError =
+    listingFailure?.key === listingsKey ? listingFailure.message : null;
+  const loadingListings = loadedListingsKey !== listingsKey && !listingError;
 
-        if (defaultHs.rooms && Array.isArray(defaultHs.rooms) && defaultHs.rooms.length > 0) {
-          const defaultRoom = initialRoomId
-            ? defaultHs.rooms.find((r: any) => r.id === initialRoomId) || defaultHs.rooms[0]
-            : defaultHs.rooms[0];
-          setSelectedRoomId(defaultRoom.id);
-        }
-      }
-    } catch {
-      setHomestays([]);
-    }
-  };
-
-  const loadRoomCalendar = async (roomId: string) => {
-    setLoadingCalendar(true);
-    try {
-      const from = dayjs().startOf('month').format('YYYY-MM-DD');
-      const to = dayjs().add(2, 'month').endOf('month').format('YYYY-MM-DD');
-      const days = await hostService.getCalendar(roomId, from, to);
-      const list = Array.isArray(days) ? days : (days as any)?.data || [];
-      setCalendarDays(list);
-    } catch {
-      setCalendarDays([]);
-    } finally {
-      setLoadingCalendar(false);
-    }
-  };
-
-  const safeHomestays = Array.isArray(homestays) ? homestays : [];
-  const selectedHomestay = safeHomestays.find((h) => String(h.id) === String(selectedHomestayId));
-  const currentRooms = selectedHomestay && Array.isArray(selectedHomestay.rooms) ? selectedHomestay.rooms : [];
-  const selectedRoom = currentRooms.find((r: any) => String(r.id) === String(selectedRoomId));
-
-  // Sync modal form values whenever opened or selected date changes
   useEffect(() => {
-    if (dayModalOpen && selectedDayDate) {
-      const dayData = Array.isArray(calendarDays) ? calendarDays.find((d) => d.date === selectedDayDate) : null;
-      const basePrice = Number(selectedRoom?.base_price || 500000);
-      const initialPrice = dayData ? Number(dayData.price) : basePrice;
-      const isAvail = dayData ? dayData.is_available !== 0 : true;
-
-      dayPriceForm.setFieldsValue({
-        price: initialPrice,
-        is_available: isAvail,
+    let active = true;
+    hostService
+      .getMyListings()
+      .then((list) => {
+        if (!active) return;
+        setHomestays(list);
+        setLoadedListingsKey(listingsKey);
+        setListingFailure(null);
+        const current = selectionRef.current;
+        const homestay =
+          list.find((item) => String(item.id) === current.homestayId) ??
+          list.find((item) => String(item.id) === initialHomestayId) ??
+          list.find((item) => item.rooms?.length) ??
+          list[0];
+        const room =
+          homestay?.rooms?.find((item) => String(item.id) === current.roomId) ??
+          homestay?.rooms?.find((item) => String(item.id) === initialRoomId) ??
+          homestay?.rooms?.[0];
+        changeSelection({
+          ...current,
+          homestayId: homestay ? String(homestay.id) : null,
+          roomId: room ? String(room.id) : null,
+        });
+      })
+      .catch((error: unknown) => {
+        if (active)
+          setListingFailure({
+            key: listingsKey,
+            message: errorMessage(error, 'Không thể tải danh sách homestay.'),
+          });
       });
-    }
-  }, [dayModalOpen, selectedDayDate, calendarDays, selectedRoom]);
+    return () => {
+      active = false;
+    };
+  }, [initialHomestayId, initialRoomId, listingsKey, changeSelection]);
 
-  // Lấy gợi ý giá AI cho ngày được chọn
-  const handleFetchAi = async (dateToFetch?: string) => {
-    const d = dateToFetch || targetDate;
-    if (!selectedHomestayId) {
-      message.warning('Vui lòng chọn Homestay');
+  const homestay = homestays.find(
+    (item) => String(item.id) === selection.homestayId,
+  );
+  const rooms = homestay?.rooms ?? [];
+  const room = rooms.find((item) => String(item.id) === selection.roomId);
+  const monthKey = visibleMonth.format('YYYY-MM');
+  const calendarStart = useMemo(
+    () => dayjs(`${monthKey}-01`).locale('vi').startOf('week'),
+    [monthKey],
+  );
+  const calendarFrom = calendarStart.format('YYYY-MM-DD');
+  const calendarTo = calendarStart.add(41, 'day').format('YYYY-MM-DD');
+  const calendarDays = useMemo(
+    () =>
+      Array.from({ length: 42 }, (_, index) => calendarStart.add(index, 'day')),
+    [calendarStart],
+  );
+  const calendarKey = `${selection.roomId}:${calendarFrom}:${calendarTo}:${calendarRevision}`;
+  const calendarError =
+    calendarFailure?.key === calendarKey ? calendarFailure.message : null;
+  const loadingCalendar =
+    Boolean(selection.roomId) &&
+    loadedCalendarKey !== calendarKey &&
+    !calendarError;
+
+  useEffect(() => {
+    if (!selection.roomId) return;
+    let active = true;
+    const roomId = selection.roomId;
+    hostService
+      .getCalendar(roomId, calendarFrom, calendarTo)
+      .then((rows) => {
+        if (active) {
+          setCalendar({ roomId, from: calendarFrom, to: calendarTo, rows });
+          setLoadedCalendarKey(calendarKey);
+          setCalendarFailure(null);
+        }
+      })
+      .catch((error: unknown) => {
+        if (active)
+          setCalendarFailure({
+            key: calendarKey,
+            message: errorMessage(error, 'Không thể tải lịch giá.'),
+          });
+      });
+    return () => {
+      active = false;
+    };
+  }, [selection.roomId, calendarFrom, calendarTo, calendarKey]);
+
+  const calendarMatches =
+    calendar?.roomId === selection.roomId &&
+    calendar.from === calendarFrom &&
+    calendar.to === calendarTo;
+  const calendarByDate = useMemo(
+    () =>
+      new Map(
+        calendarMatches
+          ? calendar!.rows.map((day) => [day.date.slice(0, 10), day])
+          : [],
+      ),
+    [calendar, calendarMatches],
+  );
+  const targetDay = calendarByDate.get(selection.date);
+  const calendarReady = calendarMatches && !calendarError && !loadingCalendar;
+  const targetInView =
+    selection.date >= calendarFrom && selection.date <= calendarTo;
+  const targetReady = calendarReady && targetInView;
+  const locked = isHeld(targetDay, now);
+  const today = todayInVietnam(new Date(now));
+  const currentQuote =
+    quote && suggestionMatchesSelection(quote.data, selection) ? quote : null;
+  const expired = Boolean(
+    currentQuote && now - currentQuote.receivedAt >= QUOTE_LIFETIME,
+  );
+  const saving = applying || batchUpdating || dayUpdating || confirmation !== null;
+  const busy = saving || dayContext !== null || batchContext !== null;
+  const canRequest = Boolean(
+    room &&
+    homestay &&
+    selection.date >= today &&
+    targetReady &&
+    !listingError &&
+    !saving &&
+    batchContext === null,
+  );
+
+  const selectDate = (date: Dayjs) => {
+    const value = date.format('YYYY-MM-DD');
+    if (value < todayInVietnam() || busy) return;
+    if (selectionRef.current.date !== value)
+      changeSelection({ ...selectionRef.current, date: value });
+    setVisibleMonth(date.locale('vi').startOf('month'));
+  };
+
+  const fetchSuggestion = useCallback(async () => {
+    const requestSelection = { ...selectionRef.current };
+    if (
+      !canRequest ||
+      !requestSelection.homestayId ||
+      !requestSelection.roomId ||
+      requestSelection.date < todayInVietnam()
+    )
+      return;
+    const requestId = ++aiRequest.current;
+    setLoadingAi(true);
+    setAiError(null);
+    setQuote(null);
+    setAppliedPrice(null);
+    try {
+      const response = await hostService.getPricingSuggestions(
+        requestSelection.homestayId,
+        requestSelection.date,
+        requestSelection.roomId,
+      );
+      if (!mounted.current || requestId !== aiRequest.current) return;
+      if (!suggestionMatchesSelection(response.data, selectionRef.current))
+        throw new Error(
+          'Kết quả gợi ý không khớp phòng hoặc ngày đã chọn. Vui lòng lấy lại gợi ý.',
+        );
+      const receivedAt = Date.now();
+      setNow(receivedAt);
+      setQuote({ data: response.data, receivedAt });
+      setAppliedPrice(response.data.suggested_price);
+    } catch (error: unknown) {
+      if (mounted.current && requestId === aiRequest.current)
+        setAiError(
+          errorMessage(error, 'Không thể lấy gợi ý giá. Vui lòng thử lại.'),
+        );
+    } finally {
+      if (mounted.current && requestId === aiRequest.current)
+        setLoadingAi(false);
+    }
+  }, [canRequest]);
+
+  const openDay = (date: Dayjs) => {
+    if (!room || !homestay || busy || !calendarReady) return;
+    const value = date.format('YYYY-MM-DD');
+    if (value < todayInVietnam()) return;
+    const day = calendarByDate.get(value);
+    selectDate(date);
+    setDayError(null);
+    dayForm.setFieldsValue({
+      price: Number(day?.price ?? room.base_price),
+      is_available: day ? Number(day.is_available) === 1 : true,
+    });
+    setDayContext({
+      roomId: String(room.id),
+      roomName: room.room_name,
+      homestayName: homestay.name,
+      date: value,
+    });
+    if (canRequest) void fetchSuggestion();
+  };
+
+  const updateDay = async (values: DayValues) => {
+    if (!dayContext || dayUpdating) return;
+    const context = dayContext;
+    if (context.date < todayInVietnam()) {
+      setDayError('Vui lòng chọn ngày từ hôm nay trở đi.');
       return;
     }
-
-    setLoadingAi(true);
+    setDayUpdating(true);
+    setDayError(null);
     try {
-      const res = await hostService.getPricingSuggestions(selectedHomestayId, d, selectedRoomId || undefined);
-      const suggestion = res?.data || (res as any);
-      if (suggestion && (suggestion.suggested_price !== undefined || suggestion.comp_set_stats)) {
-        setAiData(suggestion);
-        if (suggestion.suggested_price) {
-          setAppliedPrice(Number(suggestion.suggested_price));
-        }
-      }
-      message.success(`Đã tính toán mức giá tối ưu từ AI cho ngày ${d}!`);
-    } catch {
-      message.info('Đang sử dụng dữ liệu mô phỏng AI CompSet bán kính 3km');
-    } finally {
+      const rows = await hostService.getCalendar(
+        context.roomId, context.date, context.date,
+      );
+      if (rows.some((day) => isHeld(day, Date.now())))
+        throw new Error('Ngày này đang có khách giữ chỗ. Vui lòng thử lại sau.');
+      await hostService.updateCalendar(context.roomId, {
+        date: context.date,
+        price: values.price,
+        is_available: values.is_available ? 1 : 0,
+      });
+      if (!mounted.current) return;
+      message.success(`Đã lưu giá cho ngày ${dayjs(context.date).format('DD/MM/YYYY')}.`);
+      setDayContext(null);
+      aiRequest.current++;
+      setQuote(null);
+      setAppliedPrice(null);
+      setAiError(null);
       setLoadingAi(false);
+      setCalendarRevision((value) => value + 1);
+    } catch (error: unknown) {
+      if (mounted.current) {
+        setDayError(errorMessage(error, 'Không thể lưu giá ngày.'));
+        if (error instanceof ApiError && error.status === 409)
+          setCalendarRevision((value) => value + 1);
+      }
+    } finally {
+      if (mounted.current) setDayUpdating(false);
     }
   };
 
-  // Áp dụng giá AI vào database
-  const handleApply = async () => {
-    if (!selectedHomestayId) return;
+  const openConfirmation = () => {
+    if (
+      !currentQuote ||
+      !targetReady ||
+      locked ||
+      busy ||
+      currentQuote.data.data_status !== 'SUFFICIENT_DATA' ||
+      !isPriceWithinBounds(appliedPrice, currentQuote.data.base_price)
+    )
+      return;
+    if (Date.now() - currentQuote.receivedAt >= QUOTE_LIFETIME) {
+      setNow(Date.now());
+      return;
+    }
+    setConfirmation({ suggestion: currentQuote.data, price: appliedPrice! });
+  };
+
+  const applyPrice = async () => {
+    if (
+      !confirmation ||
+      applying ||
+      !suggestionMatchesSelection(confirmation.suggestion, selectionRef.current)
+    )
+      return;
+    const confirmed = confirmation;
+    if (
+      !currentQuote ||
+      Date.now() - currentQuote.receivedAt >= QUOTE_LIFETIME ||
+      isHeld(targetDay, Date.now())
+    ) {
+      setConfirmation(null);
+      setNow(Date.now());
+      setAiError(
+        'Tình trạng ngày đã thay đổi hoặc gợi ý đã cũ. Vui lòng lấy gợi ý mới.',
+      );
+      return;
+    }
     setApplying(true);
     try {
-      await hostService.applyPricing({
-        homestay_id: selectedHomestayId,
-        date: targetDate,
-        applied_price: appliedPrice,
-        room_id: selectedRoomId || undefined,
+      const response = await hostService.applyPricing({
+        homestay_id: String(confirmed.suggestion.homestay_id),
+        room_id: confirmed.suggestion.room_id,
+        date: confirmed.suggestion.date,
+        applied_price: confirmed.price,
       });
-      message.success(`✓ Đã áp dụng mức giá ${appliedPrice.toLocaleString('vi-VN')}đ cho ngày ${targetDate}!`);
-      if (selectedRoomId) loadRoomCalendar(selectedRoomId);
-    } catch (err: any) {
-      message.error(err.message || 'Lỗi khi áp dụng giá');
+      if (!mounted.current) return;
+      if (
+        response.data.room_id !== confirmed.suggestion.room_id ||
+        response.data.date !== confirmed.suggestion.date
+      ) {
+        throw new Error(
+          'Chưa xác nhận được kết quả cập nhật. Vui lòng tải lại lịch giá.',
+        );
+      }
+      message.success(
+        `Đã áp dụng ${formatVnd(response.data.new_price)} cho ngày ${dayjs(confirmed.suggestion.date).format('DD/MM/YYYY')}.`,
+      );
+      setConfirmation(null);
+      setQuote(null);
+      setCalendarRevision((value) => value + 1);
+    } catch (error: unknown) {
+      if (!mounted.current) return;
+      setConfirmation(null);
+      const conflict = error instanceof ApiError && error.status === 409;
+      if (conflict) {
+        setQuote(null);
+        setCalendarRevision((value) => value + 1);
+      }
+      setAiError(
+        errorMessage(error, 'Không thể áp dụng giá. Vui lòng thử lại.'),
+      );
     } finally {
-      setApplying(false);
+      if (mounted.current) setApplying(false);
     }
   };
 
-  // Cập nhật giá hàng loạt (Batch)
-  const handleBatchUpdate = async (values: any) => {
-    if (!selectedRoomId) {
-      message.warning('Vui lòng chọn phòng để cập nhật lịch giá');
-      return;
-    }
-
-    setBatchUpdating(true);
-    try {
-      const [start, end] = values.date_range;
-      await hostService.batchUpdateCalendar(selectedRoomId, {
-        from_date: start.format('YYYY-MM-DD'),
-        to_date: end.format('YYYY-MM-DD'),
-        price: Number(values.price),
-      });
-      message.success('Cập nhật giá hàng loạt thành công!');
-      setBatchModalOpen(false);
-      batchForm.resetFields();
-      loadRoomCalendar(selectedRoomId);
-    } catch (err: any) {
-      message.error(err.message || 'Cập nhật hàng loạt thất bại');
-    } finally {
-      setBatchUpdating(false);
-    }
-  };
-
-  // Mở hộp thoại (box / modal) thiết lập giá khi người dùng click vào 1 ngày trên lịch
-  const handleOpenDayModal = async (dateStr: string) => {
-    if (!dateStr) return;
-    if (!selectedRoomId) {
-      message.warning('Vui lòng chọn loại phòng trước khi thiết lập giá!');
-      return;
-    }
-
-    setSelectedDayDate(dateStr);
-    setTargetDate(dateStr);
-
-    const dayData = Array.isArray(calendarDays) ? calendarDays.find((d) => d.date === dateStr) : null;
-    const basePrice = Number(selectedRoom?.base_price || 500000);
-    const initialPrice = dayData ? Number(dayData.price) : basePrice;
-    const isAvail = dayData ? dayData.is_available !== 0 : true;
-
-    dayPriceForm.setFieldsValue({
-      price: initialPrice,
-      is_available: isAvail,
+  const openBatch = () => {
+    if (!room || !homestay || busy) return;
+    setBatchError(null);
+    batchForm.resetFields();
+    batchForm.setFieldsValue({
+      date_range: [dayjs(selection.date), dayjs(selection.date)],
+      price: Number(room.base_price),
     });
-
-    setDayModalOpen(true);
-    setDayAiSuggestion(null);
-
-    // Tự động tải gợi ý giá AI cho ngày được chọn này
-    if (selectedHomestayId) {
-      setDayAiLoading(true);
-      try {
-        const res = await hostService.getPricingSuggestions(selectedHomestayId, dateStr, selectedRoomId || undefined);
-        const suggestion = res?.data || (res as any);
-        if (suggestion && (suggestion.suggested_price !== undefined || suggestion.comp_set_stats)) {
-          setDayAiSuggestion(suggestion);
-        } else {
-          setDayAiSuggestion(null);
-        }
-      } catch {
-        setDayAiSuggestion(null);
-      } finally {
-        setDayAiLoading(false);
-      }
-    }
+    setBatchContext({
+      roomId: String(room.id),
+      roomName: room.room_name,
+      homestayName: homestay.name,
+    });
   };
 
-  // Lưu thiết lập giá cho ngày được chọn
-  const handleSaveDayPrice = async (values: any) => {
-    if (!selectedRoomId || !selectedHomestayId || !selectedDayDate) return;
-
-    setDayPriceUpdating(true);
-    try {
-      const priceNum = Number(values.price);
-      const isAvailNum = values.is_available ? 1 : 0;
-
-      // 1. Cập nhật Room Calendar
-      await hostService.updateCalendar(selectedRoomId, {
-        date: selectedDayDate,
-        price: priceNum,
-        is_available: isAvailNum,
-      });
-
-      // 2. Ghi nhận qua Dynamic Pricing
-      try {
-        await hostService.applyPricing({
-          homestay_id: selectedHomestayId,
-          date: selectedDayDate,
-          applied_price: priceNum,
-          room_id: selectedRoomId,
-        });
-      } catch {
-        // Dynamic pricing apply optional
-      }
-
-      message.success(`✓ Đã lưu giá ${priceNum.toLocaleString('vi-VN')}đ cho ngày ${dayjs(selectedDayDate).format('DD/MM/YYYY')}!`);
-      setDayModalOpen(false);
-      loadRoomCalendar(selectedRoomId);
-    } catch (err: any) {
-      message.error(err.message || 'Lỗi khi lưu giá ngày');
-    } finally {
-      setDayPriceUpdating(false);
-    }
-  };
-
-  // Render ô ngày trên lịch
-  const dateCellRender = (current: Dayjs) => {
-    const dateStr = current.format('YYYY-MM-DD');
-    const dayData = Array.isArray(calendarDays) ? calendarDays.find((d) => d.date === dateStr) : null;
-    const basePrice = selectedRoom ? Number(selectedRoom.base_price) : 0;
-
-    return (
-      <div
-        style={{
-          padding: '4px 6px',
-          background: dayData ? (dayData.is_available === 0 ? '#fee2e2' : dayData.is_ai_applied ? '#f5f3ff' : '#f0fdf4') : '#f8fafc',
-          borderRadius: 6,
-          border: dayData?.is_ai_applied ? '1px solid #c084fc' : '1px solid #e2e8f0',
-          cursor: 'pointer',
-          minHeight: 48,
-          transition: 'all 0.2s',
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          handleOpenDayModal(dateStr);
-        }}
-        className="price-calendar-cell"
-      >
-        {dayData ? (
-          <>
-            <div style={{ fontSize: 11, fontWeight: 700, color: dayData.is_available === 0 ? '#ef4444' : '#10b981' }}>
-              {Number(dayData.price).toLocaleString('vi-VN')}đ
-            </div>
-            {dayData.is_ai_applied === 1 && (
-              <Tag color="purple" style={{ fontSize: 9, padding: '0 4px', margin: '2px 0 0' }}>
-                AI Applied
-              </Tag>
-            )}
-            {dayData.is_available === 0 && (
-              <Tag color="red" style={{ fontSize: 9, padding: '0 4px', margin: '2px 0 0' }}>
-                Đã khóa / Đặt
-              </Tag>
-            )}
-          </>
-        ) : (
-          <div style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic', marginTop: 4 }}>
-            {basePrice > 0 ? `${basePrice.toLocaleString('vi-VN')}đ` : '+ Đặt giá'}
-          </div>
-        )}
-      </div>
+  const updateBatch = async (values: BatchValues) => {
+    if (!batchContext || batchUpdating) return;
+    const context = batchContext;
+    const [from, to] = values.date_range.map((date) =>
+      date.format('YYYY-MM-DD'),
     );
+    if (from < todayInVietnam() || to < from) {
+      setBatchError('Vui lòng chọn khoảng ngày từ hôm nay trở đi.');
+      return;
+    }
+    setBatchUpdating(true);
+    setBatchError(null);
+    try {
+      const rows = await hostService.getCalendar(context.roomId, from, to);
+      const held = rows.filter((day) => isHeld(day, Date.now()));
+      if (held.length)
+        throw new Error(
+          `Ngày ${held.map((day) => dayjs(day.date).format('DD/MM/YYYY')).join(', ')} đang có khách giữ chỗ. Vui lòng chọn khoảng ngày khác.`,
+        );
+      await hostService.batchUpdateCalendar(context.roomId, {
+        from_date: from,
+        to_date: to,
+        price: values.price,
+      });
+      if (!mounted.current) return;
+      message.success(`Đã cập nhật giá cho ${context.roomName}.`);
+      setBatchContext(null);
+      if (selectionRef.current.roomId === context.roomId) {
+        aiRequest.current++;
+        setQuote(null);
+        setAiError(null);
+        setLoadingAi(false);
+        setCalendarRevision((value) => value + 1);
+      }
+    } catch (error: unknown) {
+      if (mounted.current)
+        setBatchError(errorMessage(error, 'Không thể cập nhật giá hàng loạt.'));
+    } finally {
+      if (mounted.current) setBatchUpdating(false);
+    }
   };
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div>
-          <Title level={2} style={{ margin: 0 }}>Lịch Giá &amp; Định Giá Động AI</Title>
-          <Text type="secondary">
-            Phân tích cụm đối thủ tương đồng (CompSet 3-5km), tỷ lệ kín phòng và tối ưu doanh thu trong biên độ an toàn ±30%
-          </Text>
-        </div>
-        <Button
-          type="primary"
-          icon={<ThunderboltOutlined />}
-          onClick={() => setBatchModalOpen(true)}
-          style={{ background: '#4f46e5' }}
-        >
-          Cập Nhật Giá Hàng Loạt
-        </Button>
-      </div>
-
-      {/* CHỌN HOMESTAY VÀ PHÒNG */}
-      <Card style={{ borderRadius: 14, marginBottom: 20 }}>
-        <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} sm={8}>
-            <Text strong style={{ display: 'block', marginBottom: 4 }}>Chỗ Nghỉ Homestay</Text>
-            <Select
-              style={{ width: '100%' }}
-              size="large"
-              value={selectedHomestayId}
-              onChange={(id) => {
-                setSelectedHomestayId(id);
-                const hs = homestays.find((h) => h.id === id);
-                if (hs?.rooms && hs.rooms.length > 0) {
-                  setSelectedRoomId(hs.rooms[0].id);
-                } else {
-                  setSelectedRoomId(null);
-                }
-              }}
-              options={safeHomestays.map((h) => ({
-                label: (
-                  <span>
-                    <HomeOutlined style={{ marginRight: 6 }} />
-                    {h.name} ({h.city})
-                  </span>
-                ),
-                value: h.id,
-              }))}
-            />
-          </Col>
-
-          <Col xs={24} sm={8}>
-            <Text strong style={{ display: 'block', marginBottom: 4 }}>Loại Phòng</Text>
-            <Select
-              style={{ width: '100%' }}
-              size="large"
-              value={selectedRoomId}
-              onChange={(roomId) => setSelectedRoomId(roomId)}
-              disabled={currentRooms.length === 0}
-              options={currentRooms.map((r) => ({
-                label: `${r.room_name} (${r.capacity} khách - Giá gốc ${Number(r.base_price).toLocaleString('vi-VN')}đ)`,
-                value: r.id,
-              }))}
-            />
-          </Col>
-
-          <Col xs={24} sm={8}>
-            <Text strong style={{ display: 'block', marginBottom: 4 }}>Ngày Cần Định Giá</Text>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <DatePicker
-                style={{ flex: 1 }}
-                size="large"
-                value={dayjs(targetDate)}
-                onChange={(_, dateStr) => {
-                  const d = Array.isArray(dateStr) ? dateStr[0] : dateStr;
-                  setTargetDate(d);
-                }}
-              />
-              <Button
-                type="primary"
-                icon={<RobotOutlined />}
-                size="large"
-                loading={loadingAi}
-                onClick={() => handleFetchAi()}
-                style={{ background: '#6366f1' }}
-              >
-                Gợi Ý AI
-              </Button>
-            </div>
-          </Col>
-        </Row>
-      </Card>
-
-      {/* AI RECOMMENDATION BOX */}
-      {loadingAi ? (
-        <Card style={{ borderRadius: 14, marginBottom: 24, textAlign: 'center', padding: '40px 0' }}>
-          <Spin size="large" />
-          <div style={{ marginTop: 14, color: '#6366f1', fontWeight: 600 }}>
-            Hệ thống AI đang phân tích dữ liệu đối thủ bán kính 3-5km cho ngày {targetDate}...
+    <ConfigProvider locale={viVN}>
+      <div className="host-pricing-page">
+        <div className="host-pricing-header">
+          <div>
+            <Text className="host-pricing-eyebrow">QUẢN LÝ DOANH THU</Text>
+            <Title level={2}>Lịch giá & gợi ý AI</Title>
+            <Text type="secondary">
+              Chọn phòng và ngày để xem gợi ý từ dữ liệu chỗ nghỉ tương đồng
+              trong bán kính 5 km.
+            </Text>
           </div>
+          <Button
+            icon={<CalendarOutlined />}
+            onClick={openBatch}
+            disabled={!room || busy || loadingListings}
+          >
+            Cập nhật giá hàng loạt
+          </Button>
+        </div>
+
+        {listingError && (
+          <Alert
+            type="error"
+            showIcon
+            title="Không tải được danh sách homestay"
+            description={listingError}
+            action={
+              <Button onClick={() => setListingRevision((value) => value + 1)}>
+                Thử lại
+              </Button>
+            }
+          />
+        )}
+
+        <Card className="host-pricing-selection">
+          {loadingListings ? (
+            <Skeleton active paragraph={{ rows: 2 }} />
+          ) : homestays.length ? (
+            <Row gutter={[16, 16]}>
+              <Col xs={24} md={8}>
+                <label htmlFor="pricing-homestay">Homestay</label>
+                <Select
+                  id="pricing-homestay"
+                  size="large"
+                  value={selection.homestayId}
+                  disabled={busy}
+                  options={homestays.map((item) => ({
+                    value: String(item.id),
+                    label: `${item.name} · ${item.city}`,
+                  }))}
+                  onChange={(id: string) => {
+                    const next = homestays.find(
+                      (item) => String(item.id) === id,
+                    );
+                    changeSelection({
+                      ...selectionRef.current,
+                      homestayId: id,
+                      roomId: next?.rooms?.[0]
+                        ? String(next.rooms[0].id)
+                        : null,
+                    });
+                  }}
+                />
+              </Col>
+              <Col xs={24} md={8}>
+                <label htmlFor="pricing-room">Phòng</label>
+                <Select
+                  id="pricing-room"
+                  size="large"
+                  value={selection.roomId}
+                  disabled={!rooms.length || busy}
+                  placeholder="Chưa có phòng"
+                  options={rooms.map((item) => ({
+                    value: String(item.id),
+                    label: `${item.room_name} · ${item.capacity} khách`,
+                  }))}
+                  onChange={(id: string) =>
+                    changeSelection({ ...selectionRef.current, roomId: id })
+                  }
+                />
+              </Col>
+              <Col xs={24} md={8}>
+                <label htmlFor="pricing-date">Ngày nhận gợi ý</label>
+                <DatePicker
+                  id="pricing-date"
+                  size="large"
+                  value={dayjs(selection.date).locale('vi')}
+                  format="DD/MM/YYYY"
+                  allowClear={false}
+                  disabled={busy || !room}
+                  disabledDate={(date) =>
+                    date.format('YYYY-MM-DD') < todayInVietnam()
+                  }
+                  onChange={(date) => {
+                    if (date) selectDate(date);
+                  }}
+                />
+              </Col>
+            </Row>
+          ) : !listingError ? (
+            <Empty description="Bạn chưa có homestay để quản lý giá.">
+              <Link to="/host/listings">
+                <Button type="primary">Quản lý homestay</Button>
+              </Link>
+            </Empty>
+          ) : null}
+          {!loadingListings && homestay && !room && (
+            <Alert
+              type="info"
+              showIcon
+              title="Homestay chưa có phòng"
+              description="Thêm phòng và giá gốc trong phần Quản lý homestay để nhận gợi ý giá."
+            />
+          )}
         </Card>
-      ) : aiData ? (
-        <Card
-          style={{
-            borderRadius: 14,
-            marginBottom: 24,
-            border: '2px solid #a855f7',
-            background: 'linear-gradient(180deg, #ffffff 0%, #faf5ff 100%)',
-          }}
-        >
-          <Row gutter={[24, 24]} align="middle">
-            <Col xs={24} lg={14}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                <RobotOutlined style={{ fontSize: 24, color: '#9333ea' }} />
-                <Title level={4} style={{ margin: 0, color: '#6b21a8' }}>
-                  Đề Xuất Giá Thông Minh Cho Ngày {aiData.date}
-                </Title>
-                <Tag color={(aiData.change_percentage ?? 0) >= 0 ? 'green' : 'orange'} style={{ fontSize: 13, fontWeight: 700 }}>
-                  {(aiData.change_percentage ?? 0) >= 0 ? `+${aiData.change_percentage}%` : `${aiData.change_percentage}%`}
-                </Tag>
+
+        {room && (
+          <>
+            <div className="host-pricing-context">
+              <div>
+                <Text type="secondary">Ngày đang chọn</Text>
+                <strong>{dayjs(selection.date).format('DD/MM/YYYY')}</strong>
+                <span>
+                  {room.room_name} · {room.capacity} khách
+                </span>
               </div>
-
-              <Paragraph style={{ color: '#475569', fontSize: 14, lineHeight: 1.6, marginBottom: 16 }}>
-                {aiData.ai_explanation}
-              </Paragraph>
-
-              <Row gutter={16}>
-                <Col span={8}>
-                  <div style={{ background: '#ffffff', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Số đối thủ CompSet</Text>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a' }}>
-                      {aiData.comp_set_stats?.compset_size ?? 0} homestay
-                    </div>
-                  </div>
-                </Col>
-                <Col span={8}>
-                  <div style={{ background: '#ffffff', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Giá TB thị trường</Text>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a' }}>
-                      {Number(aiData.comp_set_stats?.market_avg_price || 0).toLocaleString('vi-VN')}đ
-                    </div>
-                  </div>
-                </Col>
-                <Col span={8}>
-                  <div style={{ background: '#ffffff', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Tỷ lệ kín phòng</Text>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: '#10b981' }}>
-                      {aiData.comp_set_stats?.occupancy_rate ?? 0}%
-                    </div>
-                  </div>
-                </Col>
-              </Row>
-            </Col>
-
-            <Col xs={24} lg={10}>
-              <div style={{ background: '#ffffff', padding: 20, borderRadius: 12, border: '1px solid #ddd6fe', textAlign: 'center' }}>
-                <Text type="secondary" style={{ fontSize: 13 }}>Mức giá AI đề xuất tối ưu doanh thu</Text>
-                <div style={{ fontSize: 32, fontWeight: 800, color: '#6b21a8', margin: '8px 0 16px' }}>
-                  {appliedPrice.toLocaleString('vi-VN')} VNĐ
-                </div>
-
-                <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
-                  <Text>Điều chỉnh tùy ý:</Text>
-                  <InputNumber
-                    size="large"
-                    step={10000}
-                    value={appliedPrice}
-                    onChange={(v) => setAppliedPrice(v || 0)}
-                    formatter={(val) => `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                    style={{ width: 170 }}
-                  />
-                </div>
-
+              <div>
+                <Text type="secondary">Giá đang bán</Text>
+                <strong>
+                  {targetReady
+                    ? formatVnd(targetDay?.price ?? room.base_price)
+                    : '—'}
+                </strong>
+                <span>
+                  {!targetReady
+                    ? 'Chờ lịch của ngày đang chọn'
+                    : locked
+                      ? 'Đang có khách giữ chỗ'
+                      : targetDay && Number(targetDay.is_available) !== 1
+                        ? 'Không mở bán'
+                        : 'Giá mỗi đêm'}
+                </span>
+              </div>
+              <div className="host-pricing-get-quote">
                 <Button
                   type="primary"
                   size="large"
-                  icon={<CheckCircleFilled />}
-                  loading={applying}
-                  onClick={handleApply}
-                  block
-                  style={{ background: '#9333ea', height: 44, fontWeight: 600 }}
+                  icon={<RobotOutlined />}
+                  loading={loadingAi}
+                  disabled={!canRequest}
+                  onClick={() => void fetchSuggestion()}
                 >
-                  Xác Nhận Áp Dụng Mức Giá Này
+                  {currentQuote ? 'Lấy gợi ý mới' : 'Nhận gợi ý giá'}
+                </Button>
+                <Text type="secondary">
+                  Giá bán chỉ thay đổi sau khi bạn xác nhận.
+                </Text>
+              </div>
+            </div>
+
+            {!targetInView && (
+              <Alert
+                type="info"
+                showIcon
+                title="Ngày nhận gợi ý nằm ngoài lịch đang xem"
+                description="Chọn một ngày trong lịch bên dưới hoặc quay về ngày đang chọn để tiếp tục."
+                action={
+                  <Button
+                    onClick={() =>
+                      setVisibleMonth(
+                        dayjs(selection.date).locale('vi').startOf('month'),
+                      )
+                    }
+                  >
+                    Về ngày đang chọn
+                  </Button>
+                }
+              />
+            )}
+
+            {locked && !currentQuote && (
+              <Alert
+                type="warning"
+                showIcon
+                icon={<LockOutlined />}
+                title="Ngày này đang có khách giữ chỗ"
+                description="Bạn có thể xem gợi ý. Việc áp dụng giá được tạm khóa đến khi giao dịch kết thúc."
+              />
+            )}
+            {aiError && (
+              <Alert
+                type="error"
+                showIcon
+                title="Chưa thể hoàn tất yêu cầu giá"
+                description={aiError}
+                action={
+                  <Button
+                    disabled={!canRequest}
+                    loading={loadingAi}
+                    onClick={() => void fetchSuggestion()}
+                  >
+                    Lấy lại gợi ý
+                  </Button>
+                }
+              />
+            )}
+            {loadingAi ? (
+              <Card className="host-pricing-loading" aria-live="polite">
+                <Space>
+                  <RobotOutlined />
+                  <Text strong>
+                    Đang phân tích giá cho ngày{' '}
+                    {dayjs(selection.date).format('DD/MM/YYYY')}…
+                  </Text>
+                </Space>
+                <Skeleton active paragraph={{ rows: 3 }} />
+              </Card>
+            ) : currentQuote ? (
+              <PricingSuggestionPanel
+                suggestion={currentQuote.data}
+                appliedPrice={appliedPrice}
+                onPriceChange={setAppliedPrice}
+                onApply={openConfirmation}
+                onDiscard={() => {
+                  setQuote(null);
+                  setAppliedPrice(null);
+                }}
+                applying={applying}
+                disabled={!targetReady || busy}
+                locked={locked}
+                expired={expired}
+              />
+            ) : (
+              !aiError && (
+                <Card className="host-pricing-placeholder">
+                  <RobotOutlined />
+                  <div>
+                    <Text strong>Gợi ý giá cho từng ngày lưu trú</Text>
+                    <p>
+                      AI so sánh giá, tình trạng phòng, ngày lễ/cuối tuần và
+                      thời gian đặt trước. Nhấn “Nhận gợi ý giá” để bắt đầu.
+                    </p>
+                  </div>
+                </Card>
+              )
+            )}
+
+            <Card
+              className="host-pricing-calendar"
+              title={
+                <Space>
+                  <CalendarOutlined />
+                  <span>Lịch giá phòng</span>
+                </Space>
+              }
+              extra={
+                <Button
+                  icon={<ReloadOutlined />}
+                  loading={loadingCalendar}
+                  disabled={busy}
+                  onClick={() => setCalendarRevision((value) => value + 1)}
+                >
+                  Tải lại
+                </Button>
+              }
+            >
+              <div className="host-pricing-calendar-toolbar">
+                <Space>
+                  <Button
+                    aria-label="Tháng trước"
+                    icon={<LeftOutlined />}
+                    disabled={busy}
+                    onClick={() =>
+                      setVisibleMonth((date) => date.subtract(1, 'month'))
+                    }
+                  />
+                  <DatePicker
+                    picker="month"
+                    aria-label="Tháng đang xem"
+                    format="[Tháng] MM/YYYY"
+                    value={visibleMonth}
+                    allowClear={false}
+                    disabled={busy}
+                    onChange={(date) => {
+                      if (date)
+                        setVisibleMonth(date.locale('vi').startOf('month'));
+                    }}
+                  />
+                  <Button
+                    aria-label="Tháng sau"
+                    icon={<RightOutlined />}
+                    disabled={busy}
+                    onClick={() =>
+                      setVisibleMonth((date) => date.add(1, 'month'))
+                    }
+                  />
+                </Space>
+                <Button
+                  disabled={busy}
+                  onClick={() => selectDate(dayjs(todayInVietnam()))}
+                >
+                  Hôm nay
                 </Button>
               </div>
-            </Col>
-          </Row>
-        </Card>
-      ) : null}
-
-      {/* LỊCH PHÒNG THEO THÁNG */}
-      <Card
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <CalendarOutlined />
-            <span>Bảng Lịch Giá Phòng Chi Tiết (Bấm vào ngày để định giá AI)</span>
-          </div>
-        }
-        style={{ borderRadius: 14 }}
-      >
-        {loadingCalendar ? (
-          <div style={{ textAlign: 'center', padding: '40px 0' }}>
-            <Spin />
-          </div>
-        ) : (
-          <Calendar
-            cellRender={(current, info) => (info.type === 'date' ? dateCellRender(current) : null)}
-            onSelect={(date, selectInfo) => {
-              if (selectInfo?.source === 'date') {
-                handleOpenDayModal(date.format('YYYY-MM-DD'));
-              }
-            }}
-          />
-        )}
-      </Card>
-
-      {/* MODAL THIẾT LẬP GIÁ CHO 1 NGÀY CỤ THỂ KHI CLICK */}
-      <Modal
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                background: '#e0e7ff',
-                color: '#4f46e5',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 18,
-              }}
-            >
-              <CalendarOutlined />
-            </div>
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
-                Thiết Lập Giá Ngày {selectedDayDate ? dayjs(selectedDayDate).format('DD/MM/YYYY') : ''}
-              </div>
-              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
-                {selectedHomestay?.name} • {selectedRoom?.room_name || 'Loại phòng'}
-              </div>
-            </div>
-          </div>
-        }
-        open={dayModalOpen}
-        onCancel={() => setDayModalOpen(false)}
-        footer={null}
-        width={540}
-      >
-        <Form form={dayPriceForm} layout="vertical" onFinish={handleSaveDayPrice} style={{ marginTop: 16 }}>
-          {/* MỨC GIÁ */}
-          <Form.Item
-            label={<span style={{ fontWeight: 600, fontSize: 14 }}>Mức giá áp dụng cho ngày này (VNĐ / đêm)</span>}
-            name="price"
-            rules={[{ required: true, message: 'Vui lòng nhập giá' }]}
-          >
-            <InputNumber
-              min={10000}
-              step={10000}
-              style={{ width: '100%', fontSize: 18, fontWeight: 700, color: '#4338ca' }}
-              size="large"
-              placeholder="Nhập giá phòng..."
-              formatter={(value) => (value !== undefined && value !== null ? `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '')}
-              parser={(value) => (value ? Number(String(value).replace(/\D/g, '')) : 0) as any}
-              addonAfter="VNĐ"
-            />
-          </Form.Item>
-
-          {/* CÁC NÚT ĐIỀU CHỈNH NHANH */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-            {selectedRoom?.base_price && (
-              <Button
-                size="small"
-                onClick={() => dayPriceForm.setFieldsValue({ price: Number(selectedRoom.base_price) })}
-              >
-                Giá gốc ({Number(selectedRoom.base_price).toLocaleString('vi-VN')}đ)
-              </Button>
-            )}
-            <Button
-              size="small"
-              onClick={() => {
-                const cur = Number(dayPriceForm.getFieldValue('price') || 0);
-                dayPriceForm.setFieldsValue({ price: Math.max(10000, cur - 50000) });
-              }}
-            >
-              -50.000đ
-            </Button>
-            <Button
-              size="small"
-              onClick={() => {
-                const cur = Number(dayPriceForm.getFieldValue('price') || 0);
-                dayPriceForm.setFieldsValue({ price: cur + 50000 });
-              }}
-            >
-              +50.000đ
-            </Button>
-            <Button
-              size="small"
-              onClick={() => {
-                const cur = Number(dayPriceForm.getFieldValue('price') || 0);
-                dayPriceForm.setFieldsValue({ price: cur + 100000 });
-              }}
-            >
-              +100.000đ
-            </Button>
-          </div>
-
-          {/* TRẠNG THÁI PHÒNG */}
-          <Form.Item
-            label={<span style={{ fontWeight: 600, fontSize: 14 }}>Trạng thái nhận khách ngày này</span>}
-            name="is_available"
-            valuePropName="checked"
-          >
-            <Switch
-              checkedChildren="Mở bán phòng"
-              unCheckedChildren="Khóa phòng / Ngưng nhận"
-            />
-          </Form.Item>
-
-          <Divider style={{ margin: '14px 0' }} />
-
-          {/* GỢI Ý ĐỊNH GIÁ AI COMPSET */}
-          <div
-            style={{
-              background: 'linear-gradient(135deg, #fbf7ff 0%, #f5f3ff 100%)',
-              border: '1px solid #d8b4fe',
-              borderRadius: 12,
-              padding: '14px 16px',
-              marginBottom: 20,
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, color: '#7e22ce' }}>
-                <RobotOutlined style={{ fontSize: 16 }} />
-                <span>Gợi ý định giá thông minh AI</span>
-              </div>
-              {dayAiSuggestion && (
-                <Tag
-                  color={(dayAiSuggestion.change_percentage ?? 0) >= 0 ? 'green' : 'orange'}
-                  style={{ fontWeight: 700 }}
-                >
-                  {(dayAiSuggestion.change_percentage ?? 0) >= 0
-                    ? `+${dayAiSuggestion.change_percentage}%`
-                    : `${dayAiSuggestion.change_percentage}%`}
-                </Tag>
+              {calendarError && (
+                <Alert
+                  type="error"
+                  showIcon
+                  title="Không tải được lịch giá"
+                  description={calendarError}
+                />
               )}
-            </div>
-
-            {dayAiLoading ? (
-              <div style={{ textAlign: 'center', padding: '16px 0', color: '#9333ea' }}>
-                <Spin size="small" />
-                <span style={{ marginLeft: 8, fontSize: 13 }}>AI đang phân tích thị trường CompSet cho ngày này...</span>
-              </div>
-            ) : dayAiSuggestion ? (
-              <div>
-                <div style={{ fontSize: 13, color: '#4b5563', marginBottom: 10, lineHeight: 1.5 }}>
-                  {dayAiSuggestion.ai_explanation || 'Gợi ý mức giá tối ưu dựa trên nhu cầu thị trường và cạnh tranh lân cận.'}
-                </div>
-
+              <div
+                className="host-pricing-calendar-scroll"
+                aria-busy={loadingCalendar}
+              >
                 <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    background: '#ffffff',
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    border: '1px solid #e9d5ff',
-                    marginBottom: 10,
-                  }}
+                  className="host-pricing-calendar-grid"
+                  role="group"
+                  aria-label="Chọn ngày xem gợi ý giá"
                 >
-                  <div>
-                    <div style={{ fontSize: 11, color: '#64748b' }}>Giá đề xuất tối ưu:</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: '#7e22ce' }}>
-                      {Number(dayAiSuggestion.suggested_price || 0).toLocaleString('vi-VN')} VNĐ
+                  {WEEK_DAYS.map((day) => (
+                    <div className="host-pricing-weekday" key={day}>
+                      {day}
                     </div>
-                  </div>
-                  <Button
-                    type="primary"
-                    icon={<ThunderboltOutlined />}
-                    size="small"
-                    style={{ background: '#7e22ce', borderColor: '#7e22ce' }}
-                    onClick={() => {
-                      if (dayAiSuggestion.suggested_price !== undefined) {
-                        dayPriceForm.setFieldsValue({ price: Number(dayAiSuggestion.suggested_price) });
-                        message.success('Đã điền mức giá gợi ý từ AI vào ô nhập!');
-                      }
-                    }}
-                  >
-                    Dùng giá này
-                  </Button>
+                  ))}
+                  {calendarDays.map((date) => {
+                    const key = date.format('YYYY-MM-DD');
+                    const day = calendarByDate.get(key);
+                    const held = isHeld(day, now);
+                    const closed = day && Number(day.is_available) !== 1;
+                    const selected = key === selection.date;
+                    const price = calendarReady
+                      ? formatVnd(day?.price ?? room.base_price)
+                      : '—';
+                    return (
+                      <button
+                        type="button"
+                        key={key}
+                        aria-label={`${date.format('DD/MM/YYYY')}, ${price}${held ? ', đang giữ chỗ' : closed ? ', không mở bán' : ''}`}
+                        aria-pressed={selected}
+                        className={`host-pricing-day${selected ? ' is-selected' : ''}${date.format('YYYY-MM') !== monthKey ? ' is-outside' : ''}${held ? ' is-held' : closed ? ' is-closed' : ''}`}
+                        disabled={key < today || busy || !calendarReady}
+                        onClick={() => openDay(date)}
+                      >
+                        <span className="host-pricing-day-number">
+                          {date.date()}
+                          {key === today && (
+                            <span className="host-pricing-today-dot" />
+                          )}
+                        </span>
+                        <strong>{price}</strong>
+                        <span className="host-pricing-day-status">
+                          {!calendarReady ? (
+                            'Chưa tải lịch'
+                          ) : held ? (
+                            <>
+                              <LockOutlined /> Đang giữ chỗ
+                            </>
+                          ) : closed ? (
+                            'Không mở bán'
+                          ) : Number(day?.is_ai_applied) === 1 ? (
+                            <>
+                              <CheckOutlined /> Đã áp dụng AI
+                            </>
+                          ) : day ? (
+                            'Giá đã thiết lập'
+                          ) : (
+                            'Giá gốc'
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
+              </div>
+              <div className="host-pricing-calendar-legend">
+                <Tag color="purple">Ngày đang chọn</Tag>
+                <Tag color="gold">Đang giữ chỗ</Tag>
+                <Tag>Không mở bán</Tag>
+                <Text type="secondary">
+                  Ngày chưa thiết lập lịch dùng giá gốc{' '}
+                  {formatVnd(room.base_price)}. Thay đổi giá không mở lại phòng
+                  đã đóng bán.
+                </Text>
+              </div>
+            </Card>
+          </>
+        )}
 
-                {dayAiSuggestion.comp_set_stats && (
-                  <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#64748b', flexWrap: 'wrap' }}>
-                    <span>Đối thủ CompSet: <strong>{dayAiSuggestion.comp_set_stats.compset_size ?? 0}</strong></span>
-                    <span>Giá TB: <strong>{Number(dayAiSuggestion.comp_set_stats.market_avg_price || 0).toLocaleString('vi-VN')}đ</strong></span>
-                    <span>Tỷ lệ kín: <strong>{dayAiSuggestion.comp_set_stats.occupancy_rate ?? 0}%</strong></span>
-                  </div>
+        <Modal
+          title={`Thiết lập giá ngày ${dayContext ? dayjs(dayContext.date).format('DD/MM/YYYY') : ''}`}
+          open={dayContext !== null}
+          footer={null}
+          onCancel={() => {
+            if (!dayUpdating) setDayContext(null);
+          }}
+          closable={!dayUpdating}
+          maskClosable={!dayUpdating}
+        >
+          {dayContext && (
+            <>
+              <p><strong>{dayContext.homestayName}</strong><br />{dayContext.roomName}</p>
+              {locked && (
+                <Alert type="warning" showIcon title="Ngày này đang có khách giữ chỗ" />
+              )}
+              {dayError && (
+                <Alert type="error" showIcon title="Chưa thể lưu giá" description={dayError} />
+              )}
+              <Form<DayValues>
+                form={dayForm}
+                layout="vertical"
+                onFinish={(values) => void updateDay(values)}
+                disabled={dayUpdating || locked}
+              >
+                <Form.Item
+                  name="price"
+                  label="Giá mỗi đêm (VNĐ)"
+                  rules={[
+                    { required: true, message: 'Vui lòng nhập mức giá.' },
+                    { type: 'number', min: 0.01, message: 'Giá phải lớn hơn 0.' },
+                  ]}
+                >
+                  <InputNumber min={0.01} precision={2} step={10000} style={{ width: '100%' }} />
+                </Form.Item>
+                <Space wrap style={{ marginBottom: 16 }}>
+                  <Button onClick={() => dayForm.setFieldValue('price', Number(room?.base_price))}>
+                    Giá gốc
+                  </Button>
+                  {[-50000, 50000, 100000].map((amount) => (
+                    <Button key={amount} onClick={() => dayForm.setFieldValue(
+                      'price', Math.max(0.01, Number(dayForm.getFieldValue('price') ?? 0) + amount),
+                    )}>
+                      {amount > 0 ? '+' : ''}{formatVnd(amount)}
+                    </Button>
+                  ))}
+                </Space>
+                <Form.Item name="is_available" label="Trạng thái nhận khách" valuePropName="checked">
+                  <Switch checkedChildren="Mở bán phòng" unCheckedChildren="Ngưng nhận khách" />
+                </Form.Item>
+                <Button type="primary" htmlType="submit" loading={dayUpdating} block>
+                  Lưu mức giá
+                </Button>
+              </Form>
+              <div style={{ marginTop: 16 }}>
+                <Button icon={<RobotOutlined />} loading={loadingAi} disabled={!canRequest} onClick={() => void fetchSuggestion()}>
+                  {currentQuote ? 'Lấy gợi ý mới' : 'Nhận gợi ý giá'}
+                </Button>
+                {aiError && <Alert type="error" showIcon title={aiError} />}
+                {currentQuote && (
+                  <>
+                    <p>{currentQuote.data.ai_explanation}</p>
+                    {currentQuote.data.data_status === 'SUFFICIENT_DATA' && !expired ? (
+                      <Button
+                        disabled={dayUpdating || locked || !isPriceWithinBounds(
+                          currentQuote.data.suggested_price, currentQuote.data.base_price,
+                        )}
+                        onClick={() => dayForm.setFieldValue('price', currentQuote.data.suggested_price)}
+                      >
+                        Dùng giá gợi ý {formatVnd(currentQuote.data.suggested_price)}
+                      </Button>
+                    ) : (
+                      <Text type="secondary">{expired ? 'Gợi ý đã hết hiệu lực. Vui lòng lấy lại.' : 'Chưa đủ dữ liệu để đề xuất giá.'}</Text>
+                    )}
+                  </>
                 )}
               </div>
-            ) : (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: '#64748b' }}>Chưa có dữ liệu gợi ý cho ngày này.</span>
-                <Button
-                  size="small"
-                  icon={<RobotOutlined />}
-                  onClick={() => handleFetchAi(selectedDayDate)}
-                  loading={loadingAi}
-                >
-                  Lấy gợi ý AI
-                </Button>
+            </>
+          )}
+        </Modal>
+
+        <Modal
+          title="Xác nhận áp dụng giá"
+          open={confirmation !== null}
+          onCancel={() => {
+            if (!applying) setConfirmation(null);
+          }}
+          onOk={() => void applyPrice()}
+          confirmLoading={applying}
+          okText="Xác nhận áp dụng"
+          cancelText="Quay lại"
+          cancelButtonProps={{ disabled: applying }}
+          closable={!applying}
+          maskClosable={!applying}
+        >
+          {confirmation && (
+            <div className="host-pricing-confirmation">
+              <p>
+                <strong>{homestay?.name}</strong>
+                <br />
+                {room?.room_name} ·{' '}
+                {dayjs(confirmation.suggestion.date).format('DD/MM/YYYY')}
+              </p>
+              <div>
+                <span>Giá đang bán</span>
+                <strong>
+                  {formatVnd(confirmation.suggestion.current_price)}
+                </strong>
               </div>
-            )}
-          </div>
+              <div>
+                <span>Giá sau xác nhận</span>
+                <strong>{formatVnd(confirmation.price)}</strong>
+              </div>
+              <Alert
+                type="info"
+                showIcon
+                title="Chỉ cập nhật giá cho phòng và ngày này. Tình trạng phòng được giữ nguyên."
+              />
+            </div>
+          )}
+        </Modal>
 
-          {/* ACTION BUTTONS */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-            <Button size="large" onClick={() => setDayModalOpen(false)}>
-              Hủy
-            </Button>
-            <Button
-              type="primary"
-              htmlType="submit"
-              size="large"
-              loading={dayPriceUpdating}
-              icon={<CheckCircleFilled />}
-              style={{ background: '#4f46e5', fontWeight: 600, minWidth: 150 }}
-            >
-              Lưu Mức Giá
-            </Button>
-          </div>
-        </Form>
-      </Modal>
-
-      {/* MODAL CẬP NHẬT GIÁ HÀNG LOẠT */}
-      <Modal
-        title="Cập Nhật Giá Hàng Loạt (Batch Update)"
-        open={batchModalOpen}
-        onCancel={() => setBatchModalOpen(false)}
-        footer={null}
-      >
-        <Form form={batchForm} layout="vertical" onFinish={handleBatchUpdate}>
-          <Form.Item
-            label="Khoảng thời gian áp dụng"
-            name="date_range"
-            rules={[{ required: true, message: 'Vui lòng chọn khoảng ngày' }]}
-          >
-            <DatePicker.RangePicker style={{ width: '100%' }} size="large" />
-          </Form.Item>
-
-          <Form.Item
-            label="Mức giá mới cho tất cả các ngày (VNĐ/đêm)"
-            name="price"
-            rules={[{ required: true, message: 'Vui lòng nhập giá' }]}
-          >
-            <InputNumber
-              min={50000}
-              step={50000}
-              style={{ width: '100%' }}
-              size="large"
-              placeholder="Ví dụ: 850000"
-              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-            />
-          </Form.Item>
-
-          <Button type="primary" htmlType="submit" size="large" block loading={batchUpdating} style={{ background: '#4f46e5' }}>
-            Áp Dụng Cho Tất Cả Các Ngày Đã Chọn
-          </Button>
-        </Form>
-      </Modal>
-    </div>
+        <Modal
+          className="host-pricing-batch"
+          title="Cập nhật giá hàng loạt"
+          open={batchContext !== null}
+          footer={null}
+          onCancel={() => {
+            if (!batchUpdating) setBatchContext(null);
+          }}
+          closable={!batchUpdating}
+          maskClosable={!batchUpdating}
+        >
+          {batchContext && (
+            <>
+              <p>
+                <strong>{batchContext.homestayName}</strong>
+                <br />
+                {batchContext.roomName}
+              </p>
+              <Alert
+                type="info"
+                showIcon
+                title="Đây là mức giá do bạn tự đặt"
+                description="Thay đổi chỉ áp dụng cho khoảng ngày chọn, không mở lại phòng đã đóng bán."
+              />
+              {batchError && (
+                <Alert
+                  className="host-pricing-batch-error"
+                  type="error"
+                  showIcon
+                  title="Chưa thể cập nhật"
+                  description={batchError}
+                />
+              )}
+              <Form<BatchValues>
+                form={batchForm}
+                layout="vertical"
+                onFinish={(values) => void updateBatch(values)}
+                disabled={batchUpdating}
+              >
+                <Form.Item
+                  name="date_range"
+                  label="Khoảng ngày"
+                  rules={[
+                    { required: true, message: 'Vui lòng chọn khoảng ngày.' },
+                  ]}
+                >
+                  <DatePicker.RangePicker
+                    format="DD/MM/YYYY"
+                    allowClear={false}
+                    disabledDate={(date) =>
+                      date.format('YYYY-MM-DD') < todayInVietnam()
+                    }
+                  />
+                </Form.Item>
+                <Form.Item
+                  name="price"
+                  label="Giá mỗi đêm (VNĐ)"
+                  rules={[
+                    { required: true, message: 'Vui lòng nhập mức giá.' },
+                    {
+                      type: 'number',
+                      min: 0.01,
+                      message: 'Giá phải lớn hơn 0.',
+                    },
+                  ]}
+                >
+                  <InputNumber min={0.01} precision={2} step={10000} />
+                </Form.Item>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  block
+                  loading={batchUpdating}
+                >
+                  Áp dụng cho khoảng ngày đã chọn
+                </Button>
+              </Form>
+            </>
+          )}
+        </Modal>
+      </div>
+    </ConfigProvider>
   );
 }

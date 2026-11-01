@@ -16,14 +16,17 @@ import {
     GlobalOutlined,
     SyncOutlined,
     ShoppingOutlined,
+    MessageOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import ChatNavBadge from '../features/chat/ChatNavBadge';
 
 const { Header, Sider, Content } = Layout;
 
 const menuItems = [
     { key: '/admin', icon: <DashboardOutlined />, label: 'Dashboard' },
+    { key: '/admin/messages', icon: <MessageOutlined />, label: <ChatNavBadge role="ADMIN" /> },
     { key: '/admin/users', icon: <TeamOutlined />, label: 'Quản lý người dùng' },
     { key: '/admin/hosts', icon: <UserOutlined />, label: 'Quản lý Host' },
     { key: '/admin/host-verifications', icon: <SafetyCertificateOutlined />, label: 'Duyệt KYC Host' },
@@ -160,7 +163,7 @@ export default function AdminLayout() {
                     </div>
                 </Header>
 
-                <Content style={{ margin: '24px 24px 0', overflow: 'initial' }}>
+                <Content className={location.pathname === '/admin/messages' ? 'chat-admin-content' : undefined} style={{ margin: '24px 24px 0', overflow: 'initial' }}>
                     <div style={{
                         background: token.colorBgContainer,
                         borderRadius: token.borderRadiusLG,

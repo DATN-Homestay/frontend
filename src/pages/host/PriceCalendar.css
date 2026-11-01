@@ -1,0 +1,267 @@
+.host-pricing-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1440px;
+  margin: 0 auto;
+  color: #1e293b;
+}
+.host-pricing-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+.host-pricing-header h2.ant-typography {
+  margin: 4px 0 6px;
+  font-size: 28px;
+  letter-spacing: -0.6px;
+}
+.host-pricing-eyebrow.ant-typography {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  color: #6366f1;
+}
+.host-pricing-selection label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+.host-pricing-selection .ant-select,
+.host-pricing-selection .ant-picker {
+  width: 100%;
+}
+.host-pricing-selection .ant-alert {
+  margin-top: 16px;
+}
+.host-pricing-context {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 24px;
+  padding: 22px 24px;
+  border: 1px solid #dddffb;
+  border-radius: 12px;
+  background: #f1f2ff;
+}
+.host-pricing-context > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.host-pricing-context strong {
+  font-size: 23px;
+  color: #272759;
+}
+.host-pricing-context span:not(.ant-btn span) {
+  font-size: 13px;
+}
+.host-pricing-context .host-pricing-get-quote {
+  justify-content: center;
+  gap: 8px;
+}
+.host-pricing-get-quote .ant-typography {
+  font-size: 11px;
+}
+.host-pricing-loading .ant-skeleton {
+  margin-top: 20px;
+}
+.host-pricing-placeholder .ant-card-body {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  padding: 24px;
+}
+.host-pricing-placeholder .anticon {
+  flex: 0 0 auto;
+  font-size: 30px;
+  color: #818cf8;
+  background: #eef2ff;
+  padding: 16px;
+  border-radius: 14px;
+}
+.host-pricing-placeholder p {
+  max-width: 680px;
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.host-pricing-calendar .ant-card-body {
+  padding: 20px;
+}
+.host-pricing-calendar-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.host-pricing-calendar-toolbar .ant-picker {
+  width: 170px;
+}
+.host-pricing-calendar-scroll {
+  overflow-x: auto;
+}
+.host-pricing-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 7px;
+  min-width: 580px;
+}
+.host-pricing-weekday {
+  text-align: center;
+  padding: 8px 4px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+.host-pricing-day {
+  min-height: 108px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  text-align: left;
+  border: 1px solid #e8ecf2;
+  border-radius: 9px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+  font: inherit;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.host-pricing-day:hover:not(:disabled),
+.host-pricing-day:focus-visible {
+  outline: 2px solid #a5b4fc;
+  outline-offset: 1px;
+  background: #fafaff;
+}
+.host-pricing-day.is-selected {
+  border: 2px solid #6366f1;
+  padding: 9px;
+  background: #eef2ff;
+}
+.host-pricing-day.is-outside {
+  opacity: 0.55;
+}
+.host-pricing-day.is-held {
+  background: #fffbeb;
+}
+.host-pricing-day.is-closed {
+  background: #f1f5f9;
+}
+.host-pricing-day.is-selected.is-held {
+  background: #fff7df;
+}
+.host-pricing-day:disabled {
+  cursor: default;
+}
+.host-pricing-day:disabled:not(.is-selected) {
+  opacity: 0.55;
+}
+.host-pricing-day-number {
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.host-pricing-day strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.host-pricing-day-status {
+  color: #64748b;
+  font-size: 10px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.host-pricing-day.is-held .host-pricing-day-status {
+  color: #a16207;
+}
+.host-pricing-day.is-selected .host-pricing-day-number {
+  color: #4f46e5;
+  font-weight: 700;
+}
+.host-pricing-today-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #6366f1;
+}
+.host-pricing-calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 4px;
+  margin-top: 18px;
+}
+.host-pricing-calendar-legend > .ant-typography {
+  flex-basis: 100%;
+  font-size: 12px;
+  line-height: 1.7;
+  margin-top: 4px;
+}
+.host-pricing-confirmation > div:not(.ant-alert) {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid #eef2f6;
+}
+.host-pricing-confirmation > .ant-alert {
+  margin-top: 16px;
+}
+.host-pricing-batch-error {
+  margin-top: 16px;
+}
+.host-pricing-batch .ant-form {
+  margin-top: 20px;
+}
+.host-pricing-batch .ant-picker,
+.host-pricing-batch .ant-input-number {
+  width: 100%;
+}
+@media (max-width: 1000px) {
+  .host-pricing-context {
+    grid-template-columns: 1fr 1fr;
+  }
+  .host-pricing-context .host-pricing-get-quote {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 600px) {
+  .host-pricing-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .host-pricing-header h2.ant-typography {
+    font-size: 24px;
+  }
+  .host-pricing-context {
+    gap: 16px;
+    padding: 18px;
+  }
+  .host-pricing-context strong {
+    font-size: 20px;
+  }
+  .host-pricing-calendar .ant-card-body {
+    padding: 12px;
+  }
+  .host-pricing-calendar-toolbar {
+    flex-wrap: wrap;
+  }
+  .host-pricing-placeholder .ant-card-body {
+    align-items: flex-start;
+    padding: 18px;
+  }
+  .host-pricing-placeholder .anticon {
+    padding: 12px;
+  }
+}

@@ -9,7 +9,6 @@ import {
   Badge,
   Progress,
   Divider,
-  Tooltip,
   Button,
 } from 'antd';
 import {
@@ -24,7 +23,7 @@ import {
 } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import { adminService, type DashboardStats } from '../../services/adminService';
-import { adminApi, mockDashboard } from '../../services/adminMock';
+import { mockDashboard } from '../../services/adminMock';
 
 // Màu cho trạng thái booking
 const STATUS_COLOR: Record<string, string> = {
