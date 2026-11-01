@@ -521,22 +521,6 @@ export default function HomestayDetailPage() {
                 alt="Cover"
                 style={{ width: '100%', height: 420, objectFit: 'cover' }}
               />
-              <Tag
-                color="default"
-                style={{
-                  position: 'absolute',
-                  bottom: 14,
-                  left: 14,
-                  fontWeight: 600,
-                  background: 'rgba(15, 23, 42, 0.75)',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '4px 10px',
-                  borderRadius: 6,
-                }}
-              >
-                📸 {allImages.length || 1} ảnh thật từ Booking.com
-              </Tag>
             </div>
           </Col>
           <Col span={8}>
