@@ -36,6 +36,7 @@ import {
   DownloadOutlined,
   RobotOutlined,
   ThunderboltOutlined,
+  QrcodeOutlined,
 } from '@ant-design/icons';
 import { useSearchParams } from 'react-router-dom';
 import { hostService } from '../../services/hostService';
@@ -96,6 +97,26 @@ export default function VerificationPage() {
     fraud_warnings?: string[];
   } | null>(null);
 
+  // Bước 1.3: Mã QR VietQR tài khoản ngân hàng & Đối chiếu chéo AI
+  const [bankQrImage, setBankQrImage] = useState<{ url: string; file_name: string; base64?: string } | null>(null);
+  const [scanningBankQr, setScanningBankQr] = useState(false);
+  const [bankQrResult, setBankQrResult] = useState<{
+    success: boolean;
+    bank_name?: string;
+    bank_bin?: string;
+    account_number?: string;
+    account_name?: string;
+    amount?: number;
+    source?: string;
+    is_matched: boolean;
+    match_score: number;
+    cccd_name_normalized?: string;
+    account_name_normalized?: string;
+    comparison_message: string;
+    warnings?: string[];
+    raw_payload?: string;
+  } | null>(null);
+
   // Modal xem trước ảnh lớn
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState('');
@@ -104,6 +125,7 @@ export default function VerificationPage() {
   // Refs input file ẩn
   const frontInputRef = useRef<HTMLInputElement>(null);
   const backInputRef = useRef<HTMLInputElement>(null);
+  const bankQrInputRef = useRef<HTMLInputElement>(null);
 
   const [cccdForm] = Form.useForm();
   const [otpCode, setOtpCode] = useState('');
@@ -402,6 +424,104 @@ Thời gian xuất: ${new Date().toLocaleString('vi-VN')}
     message.success('📥 Đã tải file cccd_info.json về máy!');
   };
 
+  // QUÉT MÃ QR TÀI KHOẢN NGÂN HÀNG (VIETQR) & ĐỐI CHIẾU VỚI CCCD
+  const handleScanBankQr = async (file: File) => {
+    const isImage = file.type.startsWith('image/');
+    if (!isImage) {
+      message.error('Vui lòng chỉ tải lên tệp tin hình ảnh QR (JPG, PNG, WEBP)!');
+      return;
+    }
+    const isLt10M = file.size / 1024 / 1024 < 10;
+    if (!isLt10M) {
+      message.error('Dung lượng ảnh mã QR phải nhỏ hơn 10MB!');
+      return;
+    }
+
+    setScanningBankQr(true);
+    try {
+      let imageUrl = '';
+      let fileName = file.name;
+      try {
+        const upRes = await hostService.uploadBankQr(file);
+        const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/api\/v1\/?$/, '');
+        imageUrl = upRes.image_url.startsWith('http')
+          ? upRes.image_url
+          : `${apiBase || window.location.origin}${upRes.image_url}`;
+        fileName = upRes.file_name;
+      } catch {
+        imageUrl = URL.createObjectURL(file);
+      }
+      setBankQrImage({ url: imageUrl, file_name: fileName });
+
+      const currentCccdName =
+        ocrScanResult?.extracted_data?.full_name ||
+        ocrScanResult?.extracted_name ||
+        cccdForm.getFieldValue('full_name') ||
+        '';
+
+      message.loading({
+        content: '🤖 AI đang quét chuỗi VietQR EMVCo & đối chiếu họ tên với CCCD...',
+        key: 'bank_qr_scan',
+        duration: 0,
+      });
+
+      const scanRes = await hostService.scanBankQr({
+        file,
+        imageUrl,
+        cccdName: currentCccdName,
+      });
+
+      const data = (scanRes as any)?.data || scanRes;
+      setBankQrResult(data);
+
+      if (data.success) {
+        const updates: any = {};
+        if (data.bank_name) {
+          const matchedBank = VIETNAM_BANKS.find(
+            (b) =>
+              b.toLowerCase().includes(data.bank_name.toLowerCase()) ||
+              data.bank_name.toLowerCase().includes(b.split(' ')[0].toLowerCase()),
+          );
+          updates.bank_name = matchedBank || data.bank_name;
+        }
+        if (data.account_number) {
+          updates.bank_account_number = data.account_number;
+        }
+        if (data.account_name) {
+          updates.bank_account_holder_name = data.account_name.toUpperCase();
+        }
+        cccdForm.setFieldsValue(updates);
+
+        if (data.is_matched) {
+          message.success({
+            content: `✓ ${data.comparison_message}`,
+            key: 'bank_qr_scan',
+            duration: 6,
+          });
+        } else {
+          message.warning({
+            content: `⚠️ ${data.comparison_message}`,
+            key: 'bank_qr_scan',
+            duration: 8,
+          });
+        }
+      } else {
+        message.error({
+          content: data.comparison_message || 'Không phát hiện mã VietQR trong ảnh. Hãy tải ảnh chụp màn hình chứa mã QR rõ nét.',
+          key: 'bank_qr_scan',
+          duration: 5,
+        });
+      }
+    } catch (err: any) {
+      message.error({
+        content: err.message || 'Lỗi khi quét mã QR ngân hàng',
+        key: 'bank_qr_scan',
+      });
+    } finally {
+      setScanningBankQr(false);
+    }
+  };
+
   // BƯỚC 1: SUBMIT CCCD (YÊU CẦU OCR & KIỂM TRA CHỐNG LÀM GIẢ)
   const handleStep1Cccd = async (values: any) => {
     if (!frontImage?.url) {
@@ -428,6 +548,14 @@ Thời gian xuất: ${new Date().toLocaleString('vi-VN')}
     const detectedCccd = ocrScanResult?.extracted_data?.cccd_number || ocrScanResult?.extracted_cccd;
     if (!detectedCccd) {
       message.error('❌ Không phát hiện số CCCD hợp lệ trên ảnh thẻ. Vui lòng tải ảnh chụp thẻ CCCD thật rõ nét!');
+      return;
+    }
+
+    if (bankQrResult && !bankQrResult.is_matched) {
+      message.error({
+        content: `❌ Họ tên chủ tài khoản ngân hàng (${bankQrResult.account_name}) không trùng khớp với họ tên trên thẻ CCCD (${values.full_name}). Vui lòng dùng tài khoản ngân hàng chính chủ!`,
+        duration: 8,
+      });
       return;
     }
 
@@ -1221,6 +1349,132 @@ Thời gian xuất: ${new Date().toLocaleString('vi-VN')}
                   </Form.Item>
                 </Col>
               </Row>
+
+              {/* MỤC 1.3: TẢI ẢNH MÃ QR NGÂN HÀNG (VIETQR) & AI ĐỐI CHIẾU DANH TÍNH */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 12,
+                  padding: 18,
+                  marginTop: 10,
+                  marginBottom: 20,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <QrcodeOutlined style={{ fontSize: 22, color: '#4f46e5' }} />
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>
+                        Mã QR Tài Khoản Ngân Hàng (VietQR) — Tự Động Đối Chiếu Danh Tính AI
+                      </div>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>
+                        Tải ảnh mã VietQR (từ app ngân hàng hoặc mã in), AI sẽ bóc tách STK, Tên ngân hàng &amp; đối chiếu với Họ tên CCCD.
+                      </div>
+                    </div>
+                  </div>
+
+                  <input
+                    type="file"
+                    ref={bankQrInputRef}
+                    style={{ display: 'none' }}
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleScanBankQr(file);
+                    }}
+                  />
+
+                  <Space wrap>
+                    <Button
+                      type="primary"
+                      icon={<QrcodeOutlined />}
+                      loading={scanningBankQr}
+                      onClick={() => bankQrInputRef.current?.click()}
+                      style={{ background: '#4f46e5', borderColor: '#4f46e5', fontWeight: 600 }}
+                    >
+                      {bankQrImage ? 'Đổi Ảnh Mã VietQR' : 'Tải Ảnh Mã VietQR Ngân Hàng'}
+                    </Button>
+                  </Space>
+                </div>
+
+                {/* TRẠNG THÁI SCANNING QR */}
+                {scanningBankQr && (
+                  <div style={{ padding: '16px 0', textAlign: 'center' }}>
+                    <Spin />
+                    <span style={{ marginLeft: 12, color: '#4f46e5', fontWeight: 600 }}>
+                      🤖 AI đang phân tích chuỗi VietQR EMVCo (NAPAS) và đối chiếu danh tính với CCCD...
+                    </span>
+                  </div>
+                )}
+
+                {/* HIỂN THỊ KẾT QUẢ ĐỐI SOÁT VIETQR */}
+                {bankQrResult && !scanningBankQr && (
+                  <div style={{ marginTop: 12 }}>
+                    <Alert
+                      type={bankQrResult.is_matched ? 'success' : 'error'}
+                      showIcon
+                      style={{ borderRadius: 8, border: bankQrResult.is_matched ? '1px solid #86efac' : '1px solid #fca5a5' }}
+                      message={
+                        <span style={{ fontSize: 14, fontWeight: 700, color: bankQrResult.is_matched ? '#15803d' : '#b91c1c' }}>
+                          {bankQrResult.is_matched
+                            ? '✓ DANH TÍNH CHÍNH CHỦ TRÙNG KHỚP 100%'
+                            : '⚠️ CẢNH BÁO: HỌ TÊN KHÔNG TRÙNG KHỚP CHÍNH CHỦ'}
+                        </span>
+                      }
+                      description={
+                        <div style={{ fontSize: 13, marginTop: 4 }}>
+                          <div>{bankQrResult.comparison_message}</div>
+                          <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {bankQrResult.bank_name && (
+                              <Tag color="blue">
+                                <strong>Ngân hàng:</strong> {bankQrResult.bank_name}
+                              </Tag>
+                            )}
+                            {bankQrResult.account_number && (
+                              <Tag color="cyan">
+                                <strong>STK:</strong> {bankQrResult.account_number}
+                              </Tag>
+                            )}
+                            {bankQrResult.account_name && (
+                              <Tag color="geekblue">
+                                <strong>Chủ tài khoản:</strong> {bankQrResult.account_name}
+                              </Tag>
+                            )}
+                            <Tag color={bankQrResult.is_matched ? 'success' : 'error'}>
+                              <strong>Độ khớp:</strong> {bankQrResult.match_score}%
+                            </Tag>
+                          </div>
+                        </div>
+                      }
+                    />
+
+                    {bankQrImage && (
+                      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <img
+                          src={bankQrImage.url}
+                          alt="VietQR"
+                          style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                        />
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          Ảnh mã QR: {bankQrImage.file_name}
+                        </Text>
+                        <Button
+                          size="small"
+                          type="link"
+                          onClick={() => {
+                            setPreviewImageUrl(bankQrImage.url);
+                            setPreviewTitle('Ảnh Mã VietQR Tài Khoản Ngân Hàng');
+                            setPreviewModalOpen(true);
+                          }}
+                        >
+                          Xem ảnh lớn
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <Row gutter={20}>
                 <Col xs={24} md={8}>

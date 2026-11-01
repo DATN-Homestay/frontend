@@ -220,6 +220,58 @@ export const hostService = {
     });
   },
 
+  /** Tải ảnh mã QR Ngân hàng (VietQR) lên máy chủ */
+  async uploadBankQr(file: File): Promise<{ file_name: string; image_url: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res: any = await apiClient('/host/verify/upload-bank-qr', {
+      method: 'POST',
+      body: formData,
+    });
+    return res?.data ?? res;
+  },
+
+  /** Quét mã QR Ngân hàng và đối chiếu với họ tên trên CCCD */
+  async scanBankQr(params: {
+    cccdName?: string;
+    imageUrl?: string;
+    imageBase64?: string;
+    file?: File;
+  }): Promise<{
+    data: {
+      success: boolean;
+      bank_name?: string;
+      bank_bin?: string;
+      account_number?: string;
+      account_name?: string;
+      amount?: number;
+      source: 'VIETQR_PAYLOAD' | 'OCR_FALLBACK' | 'COMBINED';
+      is_matched: boolean;
+      match_score: number;
+      cccd_name_normalized?: string;
+      account_name_normalized?: string;
+      comparison_message: string;
+    };
+  }> {
+    if (params.file) {
+      const formData = new FormData();
+      formData.append('file', params.file);
+      if (params.cccdName) formData.append('cccd_name', params.cccdName);
+      return await apiClient('/host/verify/scan-bank-qr', {
+        method: 'POST',
+        body: formData,
+      });
+    }
+    return await apiClient('/host/verify/scan-bank-qr', {
+      method: 'POST',
+      body: JSON.stringify({
+        cccd_name: params.cccdName,
+        image_url: params.imageUrl,
+        image_base64: params.imageBase64,
+      }),
+    });
+  },
+
   async sendOtp(homestayId: string, email?: string) {
     return await apiClient('/host/verify/send-otp', {
       method: 'POST',
