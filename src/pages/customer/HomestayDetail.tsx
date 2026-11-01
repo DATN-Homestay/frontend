@@ -951,67 +951,69 @@ export default function HomestayDetailPage() {
             ) : null}
           </Card>
 
-          {/* HOST PROFILE & DIRECT CHAT CARD */}
-          <Card
-            style={{
-              borderRadius: 16,
-              marginBottom: 24,
-              border: '1px solid #c7d2fe',
-              background: 'linear-gradient(135deg, #fdfbff 0%, #f5f3ff 100%)',
-            }}
-          >
-            <div
+          {/* HOST PROFILE & DIRECT CHAT CARD (Chỉ hiển thị với homestay có chủ nhà thật xác nhận) */}
+          {!isBookingComHomestay && homestay?.is_claimed === 1 && (
+            <Card
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: 16,
+                borderRadius: 16,
+                marginBottom: 24,
+                border: '1px solid #c7d2fe',
+                background: 'linear-gradient(135deg, #fdfbff 0%, #f5f3ff 100%)',
               }}
             >
-              <Space size="middle">
-                <Badge dot status="success" offset={[-6, 42]}>
-                  <Avatar
-                    size={56}
-                    style={{ backgroundColor: '#003b95', border: '2px solid #6366f1', color: '#fff', fontSize: 22 }}
-                    icon={<UserOutlined />}
-                  />
-                </Badge>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <Text strong style={{ fontSize: 16, color: '#1e293b' }}>
-                      {homestay.host?.name ? `Chủ nhà: ${homestay.host.name}` : `Đại diện: ${homestay.name}`}
-                    </Text>
-                    <Tag color="gold" icon={<StarFilled />}>
-                      Chủ nhà Siêu cấp
-                    </Tag>
-                    <Tag color="green" icon={<CheckCircleOutlined />}>
-                      eKYC 4 Lớp
-                    </Tag>
-                  </div>
-                  <Text type="secondary" style={{ fontSize: 13 }}>
-                    🟢 Đang trực tuyến • Tỉ lệ phản hồi <strong style={{ color: '#10b981' }}>100%</strong> (trong vòng 5 phút)
-                  </Text>
-                </div>
-              </Space>
-
-              <Button
-                type="primary"
-                icon={<MessageOutlined />}
-                size="large"
-                onClick={() => setChatOpen(true)}
+              <div
                 style={{
-                  height: 44,
-                  borderRadius: 10,
-                  background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                  fontWeight: 600,
-                  boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 16,
                 }}
               >
-                Nhắn tin với Chủ nhà
-              </Button>
-            </div>
-          </Card>
+                <Space size="middle">
+                  <Badge dot status="success" offset={[-6, 42]}>
+                    <Avatar
+                      size={56}
+                      style={{ backgroundColor: '#003b95', border: '2px solid #6366f1', color: '#fff', fontSize: 22 }}
+                      icon={<UserOutlined />}
+                    />
+                  </Badge>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <Text strong style={{ fontSize: 16, color: '#1e293b' }}>
+                        {homestay.host?.name ? `Chủ nhà: ${homestay.host.name}` : `Đại diện: ${homestay.name}`}
+                      </Text>
+                      <Tag color="gold" icon={<StarFilled />}>
+                        Chủ nhà Siêu cấp
+                      </Tag>
+                      <Tag color="green" icon={<CheckCircleOutlined />}>
+                        eKYC 4 Lớp
+                      </Tag>
+                    </div>
+                    <Text type="secondary" style={{ fontSize: 13 }}>
+                      🟢 Đang trực tuyến • Tỉ lệ phản hồi <strong style={{ color: '#10b981' }}>100%</strong> (trong vòng 5 phút)
+                    </Text>
+                  </div>
+                </Space>
+
+                <Button
+                  type="primary"
+                  icon={<MessageOutlined />}
+                  size="large"
+                  onClick={() => setChatOpen(true)}
+                  style={{
+                    height: 44,
+                    borderRadius: 10,
+                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                    fontWeight: 600,
+                    boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
+                  }}
+                >
+                  Nhắn tin với Chủ nhà
+                </Button>
+              </div>
+            </Card>
+          )}
 
           {/* ESCROW & POLICIES */}
           <Card title="Chính sách bảo đảm & Hoàn hủy" style={{ borderRadius: 14, marginBottom: 32 }}>
@@ -1323,23 +1325,25 @@ export default function HomestayDetailPage() {
               </Button>
             )}
 
-            <Button
-              size="large"
-              block
-              icon={<MessageOutlined />}
-              onClick={() => setChatOpen(true)}
-              style={{
-                marginTop: 12,
-                height: 44,
-                borderRadius: 10,
-                borderColor: '#6366f1',
-                color: '#6366f1',
-                fontWeight: 600,
-                background: '#fdfbff',
-              }}
-            >
-              Nhắn tin hỏi chủ nhà
-            </Button>
+            {!isBookingComHomestay && homestay?.is_claimed === 1 && (
+              <Button
+                size="large"
+                block
+                icon={<MessageOutlined />}
+                onClick={() => setChatOpen(true)}
+                style={{
+                  marginTop: 12,
+                  height: 44,
+                  borderRadius: 10,
+                  borderColor: '#6366f1',
+                  color: '#6366f1',
+                  fontWeight: 600,
+                  background: '#fdfbff',
+                }}
+              >
+                Nhắn tin hỏi chủ nhà
+              </Button>
+            )}
 
             <Text
               type="secondary"
@@ -1354,168 +1358,170 @@ export default function HomestayDetailPage() {
       </Row>
 
       {/* CHAT WITH HOST DRAWER */}
-      <Drawer
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Badge dot status="success" offset={[-4, 32]}>
-              <Avatar
-                size={40}
-                style={{ backgroundColor: '#003b95', border: '2px solid #6366f1', color: '#fff' }}
-                icon={<UserOutlined />}
-              />
-            </Badge>
-            <div>
-              <Text strong style={{ fontSize: 15, display: 'block' }}>
-                {homestay.host?.name || `Đại diện ${homestay.name}`}
-              </Text>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                🟢 Đang trực tuyến • Quản lý {homestay.name}
-              </Text>
-            </div>
-          </div>
-        }
-        placement="right"
-        onClose={() => setChatOpen(false)}
-        open={chatOpen}
-        width={450}
-        styles={{
-          body: {
-            display: 'flex',
-            flexDirection: 'column',
-            padding: 16,
-            height: '100%',
-          },
-        }}
-      >
-        {/* ROOM CONTEXT BAR */}
-        <div
-          style={{
-            background: '#f8fafc',
-            padding: '10px 14px',
-            borderRadius: 10,
-            border: '1px solid #e2e8f0',
-            marginBottom: 14,
-          }}
-        >
-          <Text style={{ fontSize: 12, color: '#64748b', display: 'block' }}>Hạng phòng đang quan tâm:</Text>
-          <Text strong style={{ fontSize: 13, color: '#4338ca' }}>
-            {selectedRoom?.room_name || 'Phòng Deluxe Hướng Đồi'} ({(selectedRoom?.base_price || 650000).toLocaleString('vi-VN')}đ/đêm)
-          </Text>
-        </div>
-
-        {/* QUICK QUESTION PILLS (AI SMART REPLY) */}
-        <div style={{ marginBottom: 14 }}>
-          <Text style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 6 }}>
-            💡 Gợi ý câu hỏi nhanh (AI Smart Reply):
-          </Text>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {quickQuestions.map((q, idx) => (
-              <Tag
-                key={idx}
-                onClick={() => handleSendMessage(q)}
-                style={{
-                  cursor: 'pointer',
-                  padding: '5px 10px',
-                  borderRadius: 6,
-                  fontSize: 12,
-                  background: '#f1f5f9',
-                  borderColor: '#cbd5e1',
-                  color: '#334155',
-                  margin: 0,
-                  transition: 'all 0.2s',
-                }}
-              >
-                {q}
-              </Tag>
-            ))}
-          </div>
-        </div>
-
-        <Divider style={{ margin: '10px 0' }} />
-
-        {/* MESSAGE BUBBLES STREAM */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-            paddingRight: 4,
-            marginBottom: 16,
-          }}
-        >
-          {messages.map((m) => {
-            const isHost = m.sender === 'host';
-            return (
-              <div
-                key={m.id}
-                style={{
-                  display: 'flex',
-                  justifyContent: isHost ? 'flex-start' : 'flex-end',
-                  gap: 8,
-                }}
-              >
-                {isHost && (
-                  <Avatar
-                    size={32}
-                    style={{ backgroundColor: '#003b95', color: '#fff' }}
-                    icon={<UserOutlined />}
-                  />
-                )}
-                <div
-                  style={{
-                    maxWidth: '80%',
-                    padding: '10px 14px',
-                    borderRadius: isHost ? '14px 14px 14px 4px' : '14px 14px 4px 14px',
-                    background: isHost ? '#f1f5f9' : '#6366f1',
-                    color: isHost ? '#1e293b' : '#ffffff',
-                    fontSize: 13,
-                    lineHeight: 1.5,
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-                  }}
-                >
-                  <div>{m.text}</div>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      textAlign: isHost ? 'left' : 'right',
-                      marginTop: 4,
-                      color: isHost ? '#94a3b8' : '#e0e7ff',
-                    }}
-                  >
-                    {m.timestamp}
-                  </div>
-                </div>
+      {!isBookingComHomestay && homestay?.is_claimed === 1 && (
+        <Drawer
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <Badge dot status="success" offset={[-4, 32]}>
+                <Avatar
+                  size={40}
+                  style={{ backgroundColor: '#003b95', border: '2px solid #6366f1', color: '#fff' }}
+                  icon={<UserOutlined />}
+                />
+              </Badge>
+              <div>
+                <Text strong style={{ fontSize: 15, display: 'block' }}>
+                  {homestay.host?.name || `Đại diện ${homestay.name}`}
+                </Text>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  🟢 Đang trực tuyến • Quản lý {homestay.name}
+                </Text>
               </div>
-            );
-          })}
-        </div>
-
-        {/* MESSAGE INPUT */}
-        <div style={{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid #f1f5f9' }}>
-          <Input
-            placeholder="Nhập câu hỏi cho Chủ nhà..."
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onPressEnter={() => handleSendMessage()}
-            style={{ borderRadius: 8, height: 40 }}
-          />
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
-            onClick={() => handleSendMessage()}
+            </div>
+          }
+          placement="right"
+          onClose={() => setChatOpen(false)}
+          open={chatOpen}
+          width={450}
+          styles={{
+            body: {
+              display: 'flex',
+              flexDirection: 'column',
+              padding: 16,
+              height: '100%',
+            },
+          }}
+        >
+          {/* ROOM CONTEXT BAR */}
+          <div
             style={{
-              borderRadius: 8,
-              height: 40,
-              background: '#6366f1',
-              fontWeight: 600,
+              background: '#f8fafc',
+              padding: '10px 14px',
+              borderRadius: 10,
+              border: '1px solid #e2e8f0',
+              marginBottom: 14,
             }}
           >
-            Gửi
-          </Button>
-        </div>
-      </Drawer>
+            <Text style={{ fontSize: 12, color: '#64748b', display: 'block' }}>Hạng phòng đang quan tâm:</Text>
+            <Text strong style={{ fontSize: 13, color: '#4338ca' }}>
+              {selectedRoom?.room_name || 'Phòng Deluxe Hướng Đồi'} ({(selectedRoom?.base_price || 650000).toLocaleString('vi-VN')}đ/đêm)
+            </Text>
+          </div>
+
+          {/* QUICK QUESTION PILLS (AI SMART REPLY) */}
+          <div style={{ marginBottom: 14 }}>
+            <Text style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 6 }}>
+              💡 Gợi ý câu hỏi nhanh (AI Smart Reply):
+            </Text>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {quickQuestions.map((q, idx) => (
+                <Tag
+                  key={idx}
+                  onClick={() => handleSendMessage(q)}
+                  style={{
+                    cursor: 'pointer',
+                    padding: '5px 10px',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    background: '#f1f5f9',
+                    borderColor: '#cbd5e1',
+                    color: '#334155',
+                    margin: 0,
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {q}
+                </Tag>
+              ))}
+            </div>
+          </div>
+
+          <Divider style={{ margin: '10px 0' }} />
+
+          {/* MESSAGE BUBBLES STREAM */}
+          <div
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              paddingRight: 4,
+              marginBottom: 16,
+            }}
+          >
+            {messages.map((m) => {
+              const isHost = m.sender === 'host';
+              return (
+                <div
+                  key={m.id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: isHost ? 'flex-start' : 'flex-end',
+                    gap: 8,
+                  }}
+                >
+                  {isHost && (
+                    <Avatar
+                      size={32}
+                      style={{ backgroundColor: '#003b95', color: '#fff' }}
+                      icon={<UserOutlined />}
+                    />
+                  )}
+                  <div
+                    style={{
+                      maxWidth: '80%',
+                      padding: '10px 14px',
+                      borderRadius: isHost ? '14px 14px 14px 4px' : '14px 14px 4px 14px',
+                      background: isHost ? '#f1f5f9' : '#6366f1',
+                      color: isHost ? '#1e293b' : '#ffffff',
+                      fontSize: 13,
+                      lineHeight: 1.5,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                    }}
+                  >
+                    <div>{m.text}</div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        textAlign: isHost ? 'left' : 'right',
+                        marginTop: 4,
+                        color: isHost ? '#94a3b8' : '#e0e7ff',
+                      }}
+                    >
+                      {m.timestamp}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* MESSAGE INPUT */}
+          <div style={{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid #f1f5f9' }}>
+            <Input
+              placeholder="Nhập câu hỏi cho Chủ nhà..."
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onPressEnter={() => handleSendMessage()}
+              style={{ borderRadius: 8, height: 40 }}
+            />
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              onClick={() => handleSendMessage()}
+              style={{
+                borderRadius: 8,
+                height: 40,
+                background: '#6366f1',
+                fontWeight: 600,
+              }}
+            >
+              Gửi
+            </Button>
+          </div>
+        </Drawer>
+      )}
 
       {/* ======================================================== */}
       {/* ROOM DETAIL MODAL (Chuẩn 100% Giao diện Booking.com)   */}
