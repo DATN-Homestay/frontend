@@ -314,7 +314,7 @@ export default function HomestayDetailPage() {
   };
 
   const handleClaimHomestay = () => {
-    navigate(`/host/verification?homestay_id=${homestay?.id}`);
+    navigate(`/host/verification?tab=property&homestay_id=${homestay?.id}`);
   };
 
   // Ảnh bìa chính: luôn ưu tiên ảnh truyền từ trang chủ hoặc ảnh tính toán chuẩn xác từ helper
