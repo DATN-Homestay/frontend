@@ -14,7 +14,6 @@ import {
   Modal,
   Form,
   Calendar,
-  Switch,
   Divider,
   Radio,
   Space,
@@ -117,13 +116,32 @@ export default function PriceCalendarPage() {
   const currentRooms = selectedHomestay && Array.isArray(selectedHomestay.rooms) ? selectedHomestay.rooms : [];
   const selectedRoom = currentRooms.find((r: any) => String(r.id) === String(selectedRoomId));
 
+  const normalizeDate = (d: any): string => {
+    if (!d) return '';
+    if (typeof d === 'string') {
+      if (d.includes('T')) {
+        return d.split('T')[0];
+      }
+      return d.slice(0, 10);
+    }
+    if (d instanceof Date) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+    return dayjs(d).format('YYYY-MM-DD');
+  };
+
   // Sync modal form values whenever opened or selected date changes
   useEffect(() => {
     if (dayModalOpen && selectedDayDate) {
-      const dayData = Array.isArray(calendarDays) ? calendarDays.find((d) => d.date === selectedDayDate) : null;
+      const dayData = Array.isArray(calendarDays)
+        ? calendarDays.find((d) => normalizeDate(d.date) === selectedDayDate)
+        : null;
       const basePrice = Number(selectedRoom?.base_price || 500000);
       const initialPrice = dayData ? Number(dayData.price) : basePrice;
-      const isAvail = dayData ? dayData.is_available !== 0 : true;
+      const isAvail = dayData ? Number(dayData.is_available) : 1;
 
       dayPriceForm.setFieldsValue({
         price: initialPrice,
@@ -220,10 +238,12 @@ export default function PriceCalendarPage() {
     setSelectedDayDate(dateStr);
     setTargetDate(dateStr);
 
-    const dayData = Array.isArray(calendarDays) ? calendarDays.find((d) => d.date === dateStr) : null;
+    const dayData = Array.isArray(calendarDays)
+      ? calendarDays.find((d) => normalizeDate(d.date) === dateStr)
+      : null;
     const basePrice = Number(selectedRoom?.base_price || 500000);
     const initialPrice = dayData ? Number(dayData.price) : basePrice;
-    const isAvail = dayData ? dayData.is_available !== 0 : true;
+    const isAvail = dayData ? Number(dayData.is_available) : 1;
 
     dayPriceForm.setFieldsValue({
       price: initialPrice,
@@ -259,16 +279,34 @@ export default function PriceCalendarPage() {
     setDayPriceUpdating(true);
     try {
       const priceNum = Number(values.price);
-      const isAvailNum = values.is_available ? 1 : 0;
+      const isAvailNum = Number(values.is_available);
 
-      // 1. Cập nhật Room Calendar
+      // 1. Cập nhật Optimistic trực tiếp vào calendarDays để giao diện đổi màu lập tức
+      setCalendarDays((prev) => {
+        const copy = Array.isArray(prev) ? [...prev] : [];
+        const idx = copy.findIndex((d) => normalizeDate(d.date) === selectedDayDate);
+        const updatedItem = {
+          date: selectedDayDate,
+          price: priceNum,
+          is_available: isAvailNum,
+          is_ai_applied: idx >= 0 ? copy[idx]?.is_ai_applied : 0,
+        };
+        if (idx >= 0) {
+          copy[idx] = { ...copy[idx], ...updatedItem };
+        } else {
+          copy.push(updatedItem as any);
+        }
+        return copy;
+      });
+
+      // 2. Gửi request cập nhật lên server
       await hostService.updateCalendar(selectedRoomId, {
         date: selectedDayDate,
         price: priceNum,
         is_available: isAvailNum,
       });
 
-      // 2. Ghi nhận qua Dynamic Pricing
+      // 3. Ghi nhận qua Dynamic Pricing (tùy chọn)
       try {
         await hostService.applyPricing({
           homestay_id: selectedHomestayId,
@@ -280,11 +318,13 @@ export default function PriceCalendarPage() {
         // Dynamic pricing apply optional
       }
 
-      message.success(`✓ Đã lưu giá ${priceNum.toLocaleString('vi-VN')}đ cho ngày ${dayjs(selectedDayDate).format('DD/MM/YYYY')}!`);
+      const statusText = isAvailNum === 0 ? 'Đã khóa / Đặt offline' : 'Còn trống';
+      message.success(`✓ Đã lưu ngày ${dayjs(selectedDayDate).format('DD/MM/YYYY')}: ${priceNum.toLocaleString('vi-VN')}đ [${statusText}]!`);
       setDayModalOpen(false);
       loadRoomCalendar(selectedRoomId);
     } catch (err: any) {
       message.error(err.message || 'Lỗi khi lưu giá ngày');
+      loadRoomCalendar(selectedRoomId);
     } finally {
       setDayPriceUpdating(false);
     }
@@ -293,19 +333,45 @@ export default function PriceCalendarPage() {
   // Render ô ngày trên lịch
   const dateCellRender = (current: Dayjs) => {
     const dateStr = current.format('YYYY-MM-DD');
-    const dayData = Array.isArray(calendarDays) ? calendarDays.find((d) => d.date === dateStr) : null;
+    const dayData = Array.isArray(calendarDays)
+      ? calendarDays.find((d) => normalizeDate(d.date) === dateStr)
+      : null;
     const basePrice = selectedRoom ? Number(selectedRoom.base_price) : 0;
+
+    const isExplicit = !!dayData;
+    const isLocked = isExplicit && Number(dayData.is_available) === 0;
+    const isAi = isExplicit && Number(dayData.is_ai_applied) === 1;
+    const isAvailable = isExplicit && Number(dayData.is_available) === 1;
+
+    let bg = '#f8fafc';
+    let borderColor = '#e2e8f0';
+    let priceColor = '#64748b';
+
+    if (isLocked) {
+      bg = '#fee2e2'; // Đỏ nhạt
+      borderColor = '#f87171'; // Viền đỏ rõ
+      priceColor = '#dc2626'; // Chữ đỏ
+    } else if (isAi) {
+      bg = '#f5f3ff'; // Tím nhạt
+      borderColor = '#c084fc';
+      priceColor = '#7e22ce';
+    } else if (isAvailable) {
+      bg = '#f0fdf4'; // Xanh lá nhạt
+      borderColor = '#86efac'; // Viền xanh lá
+      priceColor = '#16a34a'; // Chữ xanh
+    }
 
     return (
       <div
         style={{
-          padding: '4px 6px',
-          background: dayData ? (dayData.is_available === 0 ? '#fee2e2' : dayData.is_ai_applied ? '#f5f3ff' : '#f0fdf4') : '#f8fafc',
-          borderRadius: 6,
-          border: dayData?.is_ai_applied ? '1px solid #c084fc' : '1px solid #e2e8f0',
+          padding: '6px 8px',
+          background: bg,
+          borderRadius: 8,
+          border: `1.5px solid ${borderColor}`,
           cursor: 'pointer',
-          minHeight: 48,
+          minHeight: 52,
           transition: 'all 0.2s',
+          boxShadow: isLocked ? '0 1px 3px rgba(239, 68, 68, 0.2)' : 'none',
         }}
         onClick={(e) => {
           e.stopPropagation();
@@ -313,27 +379,38 @@ export default function PriceCalendarPage() {
         }}
         className="price-calendar-cell"
       >
-        {dayData ? (
-          <>
-            <div style={{ fontSize: 11, fontWeight: 700, color: dayData.is_available === 0 ? '#ef4444' : '#10b981' }}>
-              {Number(dayData.price).toLocaleString('vi-VN')}đ
-            </div>
-            {dayData.is_ai_applied === 1 && (
-              <Tag color="purple" style={{ fontSize: 9, padding: '0 4px', margin: '2px 0 0' }}>
-                AI Applied
-              </Tag>
-            )}
-            {dayData.is_available === 0 && (
-              <Tag color="red" style={{ fontSize: 9, padding: '0 4px', margin: '2px 0 0' }}>
-                Đã khóa / Đặt
-              </Tag>
-            )}
-          </>
-        ) : (
-          <div style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic', marginTop: 4 }}>
-            {basePrice > 0 ? `${basePrice.toLocaleString('vi-VN')}đ` : '+ Đặt giá'}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: priceColor }}>
+            {dayData
+              ? `${Number(dayData.price).toLocaleString('vi-VN')}đ`
+              : basePrice > 0
+              ? `${basePrice.toLocaleString('vi-VN')}đ`
+              : '+ Đặt giá'}
           </div>
-        )}
+        </div>
+
+        <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+          {isLocked && (
+            <Tag color="error" style={{ fontSize: 10, padding: '0 4px', margin: 0, fontWeight: 600 }}>
+              🔴 Đã khóa / Đặt
+            </Tag>
+          )}
+          {isAi && (
+            <Tag color="purple" style={{ fontSize: 10, padding: '0 4px', margin: 0, fontWeight: 600 }}>
+              ✨ AI Giá
+            </Tag>
+          )}
+          {isAvailable && (
+            <Tag color="success" style={{ fontSize: 10, padding: '0 4px', margin: 0, fontWeight: 600 }}>
+              🟢 Còn trống
+            </Tag>
+          )}
+          {!isExplicit && (
+            <span style={{ fontSize: 10, color: '#94a3b8', fontStyle: 'italic' }}>
+              Mặc định
+            </span>
+          )}
+        </div>
       </div>
     );
   };
@@ -672,12 +749,34 @@ export default function PriceCalendarPage() {
           <Form.Item
             label={<span style={{ fontWeight: 600, fontSize: 14 }}>Trạng thái nhận khách ngày này</span>}
             name="is_available"
-            valuePropName="checked"
+            rules={[{ required: true, message: 'Vui lòng chọn trạng thái' }]}
           >
-            <Switch
-              checkedChildren="Mở bán phòng"
-              unCheckedChildren="Khóa phòng / Ngưng nhận"
-            />
+            <Radio.Group style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <Radio
+                value={1}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #bbf7d0',
+                  background: '#f0fdf4',
+                  marginRight: 0,
+                }}
+              >
+                <strong style={{ color: '#16a34a' }}>🟢 Còn trống (Mở cho khách online đặt phòng)</strong>
+              </Radio>
+              <Radio
+                value={0}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #fecaca',
+                  background: '#fef2f2',
+                  marginRight: 0,
+                }}
+              >
+                <strong style={{ color: '#dc2626' }}>🔴 Đã có khách đặt (Offline / Khóa phòng trên web)</strong>
+              </Radio>
+            </Radio.Group>
           </Form.Item>
 
           <Divider style={{ margin: '14px 0' }} />
