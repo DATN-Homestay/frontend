@@ -21,7 +21,7 @@ import {
   SafetyCertificateOutlined,
   RiseOutlined,
 } from '@ant-design/icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { adminService, type DashboardStats } from '../../services/adminService';
 import { mockDashboard } from '../../services/adminMock';
 
@@ -58,47 +58,54 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [usingMock, setUsingMock] = useState(false);
 
-  const loadData = async () => {
+  const fetchDashboard = useCallback(() => {
+    return adminService
+      .getDashboardStats()
+      .then((data) => {
+        setStats(data);
+        setUsingMock(false);
+      })
+      .catch(() => {
+        // Fallback về mock khi backend chưa chạy
+        setStats({
+          users: { total: mockDashboard.totalCustomers + mockDashboard.totalHosts },
+          homestays: { total: mockDashboard.totalHomestays },
+          bookings: {
+            total: mockDashboard.totalBookings,
+            by_status: {
+              COMPLETED: 2800,
+              PAID_ESCROW: 350,
+              CHECKED_IN: 120,
+              PENDING_PAYMENT: 80,
+              CANCELLED: 60,
+              EXPIRED: 10,
+            },
+          },
+          revenue: {
+            total_confirmed_vnd: mockDashboard.monthlyGrossRevenue,
+            platform_commission_vnd: mockDashboard.monthlyCommissionEarned,
+          },
+          pending_actions: {
+            payouts_waiting: 3,
+            claims_waiting: mockDashboard.pendingVerifications,
+          },
+        });
+        setUsingMock(true);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  const loadData = (...args: Parameters<typeof fetchDashboard>) => {
     setLoading(true);
     setError(null);
-    try {
-      const data = await adminService.getDashboardStats();
-      setStats(data);
-      setUsingMock(false);
-    } catch {
-      // Fallback về mock khi backend chưa chạy
-      setStats({
-        users: { total: mockDashboard.totalCustomers + mockDashboard.totalHosts },
-        homestays: { total: mockDashboard.totalHomestays },
-        bookings: {
-          total: mockDashboard.totalBookings,
-          by_status: {
-            COMPLETED: 2800,
-            PAID_ESCROW: 350,
-            CHECKED_IN: 120,
-            PENDING_PAYMENT: 80,
-            CANCELLED: 60,
-            EXPIRED: 10,
-          },
-        },
-        revenue: {
-          total_confirmed_vnd: mockDashboard.monthlyGrossRevenue,
-          platform_commission_vnd: mockDashboard.monthlyCommissionEarned,
-        },
-        pending_actions: {
-          payouts_waiting: 3,
-          claims_waiting: mockDashboard.pendingVerifications,
-        },
-      });
-      setUsingMock(true);
-    } finally {
-      setLoading(false);
-    }
+    return fetchDashboard(...args);
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    fetchDashboard();
+  }, [fetchDashboard]);
 
   if (loading) {
     return (

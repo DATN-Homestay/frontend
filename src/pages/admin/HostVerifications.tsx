@@ -20,7 +20,7 @@ import {
   PhoneOutlined,
   IdcardOutlined,
 } from '@ant-design/icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { adminService, type PendingClaim } from '../../services/adminService';
 
 const { Text } = Typography;
@@ -78,24 +78,29 @@ export default function HostVerificationsPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
+  const fetchClaims = useCallback(() => {
+    return adminService
+      .getPendingClaims()
+      .then((res) => {
+        setClaims(res);
+      })
+      .catch((err: any) => {
+        setClaimsError(err.message ?? 'Không thể tải danh sách KYC');
+      })
+      .finally(() => {
+        setClaimsLoading(false);
+      });
+  }, []);
 
-
-  const loadClaims = async () => {
+  const loadClaims = (...args: Parameters<typeof fetchClaims>) => {
     setClaimsLoading(true);
     setClaimsError(null);
-    try {
-      const res = await adminService.getPendingClaims();
-      setClaims(res);
-    } catch (err: any) {
-      setClaimsError(err.message ?? 'Không thể tải danh sách KYC');
-    } finally {
-      setClaimsLoading(false);
-    }
+    return fetchClaims(...args);
   };
 
   useEffect(() => {
-    loadClaims();
-  }, []);
+    fetchClaims();
+  }, [fetchClaims]);
 
   const handleApproveClaim = async () => {
     if (!selectedClaim) return;

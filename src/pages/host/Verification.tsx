@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Card,
   Steps,
@@ -107,45 +107,48 @@ export default function VerificationPage() {
   const [otpCode, setOtpCode] = useState('');
 
   // Load danh sách homestay và trạng thái xác thực ban đầu
-  useEffect(() => {
-    loadHomestays();
+  const loadStatus = useCallback((homestayId: string) => {
+    if (!homestayId) return;
+
+    return hostService
+      .getVerificationStatus(homestayId)
+      .then((res) => {
+        if (res?.data) {
+          setTotalScore(res.data.total_score || 0);
+          if (res.data.status === 'APPROVED') {
+            setCurrentStep(3);
+          } else if (res.data.steps?.gps?.verified) {
+            setCurrentStep(3);
+          } else if (res.data.steps?.otp?.verified) {
+            setCurrentStep(2);
+          } else if (res.data.steps?.cccd?.verified) {
+            setCurrentStep(1);
+          }
+        }
+      })
+      .catch(() => {
+        // Giữ mặc định
+      });
   }, []);
 
-  const loadHomestays = async () => {
-    try {
-      const res = await hostService.getMyListings();
-      const list = Array.isArray(res) ? res : (res as any)?.data || [];
-      setHomestays(list);
-      if (list.length > 0) {
-        const firstId = list[0].id;
-        setSelectedHomestayId(firstId);
-        loadStatus(firstId);
-      }
-    } catch {
-      // Fallback
-    }
-  };
-
-  const loadStatus = async (homestayId: string) => {
-    if (!homestayId) return;
-    try {
-      const res = await hostService.getVerificationStatus(homestayId);
-      if (res?.data) {
-        setTotalScore(res.data.total_score || 0);
-        if (res.data.status === 'APPROVED') {
-          setCurrentStep(3);
-        } else if (res.data.steps?.gps?.verified) {
-          setCurrentStep(3);
-        } else if (res.data.steps?.otp?.verified) {
-          setCurrentStep(2);
-        } else if (res.data.steps?.cccd?.verified) {
-          setCurrentStep(1);
+  const loadHomestays = useCallback(() => {
+    return hostService
+      .getMyListings()
+      .then((res) => {
+        const list = Array.isArray(res) ? res : (res as any)?.data || [];
+        setHomestays(list);
+        if (list.length > 0) {
+          const firstId = list[0].id;
+          setSelectedHomestayId(firstId);
+          loadStatus(firstId);
         }
-      }
-    } catch {
-      // Giữ mặc định
-    }
-  };
+      })
+      .catch(() => {
+        // Fallback
+      });
+  }, [loadStatus]);
+
+  useEffect(() => { void loadHomestays(); }, [loadHomestays]);
 
   // Nén ảnh nhẹ (~200KB - 400KB, kích thước tối đa 1600px) chuẩn hóa cho OCR
   const compressImageForOcr = (file: File, maxDim = 1600, quality = 0.8): Promise<string> => {

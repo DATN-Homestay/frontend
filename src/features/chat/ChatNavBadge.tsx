@@ -1,5 +1,5 @@
 import { Badge } from 'antd';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/useAuth';
 import type { UserRole } from '../../types/auth';
 import { useChat } from './ChatContext';
 

@@ -9,7 +9,7 @@ import {
   MessageOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/useAuth';
 import ChatNavBadge from '../features/chat/ChatNavBadge';
 
 const { Header, Content, Footer } = Layout;

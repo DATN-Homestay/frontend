@@ -18,7 +18,7 @@ import {
   WarningOutlined,
   SafetyOutlined,
 } from '@ant-design/icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { adminService, type PendingPayout } from '../../services/adminService';
 
 const { Text, Paragraph } = Typography;
@@ -39,22 +39,29 @@ export default function PayoutsPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [rejecting, setRejecting] = useState(false);
 
-  const loadData = async () => {
+  const fetchPayouts = useCallback(() => {
+    return adminService
+      .getPendingPayouts()
+      .then((res) => {
+        setData(res);
+      })
+      .catch((err: any) => {
+        setError(err.message ?? 'Không thể tải danh sách payout');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  const loadData = (...args: Parameters<typeof fetchPayouts>) => {
     setLoading(true);
     setError(null);
-    try {
-      const res = await adminService.getPendingPayouts();
-      setData(res);
-    } catch (err: any) {
-      setError(err.message ?? 'Không thể tải danh sách payout');
-    } finally {
-      setLoading(false);
-    }
+    return fetchPayouts(...args);
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    fetchPayouts();
+  }, [fetchPayouts]);
 
   const handleApprove = async () => {
     if (!selected) return;

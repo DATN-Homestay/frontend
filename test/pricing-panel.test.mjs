@@ -75,6 +75,7 @@ describe('PricingSuggestionPanel static output', () => {
     assert.doesNotMatch(proposal ?? '', /810\.000/);
     assert.match(priceInput(markup), /value="810\.000"/);
     assert.match(markup, /Đã chỉnh sửa/);
+    assert.match(markup, /Dữ liệu các chỗ nghỉ tương đồng trong cùng thành phố/);
     assert.doesNotMatch(applyButton(markup), /\bdisabled\b/);
   });
 

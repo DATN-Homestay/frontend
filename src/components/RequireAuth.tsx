@@ -1,6 +1,6 @@
 import { Spin } from 'antd';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/useAuth';
 
 /**
  * Bọc các trang cần đăng nhập. Chưa đăng nhập thì chuyển sang trang đăng nhập và quay lại

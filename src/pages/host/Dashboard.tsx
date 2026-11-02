@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, Row, Col, Statistic, Typography, Tag, Button, Space, Table, Spin, Empty, Avatar, Badge } from 'antd';
 import {
   HomeOutlined,
@@ -26,54 +26,53 @@ export default function HostDashboardPage() {
   const [balance, setBalance] = useState<HostBalanceInfo | null>(null);
   const [recentBookings, setRecentBookings] = useState<HostBookingItem[]>([]);
 
-  useEffect(() => {
-    loadDashboardData();
+  const fetchDashboardData = useCallback(() => {
+    return Promise.allSettled([
+      hostService.getMyListings(),
+      hostService.getDashboardStats(),
+      hostService.getBalance(),
+      hostService.getBookings(),
+    ])
+      .then(([listingsRes, statsRes, balanceRes, bookingsRes]) => {
+        // 1. Homestays thực tế của chủ nhà (luôn chuẩn xác và trực tiếp nhất)
+        if (listingsRes.status === 'fulfilled' && listingsRes.value) {
+          const rawList: any = listingsRes.value;
+          const myListings: HostHomestay[] = Array.isArray(rawList) ? rawList : rawList?.data || [];
+          setHomestays(myListings);
+        }
+
+        // 2. Thống kê Dashboard
+        if (statsRes.status === 'fulfilled' && statsRes.value) {
+          const raw: any = statsRes.value;
+          const actualStats: HostDashboardStats = raw?.data?.data ?? raw?.data ?? raw;
+          setStats(actualStats);
+        }
+
+        // 3. Số dư & doanh thu
+        if (balanceRes.status === 'fulfilled' && balanceRes.value) {
+          const raw: any = balanceRes.value;
+          const actualBalance: HostBalanceInfo = raw?.data?.data ?? raw?.data ?? raw;
+          setBalance(actualBalance);
+        }
+
+        // 4. Đơn đặt phòng
+        if (bookingsRes.status === 'fulfilled' && bookingsRes.value) {
+          const raw: any = bookingsRes.value;
+          const list = Array.isArray(raw) ? raw : (raw?.data?.data ?? raw?.data ?? []);
+          setRecentBookings(Array.isArray(list) ? list.slice(0, 5) : []);
+        }
+      })
+      .catch(() => {
+        // Fallback
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
-  const loadDashboardData = async () => {
-    setLoading(true);
-    try {
-      const [listingsRes, statsRes, balanceRes, bookingsRes] = await Promise.allSettled([
-        hostService.getMyListings(),
-        hostService.getDashboardStats(),
-        hostService.getBalance(),
-        hostService.getBookings(),
-      ]);
-
-      // 1. Homestays thực tế của chủ nhà (luôn chuẩn xác và trực tiếp nhất)
-      let myListings: HostHomestay[] = [];
-      if (listingsRes.status === 'fulfilled' && listingsRes.value) {
-        const rawList: any = listingsRes.value;
-        myListings = Array.isArray(rawList) ? rawList : rawList?.data || [];
-        setHomestays(myListings);
-      }
-
-      // 2. Thống kê Dashboard
-      if (statsRes.status === 'fulfilled' && statsRes.value) {
-        const raw: any = statsRes.value;
-        const actualStats: HostDashboardStats = raw?.data?.data ?? raw?.data ?? raw;
-        setStats(actualStats);
-      }
-
-      // 3. Số dư & doanh thu
-      if (balanceRes.status === 'fulfilled' && balanceRes.value) {
-        const raw: any = balanceRes.value;
-        const actualBalance: HostBalanceInfo = raw?.data?.data ?? raw?.data ?? raw;
-        setBalance(actualBalance);
-      }
-
-      // 4. Đơn đặt phòng
-      if (bookingsRes.status === 'fulfilled' && bookingsRes.value) {
-        const raw: any = bookingsRes.value;
-        const list = Array.isArray(raw) ? raw : raw?.data?.data ?? raw?.data ?? [];
-        setRecentBookings(Array.isArray(list) ? list.slice(0, 5) : []);
-      }
-    } catch {
-      // Fallback
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
   // Tính toán số liệu thống kê thực tế kết hợp từ myListings & stats
   const totalHomestaysCount = homestays.length > 0 ? homestays.length : (stats?.totalHomestays ?? 0);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   Row,
@@ -37,37 +37,39 @@ export default function HostPayoutsPage() {
   const [requesting, setRequesting] = useState(false);
   const [form] = Form.useForm();
 
-  useEffect(() => {
-    loadData();
+  const fetchPayoutData = useCallback(() => {
+    return Promise.allSettled([hostService.getBalance(), hostService.getPayoutHistory()])
+      .then(([balRes, histRes]) => {
+        if (balRes.status === 'fulfilled' && balRes.value) {
+          const raw: any = balRes.value;
+          const actualBalance: HostBalanceInfo = raw?.data?.data ?? raw?.data ?? raw;
+          setBalance(actualBalance);
+        }
+
+        if (histRes.status === 'fulfilled' && histRes.value) {
+          const raw: any = histRes.value;
+          const list = Array.isArray(raw) ? raw : (raw?.data?.data ?? raw?.data ?? []);
+          setHistory(Array.isArray(list) ? list : []);
+        }
+      })
+      .catch(() => {
+        // Fallback
+      })
+      .finally(() => {
+        setLoading(false);
+        setHistoryLoading(false);
+      });
   }, []);
 
-  const loadData = async () => {
+  const loadData = (...args: Parameters<typeof fetchPayoutData>) => {
     setLoading(true);
     setHistoryLoading(true);
-    try {
-      const [balRes, histRes] = await Promise.allSettled([
-        hostService.getBalance(),
-        hostService.getPayoutHistory(),
-      ]);
-
-      if (balRes.status === 'fulfilled' && balRes.value) {
-        const raw: any = balRes.value;
-        const actualBalance: HostBalanceInfo = raw?.data?.data ?? raw?.data ?? raw;
-        setBalance(actualBalance);
-      }
-
-      if (histRes.status === 'fulfilled' && histRes.value) {
-        const raw: any = histRes.value;
-        const list = Array.isArray(raw) ? raw : raw?.data?.data ?? raw?.data ?? [];
-        setHistory(Array.isArray(list) ? list : []);
-      }
-    } catch {
-      // Fallback
-    } finally {
-      setLoading(false);
-      setHistoryLoading(false);
-    }
+    return fetchPayoutData(...args);
   };
+
+  useEffect(() => {
+    fetchPayoutData();
+  }, [fetchPayoutData]);
 
   const handleRequestPayout = async (values: any) => {
     setRequesting(true);

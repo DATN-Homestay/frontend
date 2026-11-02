@@ -6,7 +6,7 @@ import {
   MessageOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SendOutlined, TeamOutlined, UserOutlined,
 } from '@ant-design/icons';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/useAuth';
 import type { UserRole } from '../../types/auth';
 import type { ChatMessage, Conversation } from '../../types/chat';
 import { useChat } from './ChatContext';

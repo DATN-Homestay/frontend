@@ -65,9 +65,8 @@ export default function HomestaysPage() {
   // Stats
   const [totalCount, setTotalCount] = useState(0);
 
-  const fetchHomestays = useCallback(async (page = 1) => {
-    setLoading(true);
-    try {
+  const loadHomestays = useCallback(
+    (page = 1) => {
       const query: AdminListHomestaysQuery = {
         page,
         limit: pagination.limit,
@@ -78,22 +77,37 @@ export default function HomestaysPage() {
         sort_by: 'created_at',
         sort_order: 'DESC',
       };
-      const res = await adminService.listHomestays(query);
-      setData(res.items);
-      setPagination((prev) => ({ ...prev, page: res.pagination.page, total: res.pagination.total }));
-      if (page === 1 && !searchText && !filterStatus && !filterCity) {
-        setTotalCount(res.pagination.total);
-      }
-    } catch (err: any) {
-      message.error(err.message || 'Lỗi khi tải danh sách homestay');
-    } finally {
-      setLoading(false);
-    }
-  }, [pagination.limit, searchText, filterStatus, filterCity, filterClaimed]);
+      return adminService
+        .listHomestays(query)
+        .then((res) => {
+          setData(res.items);
+          setPagination((prev) => ({
+            ...prev,
+            page: res.pagination.page,
+            total: res.pagination.total,
+          }));
+          if (page === 1 && !searchText && !filterStatus && !filterCity) {
+            setTotalCount(res.pagination.total);
+          }
+        })
+        .catch((err: any) => {
+          message.error(err.message || 'Lỗi khi tải danh sách homestay');
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    },
+    [pagination.limit, searchText, filterStatus, filterCity, filterClaimed],
+  );
+
+  const fetchHomestays = (...args: Parameters<typeof loadHomestays>) => {
+    setLoading(true);
+    return loadHomestays(...args);
+  };
 
   useEffect(() => {
-    fetchHomestays(1);
-  }, [fetchHomestays]);
+    loadHomestays(1);
+  }, [loadHomestays]);
 
   const handleViewDetail = async (id: string) => {
     setDetailOpen(true);
@@ -361,19 +375,19 @@ export default function HomestaysPage() {
             allowClear
             style={{ width: 280 }}
             value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
+            onChange={(e) => { setLoading(true); setSearchText(e.target.value); }}
             onPressEnter={() => fetchHomestays(1)}
           />
           <Select placeholder="Trạng thái" allowClear style={{ width: 180 }}
-            value={filterStatus} onChange={(v) => setFilterStatus(v)}
+            value={filterStatus} onChange={(v) => { if (v !== filterStatus) { setLoading(true); setFilterStatus(v); } }}
             options={STATUS_OPTIONS.map((s) => ({ value: s, label: STATUS_MAP[s]?.label ?? s }))}
           />
           <Select placeholder="Thành phố" allowClear style={{ width: 160 }}
-            value={filterCity} onChange={(v) => setFilterCity(v)}
+            value={filterCity} onChange={(v) => { if (v !== filterCity) { setLoading(true); setFilterCity(v); } }}
             options={TOURIST_CITIES}
           />
           <Select placeholder="Chính chủ" allowClear style={{ width: 150 }}
-            value={filterClaimed} onChange={(v) => setFilterClaimed(v)}
+            value={filterClaimed} onChange={(v) => { if (v !== filterClaimed) { setLoading(true); setFilterClaimed(v); } }}
             options={[{ value: 1, label: 'Đã xác nhận' }, { value: 0, label: 'Chưa xác nhận' }]}
           />
           <Button type="primary" onClick={() => fetchHomestays(1)}>Lọc</Button>

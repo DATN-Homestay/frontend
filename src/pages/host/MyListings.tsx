@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Table,
   Tag,
@@ -95,22 +95,29 @@ export default function MyListingsPage() {
   const [roomForm] = Form.useForm();
   const [imageForm] = Form.useForm();
 
-  useEffect(() => {
-    loadListings();
+  const fetchListings = useCallback(() => {
+    return hostService
+      .getMyListings()
+      .then((res) => {
+        const list = Array.isArray(res) ? res : (res as any)?.data || [];
+        setData(list);
+      })
+      .catch(() => {
+        setData([]);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
-  const loadListings = async () => {
+  const loadListings = (...args: Parameters<typeof fetchListings>) => {
     setLoading(true);
-    try {
-      const res = await hostService.getMyListings();
-      const list = Array.isArray(res) ? res : (res as any)?.data || [];
-      setData(list);
-    } catch {
-      setData([]);
-    } finally {
-      setLoading(false);
-    }
+    return fetchListings(...args);
   };
+
+  useEffect(() => {
+    fetchListings();
+  }, [fetchListings]);
 
   // Tính thống kê số lượng ảnh của homestay (ảnh homestay + ảnh tất cả các phòng)
   const getHomestayPhotoStats = (homestay: HostHomestay) => {

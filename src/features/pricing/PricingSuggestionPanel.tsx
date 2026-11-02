@@ -162,7 +162,7 @@ export default function PricingSuggestionPanel({
 
           <dl
             className="pricing-suggestion__stats"
-            aria-label="Dữ liệu các chỗ nghỉ tương đồng trong bán kính 5 km"
+            aria-label="Dữ liệu các chỗ nghỉ tương đồng trong cùng thành phố"
           >
             <div className="pricing-suggestion__stat">
               <dt>Đối thủ tương đồng</dt>

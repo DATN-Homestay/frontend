@@ -13,6 +13,7 @@ Khi chạy local, `/api` được proxy đến `http://localhost:3000`. Dùng `V
 ## Hành vi
 
 - Chọn homestay, phòng và ngày từ hôm nay theo giờ Việt Nam. Có thể chọn trực tiếp một ngày trên lịch.
+- Dữ liệu so sánh lấy từ các homestay cùng thành phố với homestay đang chọn, không yêu cầu tọa độ GPS. AI xếp hạng theo tiện nghi/sức chứa và dùng tối đa 10 đối thủ có dữ liệu hợp lệ.
 - Lịch tải đúng tháng đang xem, gồm các ngày ở đầu/cuối tuần thuộc tháng liền kề. Ngày chưa có bản ghi lịch dùng giá gốc theo quy tắc backend.
 - **Giá gốc**, **giá đang bán**, **giá AI đề xuất** và **giá Host muốn áp dụng** được hiển thị riêng. Sửa ô nhập không thay đổi mức giá đề xuất đã tính.
 - Hiển thị số chỗ nghỉ tương đồng, giá thị trường, tỷ lệ kín phòng, yếu tố nhu cầu, giải thích và cảnh báo từ backend.

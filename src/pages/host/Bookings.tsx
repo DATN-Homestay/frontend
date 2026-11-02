@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   Table,
@@ -38,35 +38,37 @@ export default function HostBookingsPage() {
   const [selectedStatus, setSelectedStatus] = useState<string | undefined>(undefined);
   const [searchText, setSearchText] = useState('');
 
-  useEffect(() => {
-    loadInitialData();
+  const fetchInitialData = useCallback(() => {
+    return Promise.allSettled([hostService.getMyListings(), hostService.getBookings()])
+      .then(([listingsRes, bookingsRes]) => {
+        if (listingsRes.status === 'fulfilled') {
+          const val = listingsRes.value;
+          const list = Array.isArray(val) ? val : (val as any)?.data || [];
+          setHomestays(list);
+        }
+        if (bookingsRes.status === 'fulfilled') {
+          const bVal = bookingsRes.value;
+          const bList = Array.isArray(bVal) ? bVal : (bVal as any)?.data || [];
+          setBookings(bList);
+        }
+      })
+      .catch(() => {
+        setHomestays([]);
+        setBookings([]);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
-  const loadInitialData = async () => {
+  const loadInitialData = (...args: Parameters<typeof fetchInitialData>) => {
     setLoading(true);
-    try {
-      const [listingsRes, bookingsRes] = await Promise.allSettled([
-        hostService.getMyListings(),
-        hostService.getBookings(),
-      ]);
-
-      if (listingsRes.status === 'fulfilled') {
-        const val = listingsRes.value;
-        const list = Array.isArray(val) ? val : (val as any)?.data || [];
-        setHomestays(list);
-      }
-      if (bookingsRes.status === 'fulfilled') {
-        const bVal = bookingsRes.value;
-        const bList = Array.isArray(bVal) ? bVal : (bVal as any)?.data || [];
-        setBookings(bList);
-      }
-    } catch {
-      setHomestays([]);
-      setBookings([]);
-    } finally {
-      setLoading(false);
-    }
+    return fetchInitialData(...args);
   };
+
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
 
   const loadBookings = async () => {
     setLoading(true);

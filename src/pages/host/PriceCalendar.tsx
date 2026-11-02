@@ -555,7 +555,7 @@ export default function PriceCalendarPage() {
             <Title level={2}>Lịch giá & gợi ý AI</Title>
             <Text type="secondary">
               Chọn phòng và ngày để xem gợi ý từ dữ liệu chỗ nghỉ tương đồng
-              trong bán kính 5 km.
+              trong cùng thành phố.
             </Text>
           </div>
           <Button
@@ -945,7 +945,7 @@ export default function PriceCalendarPage() {
             if (!dayUpdating) setDayContext(null);
           }}
           closable={!dayUpdating}
-          maskClosable={!dayUpdating}
+          mask={{ closable: !dayUpdating }}
         >
           {dayContext && (
             <>
@@ -1030,7 +1030,7 @@ export default function PriceCalendarPage() {
           cancelText="Quay lại"
           cancelButtonProps={{ disabled: applying }}
           closable={!applying}
-          maskClosable={!applying}
+          mask={{ closable: !applying }}
         >
           {confirmation && (
             <div className="host-pricing-confirmation">
@@ -1068,7 +1068,7 @@ export default function PriceCalendarPage() {
             if (!batchUpdating) setBatchContext(null);
           }}
           closable={!batchUpdating}
-          maskClosable={!batchUpdating}
+          mask={{ closable: !batchUpdating }}
         >
           {batchContext && (
             <>

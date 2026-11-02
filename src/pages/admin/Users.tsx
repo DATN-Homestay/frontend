@@ -52,9 +52,8 @@ export default function UsersPage() {
   // Stats
   const [stats, setStats] = useState({ total: 0, active: 0, suspended: 0, banned: 0 });
 
-  const fetchUsers = useCallback(async (page = 1) => {
-    setLoading(true);
-    try {
+  const loadUsers = useCallback(
+    (page = 1) => {
       const query: AdminListUsersQuery = {
         page,
         limit: pagination.limit,
@@ -64,29 +63,44 @@ export default function UsersPage() {
         sort_by: 'created_at',
         sort_order: 'DESC',
       };
-      const res = await adminService.listUsers(query);
-      setData(res.items);
-      setPagination((prev) => ({ ...prev, page: res.pagination.page, total: res.pagination.total }));
+      return adminService
+        .listUsers(query)
+        .then((res) => {
+          setData(res.items);
+          setPagination((prev) => ({
+            ...prev,
+            page: res.pagination.page,
+            total: res.pagination.total,
+          }));
 
-      // Cập nhật stats từ tổng
-      if (page === 1 && !searchText && !filterRole && !filterStatus) {
-        setStats({
-          total: res.pagination.total,
-          active: res.items.filter((u) => u.status === 'ACTIVE').length,
-          suspended: res.items.filter((u) => u.status === 'SUSPENDED').length,
-          banned: res.items.filter((u) => u.status === 'BANNED').length,
+          // Cập nhật stats từ tổng
+          if (page === 1 && !searchText && !filterRole && !filterStatus) {
+            setStats({
+              total: res.pagination.total,
+              active: res.items.filter((u) => u.status === 'ACTIVE').length,
+              suspended: res.items.filter((u) => u.status === 'SUSPENDED').length,
+              banned: res.items.filter((u) => u.status === 'BANNED').length,
+            });
+          }
+        })
+        .catch((err: any) => {
+          message.error(err.message || 'Lỗi khi tải danh sách người dùng');
+        })
+        .finally(() => {
+          setLoading(false);
         });
-      }
-    } catch (err: any) {
-      message.error(err.message || 'Lỗi khi tải danh sách người dùng');
-    } finally {
-      setLoading(false);
-    }
-  }, [pagination.limit, searchText, filterRole, filterStatus]);
+    },
+    [pagination.limit, searchText, filterRole, filterStatus],
+  );
+
+  const fetchUsers = (...args: Parameters<typeof loadUsers>) => {
+    setLoading(true);
+    return loadUsers(...args);
+  };
 
   useEffect(() => {
-    fetchUsers(1);
-  }, [fetchUsers]);
+    loadUsers(1);
+  }, [loadUsers]);
 
   // Xem chi tiết
   const handleViewDetail = async (userId: string) => {
@@ -304,7 +318,7 @@ export default function UsersPage() {
               allowClear
               style={{ width: 260 }}
               value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
+              onChange={(e) => { setLoading(true); setSearchText(e.target.value); }}
               onPressEnter={() => fetchUsers(1)}
             />
             <Select
@@ -312,7 +326,7 @@ export default function UsersPage() {
               allowClear
               style={{ width: 150 }}
               value={filterRole}
-              onChange={(v) => setFilterRole(v)}
+              onChange={(v) => { if (v !== filterRole) { setLoading(true); setFilterRole(v); } }}
               options={[
                 { value: 'CUSTOMER', label: 'Customer' },
                 { value: 'HOST', label: 'Host' },
@@ -324,7 +338,7 @@ export default function UsersPage() {
               allowClear
               style={{ width: 150 }}
               value={filterStatus}
-              onChange={(v) => setFilterStatus(v)}
+              onChange={(v) => { if (v !== filterStatus) { setLoading(true); setFilterStatus(v); } }}
               options={[
                 { value: 'ACTIVE', label: 'Hoạt động' },
                 { value: 'SUSPENDED', label: 'Tạm khóa' },

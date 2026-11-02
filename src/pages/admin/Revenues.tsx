@@ -1,6 +1,6 @@
 import { Card, Col, Row, Statistic, Table, Tag, Spin, Alert, Button } from 'antd';
 import { DollarOutlined, RiseOutlined, ReloadOutlined, ShoppingOutlined } from '@ant-design/icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { adminService, type DashboardStats } from '../../services/adminService';
 
 function formatVnd(amount: number) {
@@ -34,22 +34,29 @@ export default function RevenuesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadData = async () => {
+  const fetchRevenue = useCallback(() => {
+    return adminService
+      .getDashboardStats()
+      .then((data) => {
+        setStats(data);
+      })
+      .catch((err: any) => {
+        setError(err.message ?? 'Không thể tải dữ liệu doanh thu');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  const loadData = (...args: Parameters<typeof fetchRevenue>) => {
     setLoading(true);
     setError(null);
-    try {
-      const data = await adminService.getDashboardStats();
-      setStats(data);
-    } catch (err: any) {
-      setError(err.message ?? 'Không thể tải dữ liệu doanh thu');
-    } finally {
-      setLoading(false);
-    }
+    return fetchRevenue(...args);
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    fetchRevenue();
+  }, [fetchRevenue]);
 
   if (loading && !stats) {
     return (

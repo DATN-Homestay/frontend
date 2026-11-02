@@ -37,9 +37,8 @@ export default function HostsPage() {
   const [detailData, setDetailData] = useState<AdminHostDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const fetchHosts = useCallback(async (page = 1) => {
-    setLoading(true);
-    try {
+  const loadHosts = useCallback(
+    (page = 1) => {
       const query: AdminListUsersQuery = {
         page,
         limit: pagination.limit,
@@ -48,19 +47,34 @@ export default function HostsPage() {
         sort_by: 'created_at',
         sort_order: 'DESC',
       };
-      const res = await adminService.listHosts(query);
-      setData(res.items as AdminHostItem[]);
-      setPagination((prev) => ({ ...prev, page: res.pagination.page, total: res.pagination.total }));
-    } catch (err: any) {
-      message.error(err.message || 'Lỗi khi tải danh sách host');
-    } finally {
-      setLoading(false);
-    }
-  }, [pagination.limit, searchText, filterStatus]);
+      return adminService
+        .listHosts(query)
+        .then((res) => {
+          setData(res.items as AdminHostItem[]);
+          setPagination((prev) => ({
+            ...prev,
+            page: res.pagination.page,
+            total: res.pagination.total,
+          }));
+        })
+        .catch((err: any) => {
+          message.error(err.message || 'Lỗi khi tải danh sách host');
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    },
+    [pagination.limit, searchText, filterStatus],
+  );
+
+  const fetchHosts = (...args: Parameters<typeof loadHosts>) => {
+    setLoading(true);
+    return loadHosts(...args);
+  };
 
   useEffect(() => {
-    fetchHosts(1);
-  }, [fetchHosts]);
+    loadHosts(1);
+  }, [loadHosts]);
 
   const handleViewDetail = async (hostId: string) => {
     setDetailOpen(true);
@@ -171,7 +185,7 @@ export default function HostsPage() {
             allowClear
             style={{ width: 280 }}
             value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
+            onChange={(e) => { setLoading(true); setSearchText(e.target.value); }}
             onPressEnter={() => fetchHosts(1)}
           />
           <Select
@@ -179,7 +193,7 @@ export default function HostsPage() {
             allowClear
             style={{ width: 180 }}
             value={filterStatus}
-            onChange={(v) => setFilterStatus(v)}
+            onChange={(v) => { if (v !== filterStatus) { setLoading(true); setFilterStatus(v); } }}
             options={[
               { value: 'ACTIVE', label: 'Hoạt động' },
               { value: 'SUSPENDED', label: 'Tạm khóa' },

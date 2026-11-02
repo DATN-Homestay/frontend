@@ -1,27 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { UserProfile, LoginDto, RegisterDto, UserRole } from '../types/auth';
 import { authService, primaryRole } from '../services/authService';
+import { AuthContext } from './AuthContextDefinition';
 import { AUTH_EXPIRED_EVENT } from '../services/apiClient';
-
-interface AuthContextType {
-  user: UserProfile | null;
-  isAuthenticated: boolean;
-  /** Đang kiểm tra phiên đăng nhập khi tải trang */
-  initializing: boolean;
-  role: UserRole | null;
-  isHost: boolean;
-  isAdmin: boolean;
-  isCustomer: boolean;
-  hasRole: (role: UserRole) => boolean;
-  login: (dto: LoginDto, remember?: boolean) => Promise<UserProfile>;
-  register: (dto: RegisterDto) => Promise<UserProfile>;
-  logout: () => Promise<void>;
-  /** Cập nhật hồ sơ đang hiển thị (VD: sau khi đổi họ tên) */
-  updateUser: (user: UserProfile) => void;
-  switchRoleMock: (role: UserRole) => void;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(() => authService.getCurrentUser());
@@ -96,12 +77,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return ctx;
 };

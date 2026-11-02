@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Card,
   Row,
@@ -44,7 +44,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { customerService } from '../../services/customerService';
 import type { HomestayItem, RoomItem } from '../../types/customer';
 import { getHomestayCoverImage, getAllHomestayImages } from '../../utils/imageHelper';
-import { getStoredOtaMode, type OtaMode } from '../../components/OtaModeSwitcher';
+import { getStoredOtaMode, type OtaMode } from '../../utils/otaMode';
 
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -89,6 +89,11 @@ const getPopularFacilityIcon = (facilityName: string) => {
 
 export default function HomestayDetailPage() {
   const { id } = useParams<{ id: string }>();
+  return <HomestayDetailContent key={id} />;
+}
+
+function HomestayDetailContent() {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const initialCoverFromState = (location.state as any)?.coverImage;
@@ -100,7 +105,7 @@ export default function HomestayDetailPage() {
   const [activeImage, setActiveImage] = useState<string | null>(initialCoverFromState || null);
 
   // OTA INTEGRATION MODE (DEMO GVHD: B2B DEMAND API vs AFFILIATE PARTNER)
-  const [otaMode, setOtaMode] = useState<OtaMode>(getStoredOtaMode());
+  const [otaMode, setOtaMode] = useState<OtaMode>(getStoredOtaMode);
   const [affiliateModalOpen, setAffiliateModalOpen] = useState(false);
 
   useEffect(() => {
@@ -128,48 +133,53 @@ export default function HomestayDetailPage() {
     if (id) navigate(`/messages?homestay=${encodeURIComponent(id)}`);
   };
 
+  const fetchDetail = useCallback((homestayId: string) => {
+    return customerService
+      .getHomestayDetail(homestayId)
+      .then((res: any) => {
+        const data = res?.data ?? res;
+        // If backend returned rooms, use them. Otherwise build room structure from real property images & price
+        const realImages: string[] = data?.amenities_json?.property_images || [];
+        const fallbackRooms: RoomItem[] = [
+          {
+            id: `${data.id}-room-1`,
+            homestay_id: data.id,
+            room_name: 'Phòng Tiêu Chuẩn Booking',
+            capacity: 2,
+            base_price: data.rooms?.[0]?.base_price || 650000,
+            bed_info: '1 Giường đôi lớn',
+            area_sqm: 25,
+            amenities: data.amenities_json?.popular_facilities?.slice(0, 5) || [
+              'Wifi miễn phí',
+              'Phòng tắm riêng',
+            ],
+            images: realImages.slice(0, 4).map((url: string, idx: number) => ({
+              id: `${data.id}-img-${idx}`,
+              image_url: url,
+              is_primary: idx === 0 ? 1 : 0,
+              sort_order: idx,
+            })),
+          },
+        ];
+
+        const rooms = data?.rooms?.length ? data.rooms : fallbackRooms;
+        setHomestay({ ...data, rooms });
+        setSelectedRoom(rooms[0]);
+        setActiveImage(null);
+      })
+      .catch(() => {
+        message.error('Không tìm thấy thông tin homestay hoặc kết nối máy chủ gián đoạn.');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
+
   useEffect(() => {
     if (id) {
-      loadDetail(id);
+      fetchDetail(id);
     }
-  }, [id]);
-
-  const loadDetail = async (homestayId: string) => {
-    setLoading(true);
-    try {
-      const res: any = await customerService.getHomestayDetail(homestayId);
-      const data = res?.data ?? res;
-      // If backend returned rooms, use them. Otherwise build room structure from real property images & price
-      const realImages: string[] = data?.amenities_json?.property_images || [];
-      const fallbackRooms: RoomItem[] = [
-        {
-          id: `${data.id}-room-1`,
-          homestay_id: data.id,
-          room_name: 'Phòng Tiêu Chuẩn Booking',
-          capacity: 2,
-          base_price: data.rooms?.[0]?.base_price || 650000,
-          bed_info: '1 Giường đôi lớn',
-          area_sqm: 25,
-          amenities: data.amenities_json?.popular_facilities?.slice(0, 5) || ['Wifi miễn phí', 'Phòng tắm riêng'],
-          images: realImages.slice(0, 4).map((url: string, idx: number) => ({
-            id: `${data.id}-img-${idx}`,
-            image_url: url,
-            is_primary: idx === 0 ? 1 : 0,
-            sort_order: idx,
-          })),
-        },
-      ];
-
-      const rooms = data?.rooms?.length ? data.rooms : fallbackRooms;
-      setHomestay({ ...data, rooms });
-      setSelectedRoom(rooms[0]);
-      setActiveImage(null);
-    } catch (err: any) {
-      message.error('Không tìm thấy thông tin homestay hoặc kết nối máy chủ gián đoạn.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [id, fetchDetail]);
 
   const handleBooking = () => {
     if (!selectedRoom) {
@@ -312,7 +322,6 @@ export default function HomestayDetailPage() {
         : overallRating10 >= 7.0
           ? 'Tốt'
           : 'Hài lòng';
-
 
   return (
     <div>
