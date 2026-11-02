@@ -53,21 +53,6 @@ import { getStoredOtaMode, type OtaMode } from '../../components/OtaModeSwitcher
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
 
-export interface ReviewItem {
-  id: string;
-  customer_name: string;
-  customer_avatar: string;
-  stay_date: string;
-  rating_overall: number;
-  comment: string;
-  photos?: string[];
-  created_at: string;
-  host_reply?: {
-    content: string;
-    created_at: string;
-  };
-}
-
 interface ChatMessage {
   id: string;
   sender: 'host' | 'customer';
@@ -1037,7 +1022,7 @@ export default function HomestayDetailPage() {
             title={
               <Space>
                 <StarFilled style={{ color: '#f59e0b' }} />
-                <span>Đánh giá từ khách hàng ({homestay.total_reviews || 0} lượt)</span>
+                <span>Đánh giá từ khách hàng ({homestay.total_reviews ?? 0} lượt)</span>
               </Space>
             }
             style={{ borderRadius: 16, marginBottom: 32 }}
@@ -1295,7 +1280,14 @@ export default function HomestayDetailPage() {
               </Text>
               <RangePicker
                 style={{ width: '100%' }}
-                onChange={(_, dateStrings) => setDateRange([dateStrings[0], dateStrings[1]])}
+                // Chỉ cho chọn từ hôm nay đến 365 ngày tới, khớp luật đặt phòng của backend
+                disabledDate={(current) => {
+                  const startOfToday = new Date().setHours(0, 0, 0, 0);
+                  return current.valueOf() < startOfToday || current.valueOf() > startOfToday + 365 * 86_400_000;
+                }}
+                onChange={(_, dateStrings) =>
+                  setDateRange(dateStrings[0] && dateStrings[1] ? [dateStrings[0], dateStrings[1]] : null)
+                }
               />
             </div>
 
@@ -1540,6 +1532,7 @@ export default function HomestayDetailPage() {
         destroyOnHidden
         styles={{
           body: { padding: 0, maxHeight: '90vh', overflowY: 'auto' },
+          container: { borderRadius: 12, overflow: 'hidden', padding: 0 },
         }}
         closeIcon={
           <div
