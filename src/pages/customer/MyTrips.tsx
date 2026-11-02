@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { App, Button, Card, Descriptions, Input, Modal, Rate, Select, Table, Tag, Typography } from 'antd';
 import { CheckCircleOutlined, StarOutlined } from '@ant-design/icons';
 import { customerService } from '../../services/customerService';
-import type { BookingDetail, BookingStatus, MyBookingItem } from '../../types/customer';
+import CancelBookingModal from '../../components/CancelBookingModal';
+import type { BookingDetail, BookingStatus, MyBookingItem, RefundStatus } from '../../types/customer';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -17,6 +18,21 @@ const STATUS_TAG: Record<BookingStatus, { color: string; text: string }> = {
   CANCELLED: { color: 'red', text: 'Đã hủy' },
   DISPUTED: { color: 'volcano', text: 'Đang khiếu nại' },
   EXPIRED: { color: 'default', text: 'Hết hạn giữ chỗ' },
+};
+
+/** Trạng thái hoàn tiền hiển thị cho khách; FAILED là việc của hệ thống nên nói là đang chờ xử lý */
+const REFUND_TAG: Record<RefundStatus, { color: string; text: string }> = {
+  PENDING: { color: 'orange', text: 'Đang xử lý hoàn tiền' },
+  PROCESSING: { color: 'orange', text: 'Đang xử lý hoàn tiền' },
+  PROCESSED: { color: 'success', text: 'Đã hoàn tiền' },
+  FAILED: { color: 'gold', text: 'Đang chờ quản trị viên xử lý' },
+};
+
+const POLICY_LABEL: Record<string, string> = {
+  FLEXIBLE: 'Linh hoạt (hoàn 100% nếu hủy trước 24 giờ)',
+  MODERATE: 'Tiêu chuẩn (hoàn 100% nếu hủy trước 5 ngày, sau đó 50%)',
+  STRICT: 'Nghiêm ngặt (100% trước 14 ngày, 50% từ 7–14 ngày, sau đó không hoàn)',
+  NON_REFUNDABLE: 'Không hoàn tiền',
 };
 
 /** Đếm ngược hạn thanh toán của đơn đang giữ chỗ */
@@ -52,6 +68,7 @@ export default function MyTripsPage() {
   const [reloadKey, setReloadKey] = useState(0);
   const [payingId, setPayingId] = useState<string | null>(null);
 
+  const [cancelTarget, setCancelTarget] = useState<MyBookingItem | null>(null);
   const [detail, setDetail] = useState<BookingDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
@@ -186,6 +203,11 @@ export default function MyTripsPage() {
             </Button>
           )}
           <Button size="small" onClick={() => openDetail(r.id)}>Chi tiết</Button>
+          {(r.status === 'PENDING_PAYMENT' || r.status === 'PAID_ESCROW') && (
+            <Button size="small" danger onClick={() => setCancelTarget(r)}>
+              Hủy đơn
+            </Button>
+          )}
         </div>
       ),
     },
@@ -224,6 +246,15 @@ export default function MyTripsPage() {
           }}
         />
       </Card>
+
+      {cancelTarget && (
+        <CancelBookingModal
+          key={cancelTarget.id}
+          booking={cancelTarget}
+          onClose={() => setCancelTarget(null)}
+          onCancelled={() => reload()}
+        />
+      )}
 
       <Modal
         title="Chi tiết đơn đặt phòng"
@@ -289,9 +320,31 @@ export default function MyTripsPage() {
                 { key: 'room', label: 'Phòng', children: detail.room.room_name },
                 { key: 'dates', label: 'Lưu trú', children: `${detail.check_in_date} ➔ ${detail.check_out_date} (${detail.nights} đêm, ${detail.num_guests} khách)` },
                 { key: 'total', label: 'Tổng tiền', children: <strong>{money(detail.total_amount)}</strong> },
-                { key: 'policy', label: 'Chính sách hủy', children: detail.homestay.cancellation_policy },
+                { key: 'policy', label: 'Chính sách hủy', children: POLICY_LABEL[detail.homestay.cancellation_policy] ?? detail.homestay.cancellation_policy },
                 ...(detail.customer_note ? [{ key: 'note', label: 'Ghi chú', children: detail.customer_note }] : []),
                 ...(detail.escrow_status ? [{ key: 'escrow', label: 'Ký quỹ Escrow', children: detail.escrow_status }] : []),
+                ...(detail.status === 'CANCELLED' && detail.cancelled_at
+                  ? [
+                      {
+                        key: 'cancel',
+                        label: 'Đã hủy',
+                        children: `${new Date(detail.cancelled_at).toLocaleString('vi-VN')} bởi ${
+                          { CUSTOMER: 'khách hàng', HOST: 'chủ nhà', ADMIN: 'quản trị viên', SYSTEM: 'hệ thống' }[detail.cancelled_by ?? 'SYSTEM']
+                        }${detail.cancel_reason ? ` — ${detail.cancel_reason}` : ''}`,
+                      },
+                    ]
+                  : []),
+                ...(detail.refunds ?? []).map((r) => ({
+                  key: `refund-${r.id}`,
+                  label: `Hoàn tiền #${r.id}`,
+                  children: (
+                    <span>
+                      <strong>{money(r.amount)}</strong>{' '}
+                      <Tag color={REFUND_TAG[r.status].color}>{REFUND_TAG[r.status].text}</Tag>
+                      {r.processed_at && <Text type="secondary">({new Date(r.processed_at).toLocaleString('vi-VN')})</Text>}
+                    </span>
+                  ),
+                })),
                 ...detail.payments.map((p) => ({
                   key: `pay-${p.id}`,
                   label: `Thanh toán #${p.id}`,

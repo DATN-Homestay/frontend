@@ -11,6 +11,8 @@ import type {
   Paginated,
   BookingDetail,
   BookingStatus,
+  CancellationQuote,
+  CancelResult,
 } from '../types/customer';
 
 export const customerService = {
@@ -83,6 +85,21 @@ export const customerService = {
 
   async getMyBookings(params: { page: number; limit: number; status?: BookingStatus }) {
     const res = await apiClient<ApiResponse<Paginated<MyBookingItem>>>('/users/me/bookings', { params });
+    return res.data;
+  },
+
+  /** Xem trước số tiền được hoàn nếu hủy đơn ngay bây giờ */
+  async getCancellationQuote(bookingId: string) {
+    const res = await apiClient<ApiResponse<CancellationQuote>>(`/bookings/${bookingId}/cancellation-quote`);
+    return res.data;
+  },
+
+  /** Hủy đơn. expected_refund_amount là số tiền khách đã thấy; server từ chối (409) nếu khác kết quả tính lại. */
+  async cancelBooking(bookingId: string, data: { reason: string; expected_refund_amount?: number }) {
+    const res = await apiClient<ApiResponse<CancelResult>>(`/bookings/${bookingId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
     return res.data;
   },
 
