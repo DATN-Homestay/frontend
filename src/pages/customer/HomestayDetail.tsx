@@ -45,6 +45,7 @@ import {
 } from '@ant-design/icons';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { customerService } from '../../services/customerService';
+import type { PublicReview } from '../../types/customer';
 import type { HomestayItem, RoomItem } from '../../types/customer';
 import { getHomestayCoverImage, getAllHomestayImages } from '../../utils/imageHelper';
 import { getStoredOtaMode, type OtaMode } from '../../components/OtaModeSwitcher';
@@ -227,6 +228,29 @@ export default function HomestayDetailPage() {
     if (id) {
       loadDetail(id);
     }
+  }, [id]);
+
+  // Đánh giá thật của khách đã lưu trú (đã duyệt, tên được che bớt)
+  const [publicReviews, setPublicReviews] = useState<PublicReview[]>([]);
+  const [reviewMeta, setReviewMeta] = useState<{ page: number; total_pages: number } | null>(null);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+
+  const loadReviews = async (homestayId: string, page: number) => {
+    setLoadingReviews(true);
+    try {
+      const res = await customerService.getHomestayReviews(homestayId, page, 5);
+      setPublicReviews((prev) => (page === 1 ? res.items : [...prev, ...res.items]));
+      setReviewMeta({ page: res.meta.page, total_pages: res.meta.total_pages });
+    } catch {
+      // Lỗi tải đánh giá không được làm hỏng cả trang chi tiết
+      if (page === 1) setPublicReviews([]);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  useEffect(() => {
+    if (id) loadReviews(id, 1);
   }, [id]);
 
   const loadDetail = async (homestayId: string) => {
@@ -1171,25 +1195,30 @@ export default function HomestayDetailPage() {
 
             {/* REVIEWS LIST */}
             <div id="user-comments-list" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              {homestay.reviews && homestay.reviews.length > 0 ? (
-                homestay.reviews.map((rev: any) => (
+              {publicReviews.length > 0 ? (
+                publicReviews.map((rev) => (
                   <div key={rev.id} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 20 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                       <Space size="middle">
                         <Avatar style={{ backgroundColor: '#003b95' }} icon={<UserOutlined />} size={44} />
                         <div>
                           <Text strong style={{ fontSize: 15, display: 'block' }}>
-                            {rev.customer?.name || 'Khách lưu trú'}
+                            {rev.customer_name}
                           </Text>
                           <Space size={6}>
                             <Tag color="cyan" style={{ fontSize: 11, border: 'none' }}>
                               <CheckOutlined /> Khách đã lưu trú
                             </Tag>
+                            {rev.stay_date && (
+                              <Text type="secondary" style={{ fontSize: 12 }}>
+                                Lưu trú đến {rev.stay_date}
+                              </Text>
+                            )}
                           </Space>
                         </div>
                       </Space>
 
-                      <Rate disabled defaultValue={rev.rating_overall || 5} style={{ fontSize: 14, color: '#f59e0b' }} />
+                      <Rate disabled value={rev.rating_overall} style={{ fontSize: 14, color: '#f59e0b' }} />
                     </div>
 
                     <Paragraph style={{ color: '#334155', fontSize: 14, lineHeight: 1.6, margin: '8px 0 12px' }}>
@@ -1197,6 +1226,8 @@ export default function HomestayDetailPage() {
                     </Paragraph>
                   </div>
                 ))
+              ) : loadingReviews ? (
+                <Spin />
               ) : (
                 <div
                   style={{
@@ -1211,6 +1242,11 @@ export default function HomestayDetailPage() {
                     Chưa có nhận xét nào cho chỗ nghỉ này. Hãy là người đầu tiên trải nghiệm và chia sẻ đánh giá!
                   </Text>
                 </div>
+              )}
+              {reviewMeta && reviewMeta.page < reviewMeta.total_pages && id && (
+                <Button loading={loadingReviews} onClick={() => loadReviews(id, reviewMeta.page + 1)}>
+                  Xem thêm đánh giá
+                </Button>
               )}
             </div>
           </Card>

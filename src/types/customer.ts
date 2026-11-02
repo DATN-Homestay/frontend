@@ -63,14 +63,43 @@ export interface CustomerBooking {
   created_at: string;
 }
 
+/** Nội dung khách gửi khi đánh giá; booking_id nằm trên đường dẫn, không gửi trong body */
 export interface ReviewSubmission {
-  booking_id: string;
   rating_overall: number;
   cleanliness_rating: number;
   service_rating: number;
   location_rating: number;
+  value_rating: number;
   comment: string;
   photos?: string[];
+}
+
+export interface MyReview extends ReviewSubmission {
+  id: string;
+  photos: string[];
+  created_at: string;
+}
+
+/** Một đánh giá công khai trên trang homestay (tên khách đã được che) */
+export interface PublicReview {
+  id: string;
+  customer_name: string;
+  stay_date: string | null;
+  rating_overall: number;
+  cleanliness_rating: number;
+  service_rating: number;
+  location_rating: number;
+  value_rating: number;
+  comment: string | null;
+  photos: string[];
+  is_verified_stay: boolean;
+  created_at: string;
+}
+
+export interface PublicReviewList {
+  items: PublicReview[];
+  distribution: Record<'1' | '2' | '3' | '4' | '5', number>;
+  meta: { page: number; limit: number; total: number; total_pages: number };
 }
 
 // =========================================================
@@ -210,6 +239,9 @@ export interface MyBookingItem {
   total_amount: number;
   /** Hạn thanh toán, chỉ có khi đơn đang PENDING_PAYMENT */
   expires_at: string | null;
+  /** Đã hoàn tất lưu trú, chưa đánh giá và còn trong thời hạn đánh giá */
+  can_review?: boolean;
+  has_review?: boolean;
   created_at: string;
 }
 
@@ -236,6 +268,8 @@ export interface BookingDetail {
   discount_amount: number;
   coupon_code?: string | null;
   total_amount: number;
+  can_review?: boolean;
+  review?: MyReview | null;
   payment_deadline: string | null;
   payments: { id: string; amount: number; method: string; status: string; transaction_code: string | null; created_at: string }[];
   escrow_status: string | null;

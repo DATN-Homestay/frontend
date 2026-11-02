@@ -3,6 +3,8 @@ import type { ApiResponse } from './apiClient';
 import type {
   HomestayItem,
   ReviewSubmission,
+  MyReview,
+  PublicReviewList,
   BookingQuote,
   CreatedBooking,
   PaymentLink,
@@ -125,12 +127,21 @@ export const customerService = {
     return res.data;
   },
 
-  async submitReview(data: ReviewSubmission) {
-    const res: any = await apiClient(`/bookings/${data.booking_id}/reviews`, {
+  /** Gửi đánh giá cho đơn đã hoàn tất. Server tự kiểm tra quyền, thời hạn và chống gửi trùng. */
+  async submitReview(bookingId: string, data: ReviewSubmission) {
+    const res = await apiClient<ApiResponse<MyReview>>(`/bookings/${bookingId}/reviews`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
-    return res?.data ?? res;
+    return res.data;
+  },
+
+  /** Đánh giá công khai của homestay (đã duyệt), có phân trang */
+  async getHomestayReviews(homestayId: string, page = 1, limit = 5) {
+    const res = await apiClient<ApiResponse<PublicReviewList>>(`/homestays/${homestayId}/reviews`, {
+      params: { page, limit },
+    });
+    return res.data;
   },
 };
 

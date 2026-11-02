@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { App, Button, Card, Descriptions, Input, Modal, Rate, Select, Table, Tag, Typography } from 'antd';
 import { CheckCircleOutlined, StarOutlined } from '@ant-design/icons';
 import { customerService } from '../../services/customerService';
+import { ApiError } from '../../services/apiClient';
 import CancelBookingModal from '../../components/CancelBookingModal';
 import type { BookingDetail, BookingStatus, MyBookingItem, RefundStatus } from '../../types/customer';
 
@@ -55,6 +56,22 @@ function HoldCountdown({ expiresAt }: { expiresAt: string }) {
     </Text>
   );
 }
+
+type ReviewAspect = 'rating_overall' | 'cleanliness_rating' | 'service_rating' | 'location_rating' | 'value_rating';
+const ASPECT_LABEL: Record<ReviewAspect, string> = {
+  rating_overall: 'Trải nghiệm chung',
+  cleanliness_rating: 'Sạch sẽ & tiện nghi',
+  service_rating: 'Thái độ phục vụ của chủ nhà',
+  location_rating: 'Vị trí & cảnh quan',
+  value_rating: 'Đáng giá tiền',
+};
+const EMPTY_SCORES: Record<ReviewAspect, number> = {
+  rating_overall: 0,
+  cleanliness_rating: 0,
+  service_rating: 0,
+  location_rating: 0,
+  value_rating: 0,
+};
 
 export default function MyTripsPage() {
   const { message } = App.useApp();
@@ -125,14 +142,54 @@ export default function MyTripsPage() {
     }
   };
 
-  // ----- Đánh giá: backend chưa có API (GĐ7) nên giữ nguyên giao diện mô phỏng của nhóm -----
+  // ----- Đánh giá sau lưu trú -----
   const [reviewTarget, setReviewTarget] = useState<MyBookingItem | null>(null);
-  const [rating, setRating] = useState(5);
+  const [scores, setScores] = useState<Record<ReviewAspect, number>>({ ...EMPTY_SCORES });
   const [comment, setComment] = useState('');
-  const handleSendReview = () => {
-    message.success('Đã gửi đánh giá thành công! Cảm ơn bạn đã chia sẻ.');
-    setReviewTarget(null);
+  const [reviewing, setReviewing] = useState(false);
+
+  const openReview = (r: MyBookingItem) => {
+    setScores({ ...EMPTY_SCORES });
     setComment('');
+    setReviewTarget(r);
+  };
+
+  const reviewProblem = (): string | null => {
+    if (Object.values(scores).some((v) => v < 1)) return 'Vui lòng chấm đủ 5 tiêu chí';
+    if (comment.trim().length < 10) return 'Nhận xét cần ít nhất 10 ký tự';
+    return null;
+  };
+
+  const handleSendReview = async () => {
+    if (!reviewTarget) return;
+    const problem = reviewProblem();
+    if (problem) {
+      message.warning(problem);
+      return;
+    }
+    setReviewing(true);
+    try {
+      await customerService.submitReview(reviewTarget.id, {
+        rating_overall: scores.rating_overall,
+        cleanliness_rating: scores.cleanliness_rating,
+        service_rating: scores.service_rating,
+        location_rating: scores.location_rating,
+        value_rating: scores.value_rating,
+        comment: comment.trim(),
+      });
+      message.success('Đã gửi đánh giá thành công! Cảm ơn bạn đã chia sẻ.');
+      setReviewTarget(null);
+      reload();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Không gửi được đánh giá');
+      // 409: đã đánh giá hoặc hết hạn đánh giá, tải lại để nút phản ánh đúng
+      if (err instanceof ApiError && err.status === 409) {
+        setReviewTarget(null);
+        reload();
+      }
+    } finally {
+      setReviewing(false);
+    }
   };
 
   const columns = [
@@ -197,11 +254,12 @@ export default function MyTripsPage() {
               Thanh toán ngay
             </Button>
           )}
-          {r.status === 'COMPLETED' && (
-            <Button type="primary" size="small" icon={<StarOutlined />} onClick={() => setReviewTarget(r)}>
+          {r.can_review && (
+            <Button type="primary" size="small" icon={<StarOutlined />} onClick={() => openReview(r)}>
               Đánh giá
             </Button>
           )}
+          {r.has_review && <Tag color="gold">Đã đánh giá</Tag>}
           <Button size="small" onClick={() => openDetail(r.id)}>Chi tiết</Button>
           {(r.status === 'PENDING_PAYMENT' || r.status === 'PAID_ESCROW') && (
             <Button size="small" danger onClick={() => setCancelTarget(r)}>
@@ -327,6 +385,18 @@ export default function MyTripsPage() {
                     }]
                   : []),
                 { key: 'total', label: 'Tổng tiền', children: <strong>{money(detail.total_amount)}</strong> },
+                ...(detail.review
+                  ? [{
+                      key: 'review',
+                      label: 'Đánh giá của bạn',
+                      children: (
+                        <div>
+                          <Rate disabled value={detail.review.rating_overall} style={{ fontSize: 14, color: '#f59e0b' }} />
+                          <div>{detail.review.comment}</div>
+                        </div>
+                      ),
+                    }]
+                  : []),
                 { key: 'policy', label: 'Chính sách hủy', children: POLICY_LABEL[detail.homestay.cancellation_policy] ?? detail.homestay.cancellation_policy },
                 ...(detail.customer_note ? [{ key: 'note', label: 'Ghi chú', children: detail.customer_note }] : []),
                 ...(detail.escrow_status ? [{ key: 'escrow', label: 'Ký quỹ Escrow', children: detail.escrow_status }] : []),
@@ -370,16 +440,28 @@ export default function MyTripsPage() {
         onOk={handleSendReview}
         okText="Gửi đánh giá"
         cancelText="Hủy"
+        confirmLoading={reviewing}
       >
         <div style={{ padding: '12px 0' }}>
-          <Text strong style={{ display: 'block', marginBottom: 8 }}>Số sao đánh giá</Text>
-          <Rate value={rating} onChange={setRating} style={{ color: '#f59e0b', fontSize: 24, marginBottom: 16 }} />
+          {(Object.keys(ASPECT_LABEL) as ReviewAspect[]).map((key) => (
+            <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text strong={key === 'rating_overall'}>{ASPECT_LABEL[key]}</Text>
+              <Rate
+                value={scores[key]}
+                onChange={(v) => setScores((s) => ({ ...s, [key]: v }))}
+                style={{ color: '#f59e0b', fontSize: key === 'rating_overall' ? 24 : 18 }}
+              />
+            </div>
+          ))}
+          <div style={{ height: 8 }} />
 
           <Text strong style={{ display: 'block', marginBottom: 8 }}>Nhận xét chi tiết</Text>
           <TextArea
             rows={4}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
+            maxLength={2000}
+            showCount
             placeholder="Chia sẻ trải nghiệm về độ sạch sẽ, thái độ chủ nhà, không gian và tiện nghi..."
           />
         </div>
