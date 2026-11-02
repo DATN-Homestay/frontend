@@ -1,224 +1,533 @@
-import { Table, Tag, Button, Space, Image, message, Modal, Card, Row, Col, Select, Typography, Alert } from 'antd';
-import { useEffect, useState } from 'react';
-import { CheckCircleOutlined, GlobalOutlined, RocketOutlined } from '@ant-design/icons';
-import { adminApi } from '../../services/adminMock';
-import type { HomestayPending } from '../../types/admin';
+import {
+  Table, Tag, Button, Space, Input, Select, Card, Row, Col,
+  Statistic, Drawer, Descriptions, Badge, Typography, Tooltip,
+  Popconfirm, Modal, Form, message, Image, Rate,
+} from 'antd';
+import {
+  SearchOutlined, EyeOutlined, HomeOutlined, DeleteOutlined,
+  EditOutlined, CheckCircleOutlined, StopOutlined, UserAddOutlined,
+  GlobalOutlined, RocketOutlined, CheckOutlined,
+  AlertOutlined,
+} from '@ant-design/icons';
+import { useEffect, useState, useCallback } from 'react';
+import { adminService } from '../../services/adminService';
+import type {
+  AdminHomestayItem, AdminHomestayDetail, AdminListHomestaysQuery,
+} from '../../services/adminService';
+import { Alert } from 'antd';
 
 const { Title, Text, Paragraph } = Typography;
 
+const STATUS_OPTIONS = ['DRAFT', 'PENDING_VERIFICATION', 'ACTIVE', 'BANNED'];
+const STATUS_MAP: Record<string, { color: string; label: string }> = {
+  DRAFT: { color: 'default', label: 'Nháp' },
+  PENDING_VERIFICATION: { color: 'processing', label: 'Chờ duyệt' },
+  ACTIVE: { color: 'success', label: 'Hoạt động' },
+  BANNED: { color: 'error', label: 'Bị cấm' },
+};
+
 const TOURIST_CITIES = [
-  { label: '🌲 Đà Lạt (Lâm Đồng)', value: 'Đà Lạt' },
-  { label: '🏮 Hội An (Quảng Nam)', value: 'Hội An' },
-  { label: '🏛️ Hà Nội (Thủ Đô)', value: 'Hà Nội' },
-  { label: '🏔️ Sa Pa (Lào Cai)', value: 'Sa Pa' },
-  { label: '🌉 Đà Nẵng (Thành phố biển)', value: 'Đà Nẵng' },
-  { label: '🏝️ Phú Quốc (Kiên Giang)', value: 'Phú Quốc' },
-  { label: '🏖️ Vũng Tàu (Bà Rịa - Vũng Tàu)', value: 'Vũng Tàu' },
-  { label: '🌊 Nha Trang (Khánh Hòa)', value: 'Nha Trang' },
+  { label: '🌲 Đà Lạt', value: 'Đà Lạt' },
+  { label: '🏮 Hội An', value: 'Hội An' },
+  { label: '🏛️ Hà Nội', value: 'Hà Nội' },
+  { label: '🏔️ Sa Pa', value: 'Sa Pa' },
+  { label: '🌉 Đà Nẵng', value: 'Đà Nẵng' },
+  { label: '🏝️ Phú Quốc', value: 'Phú Quốc' },
+  { label: '🏖️ Vũng Tàu', value: 'Vũng Tàu' },
+  { label: '🌊 Nha Trang', value: 'Nha Trang' },
 ];
 
 export default function HomestaysPage() {
-  const [data, setData] = useState<HomestayPending[]>([]);
+  const [data, setData] = useState<AdminHomestayItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
+  const [searchText, setSearchText] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string | undefined>();
+  const [filterCity, setFilterCity] = useState<string | undefined>();
+  const [filterClaimed, setFilterClaimed] = useState<number | undefined>();
 
-  // RapidAPI Crawler State
+  // Drawer detail
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailData, setDetailData] = useState<AdminHomestayDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  // Modal đổi trạng thái
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusForm] = Form.useForm();
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Modal gán host
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [assignForm] = Form.useForm();
+  const [assigningId, setAssigningId] = useState<string | null>(null);
+
+  // Crawler
   const [selectedCity, setSelectedCity] = useState('Đà Lạt');
   const [limitCount, setLimitCount] = useState(10);
   const [crawling, setCrawling] = useState(false);
   const [crawlResult, setCrawlResult] = useState<any | null>(null);
 
-  useEffect(() => {
-    adminApi.getPendingHomestays().then((res) => {
-      setData(res);
-      setLoading(false);
-    });
-  }, []);
+  // Stats
+  const [totalCount, setTotalCount] = useState(0);
 
-  const handleCrawlBooking = async () => {
+  const fetchHomestays = useCallback(async (page = 1) => {
+    setLoading(true);
+    try {
+      const query: AdminListHomestaysQuery = {
+        page,
+        limit: pagination.limit,
+        search: searchText || undefined,
+        status: filterStatus,
+        city: filterCity,
+        is_claimed: filterClaimed,
+        sort_by: 'created_at',
+        sort_order: 'DESC',
+      };
+      const res = await adminService.listHomestays(query);
+      setData(res.items);
+      setPagination((prev) => ({ ...prev, page: res.pagination.page, total: res.pagination.total }));
+      if (page === 1 && !searchText && !filterStatus && !filterCity) {
+        setTotalCount(res.pagination.total);
+      }
+    } catch (err: any) {
+      message.error(err.message || 'Lỗi khi tải danh sách homestay');
+    } finally {
+      setLoading(false);
+    }
+  }, [pagination.limit, searchText, filterStatus, filterCity, filterClaimed]);
+
+  useEffect(() => {
+    fetchHomestays(1);
+  }, [fetchHomestays]);
+
+  const handleViewDetail = async (id: string) => {
+    setDetailOpen(true);
+    setDetailLoading(true);
+    setDetailData(null);
+    try {
+      const res = await adminService.getHomestayDetail(id);
+      setDetailData(res);
+    } catch (err: any) {
+      message.error(err.message || 'Lỗi khi tải chi tiết');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const handleOpenStatusModal = (id: string, currentStatus: string) => {
+    setEditingId(id);
+    statusForm.setFieldsValue({ status: currentStatus, reason: '' });
+    setStatusOpen(true);
+  };
+
+  const handleUpdateStatus = async () => {
+    if (!editingId) return;
+    try {
+      const values = await statusForm.validateFields();
+      setStatusLoading(true);
+      await adminService.updateHomestayStatus(editingId, values.status, values.reason);
+      message.success(`Đã cập nhật trạng thái thành ${STATUS_MAP[values.status]?.label}`);
+      setStatusOpen(false);
+      fetchHomestays(pagination.page);
+    } catch (err: any) {
+      if (err.message) message.error(err.message);
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
+  const handleOpenAssign = (id: string) => {
+    setAssigningId(id);
+    assignForm.resetFields();
+    setAssignOpen(true);
+  };
+
+  const handleAssignHost = async () => {
+    if (!assigningId) return;
+    try {
+      const values = await assignForm.validateFields();
+      setAssignLoading(true);
+      await adminService.assignHostToHomestay(assigningId, values.host_id);
+      message.success('Gán host thành công!');
+      setAssignOpen(false);
+      fetchHomestays(pagination.page);
+    } catch (err: any) {
+      if (err.message) message.error(err.message);
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await adminService.deleteHomestay(id);
+      message.success('Đã xóa homestay');
+      fetchHomestays(pagination.page);
+    } catch (err: any) {
+      message.error(err.message || 'Lỗi khi xóa homestay');
+    }
+  };
+
+  const handleCrawl = async () => {
     setCrawling(true);
     setCrawlResult(null);
     try {
-      const res = await adminApi.crawlBookingHomestays(selectedCity, limitCount);
+      const res = await adminService.crawlBookingHomestays(selectedCity, limitCount);
       setCrawlResult(res);
-      message.success(`✓ Đã cào và lưu thành công ${res.total_saved} homestay tại ${selectedCity} vào CSDL MySQL!`);
+      message.success(`✓ Đã cào ${res.total_saved} homestay tại ${selectedCity}`);
+      fetchHomestays(1);
     } catch (err: any) {
-      message.error(err.message || 'Lỗi khi cào dữ liệu từ RapidAPI Booking.com');
+      message.error(err.message || 'Lỗi khi cào dữ liệu');
     } finally {
       setCrawling(false);
     }
   };
 
-  const handleApprove = (id: number) => {
-    Modal.confirm({
-      title: 'Xác nhận duyệt Homestay?',
-      content: 'Homestay sẽ được hiển thị công khai trên hệ thống.',
-      onOk: () => {
-        setData((prev) => prev.map((h) => (h.id === id ? { ...h, status: 'APPROVED' } : h)));
-        message.success(`Đã duyệt Homestay #${id}`);
-      },
-    });
-  };
-
-  const handleReject = (id: number) => {
-    Modal.confirm({
-      title: 'Từ chối Homestay?',
-      content: 'Vui lòng nhập lý do từ chối ở bước tiếp theo.',
-      okType: 'danger',
-      onOk: () => {
-        setData((prev) => prev.map((h) => (h.id === id ? { ...h, status: 'REJECTED' } : h)));
-        message.success(`Đã từ chối Homestay #${id}`);
-      },
-    });
-  };
-
   const columns = [
     {
-      title: 'Ảnh',
-      dataIndex: 'thumbnail',
-      render: (url: string) => <Image src={url} width={80} height={50} style={{ objectFit: 'cover', borderRadius: 4 }} />,
+      title: 'Homestay',
+      key: 'info',
+      width: 260,
+      render: (_: any, record: AdminHomestayItem) => (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <div style={{
+            width: 64, height: 48, borderRadius: 6, flexShrink: 0,
+            overflow: 'hidden', background: '#f1f5f9',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {record.cover_image ? (
+              <img
+                src={record.cover_image}
+                alt={record.name}
+                style={{ width: 64, height: 48, objectFit: 'cover', display: 'block' }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            ) : (
+              <HomeOutlined style={{ color: '#94a3b8' }} />
+            )}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 500, marginBottom: 2, lineHeight: 1.4 }}>{record.name}</div>
+            <Text type="secondary" style={{ fontSize: 12 }}>{record.city}</Text>
+          </div>
+        </div>
+      ),
     },
-    { title: 'Tên Homestay', dataIndex: 'title' },
-    { title: 'Host', dataIndex: 'hostName' },
-    { title: 'Thành phố', dataIndex: 'city' },
-    { title: 'Loại hình', dataIndex: 'propertyType' },
+
+    {
+      title: 'Host',
+      key: 'host',
+      width: 160,
+      render: (_: any, record: AdminHomestayItem) =>
+        record.host_name ? (
+          <div>
+            <div style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.host_name}</div>
+            {record.is_claimed ? <Tag color="blue" style={{ fontSize: 10 }}>Chính chủ</Tag> : <Tag style={{ fontSize: 10 }}>Chưa nhận</Tag>}
+          </div>
+        ) : <Text type="secondary">—</Text>,
+    },
+    {
+      title: 'Phòng',
+      dataIndex: 'rooms_count',
+      width: 70,
+      align: 'center' as const,
+      render: (v: number) => <Badge count={v} showZero style={{ backgroundColor: v > 0 ? '#6366f1' : '#d9d9d9' }} />,
+    },
+    {
+      title: 'Đánh giá',
+      key: 'rating',
+      width: 160,
+      render: (_: any, record: AdminHomestayItem) =>
+        record.average_rating > 0 ? (
+          <div>
+            <Rate disabled defaultValue={Math.round(record.average_rating)} count={5} style={{ fontSize: 11 }} />
+            <div style={{ fontSize: 11, color: '#64748b' }}>{(Number(record.average_rating) || 0).toFixed(1)} ({record.total_reviews})</div>
+          </div>
+        ) : <Text type="secondary">—</Text>,
+    },
     {
       title: 'Trạng thái',
       dataIndex: 'status',
-      render: (s: string) => {
-        const color = s === 'APPROVED' ? 'success' : s === 'REJECTED' ? 'error' : 'warning';
-        return <Tag color={color}>{s}</Tag>;
+      width: 120,
+      render: (status: string) => {
+        const info = STATUS_MAP[status] ?? { color: 'default', label: status };
+        return <Badge status={info.color as any} text={info.label} />;
       },
     },
-    { title: 'Ngày đăng ký', dataIndex: 'createdAt' },
+    {
+      title: 'Ngày tạo',
+      dataIndex: 'created_at',
+      width: 100,
+      render: (v: string) => v ? new Date(v).toLocaleDateString('vi-VN') : '—',
+    },
     {
       title: 'Hành động',
-      render: (_: any, record: HomestayPending) =>
-        record.status === 'PENDING' ? (
-          <Space>
-            <Button type="primary" size="small" onClick={() => handleApprove(record.id)}>Duyệt</Button>
-            <Button danger size="small" onClick={() => handleReject(record.id)}>Từ chối</Button>
-          </Space>
-        ) : (
-          <Tag>Đã xử lý</Tag>
-        ),
+      key: 'actions',
+      width: 148,
+      fixed: 'right' as const,
+      render: (_: any, record: AdminHomestayItem) => (
+        <Space size={4}>
+          <Tooltip title="Chi tiết">
+            <Button size="small" icon={<EyeOutlined />} onClick={() => handleViewDetail(record.id)} />
+          </Tooltip>
+          <Tooltip title="Đổi trạng thái">
+            <Button size="small" icon={<EditOutlined />} onClick={() => handleOpenStatusModal(record.id, record.status)} />
+          </Tooltip>
+          <Tooltip title="Gán Host">
+            <Button size="small" icon={<UserAddOutlined />} onClick={() => handleOpenAssign(record.id)} />
+          </Tooltip>
+          <Tooltip title="Xóa">
+            <Popconfirm
+              title="Xác nhận xóa homestay?"
+              description="Chỉ xóa được khi không có booking active"
+              onConfirm={() => handleDelete(record.id)}
+            >
+              <Button size="small" danger icon={<DeleteOutlined />} />
+            </Popconfirm>
+          </Tooltip>
+        </Space>
+      ),
     },
   ];
 
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <Title level={2} style={{ margin: 0 }}>Quản Lý &amp; Thu Thập Dữ Liệu Homestay</Title>
-        <Text type="secondary">Phê duyệt chỗ nghỉ đăng ký mới và tự động cào dữ liệu homestay từ Booking.com qua RapidAPI</Text>
+      <div style={{ marginBottom: 24 }}>
+        <Title level={2} style={{ margin: 0 }}>
+          <HomeOutlined style={{ marginRight: 8 }} />
+          Quản lý Homestay
+        </Title>
+        <Text type="secondary">Quản lý toàn bộ homestay: duyệt, chỉnh sửa, gán host và thu thập dữ liệu từ Booking.com</Text>
       </div>
 
-      {/* RAPIDAPI BOOKING.COM CRAWLER ENGINE */}
-      <Card
-        style={{
-          borderRadius: 14,
-          marginBottom: 24,
-          border: '1px solid #c7d2fe',
-          background: 'linear-gradient(180deg, #f8faff 0%, #ffffff 100%)',
-        }}
+      {/* STATS */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
+        <Col xs={12} sm={6}>
+          <Card size="small" style={{ borderRadius: 12, borderLeft: '4px solid #6366f1' }}>
+            <Statistic title="Tổng homestay" value={totalCount}
+              prefix={<HomeOutlined />} valueStyle={{ color: '#6366f1', fontWeight: 700 }} />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small" style={{ borderRadius: 12, borderLeft: '4px solid #10b981' }}>
+            <Statistic title="Đang hoạt động" value={data.filter(h => h.status === 'ACTIVE').length}
+              prefix={<CheckCircleOutlined />} valueStyle={{ color: '#10b981', fontWeight: 700 }} />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small" style={{ borderRadius: 12, borderLeft: '4px solid #3b82f6' }}>
+            <Statistic title="Đã xác nhận chủ" value={data.filter(h => h.is_claimed).length}
+              prefix={<CheckOutlined />} valueStyle={{ color: '#3b82f6', fontWeight: 700 }} />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small" style={{ borderRadius: 12, borderLeft: '4px solid #ef4444' }}>
+            <Statistic title="Bị cấm" value={data.filter(h => h.status === 'BANNED').length}
+              prefix={<StopOutlined />} valueStyle={{ color: '#ef4444', fontWeight: 700 }} />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* CRAWLER */}
+      {/* <Card
+        style={{ borderRadius: 14, marginBottom: 20, border: '1px solid #c7d2fe', background: 'linear-gradient(180deg, #f8faff 0%, #fff 100%)' }}
       >
-        <Row gutter={[20, 20]} align="middle">
-          <Col xs={24} lg={14}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-              <GlobalOutlined style={{ fontSize: 24, color: '#4f46e5' }} />
-              <Title level={4} style={{ margin: 0, color: '#312e81' }}>
-                Thu Thập Dữ Liệu Tự Động từ Booking.com (RapidAPI Engine)
-              </Title>
-              <Tag color="purple">2-Tier Architecture</Tag>
-            </div>
-            <Paragraph style={{ color: '#475569', fontSize: 13, marginBottom: 16 }}>
-              Cào thông tin homestay tĩnh (tên, địa chỉ, kinh độ, vĩ độ, album ảnh, tiện nghi) và dữ liệu động (giá phòng)
-              lưu trực tiếp vào CSDL MySQL Aiven Cloud ở trạng thái <strong>UNCLAIMED</strong> (Chờ chủ nhà xác thực chính chủ).
-            </Paragraph>
-
-            <Row gutter={12}>
-              <Col xs={24} sm={12}>
-                <Text strong style={{ display: 'block', marginBottom: 4 }}>Thành Phố Cần Cào Dữ Liệu:</Text>
-                <Select
-                  style={{ width: '100%' }}
-                  size="large"
-                  value={selectedCity}
-                  onChange={(val) => setSelectedCity(val)}
-                  options={TOURIST_CITIES}
-                />
-              </Col>
-              <Col xs={24} sm={6}>
-                <Text strong style={{ display: 'block', marginBottom: 4 }}>Số Lượng:</Text>
-                <Select
-                  style={{ width: '100%' }}
-                  size="large"
-                  value={limitCount}
-                  onChange={(val) => setLimitCount(val)}
-                  options={[
-                    { label: '5 chỗ nghỉ', value: 5 },
-                    { label: '10 chỗ nghỉ', value: 10 },
-                    { label: '20 chỗ nghỉ', value: 20 },
-                  ]}
-                />
-              </Col>
-              <Col xs={24} sm={6} style={{ display: 'flex', alignItems: 'flex-end' }}>
-                <Button
-                  type="primary"
-                  icon={<RocketOutlined />}
-                  size="large"
-                  loading={crawling}
-                  onClick={handleCrawlBooking}
-                  block
-                  style={{ background: '#4f46e5', height: 40, fontWeight: 600 }}
-                >
-                  Bắt Đầu Cào
-                </Button>
-              </Col>
-            </Row>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <GlobalOutlined style={{ fontSize: 20, color: '#4f46e5' }} />
+          <Title level={5} style={{ margin: 0, color: '#312e81' }}>Thu Thập Dữ Liệu Tự Động từ Booking.com (RapidAPI)</Title>
+          <Tag color="purple">2-Tier</Tag>
+        </div>
+        <Paragraph style={{ color: '#64748b', fontSize: 13, marginBottom: 16 }}>
+          Cào thông tin homestay (tên, địa chỉ, kinh độ, vĩ độ, ảnh, tiện nghi, giá phòng) và lưu vào CSDL ở trạng thái <strong>UNCLAIMED</strong>.
+        </Paragraph>
+        <Row gutter={12} align="bottom">
+          <Col xs={24} sm={10}>
+            <Text strong style={{ display: 'block', marginBottom: 4 }}>Thành phố:</Text>
+            <Select style={{ width: '100%' }} size="large" value={selectedCity}
+              onChange={(v) => setSelectedCity(v)} options={TOURIST_CITIES} />
           </Col>
-
-          <Col xs={24} lg={10}>
-            <div style={{ background: '#ffffff', padding: 16, borderRadius: 12, border: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text strong>Cấu hình RapidAPI Gateway:</Text>
-                <Tag color="cyan">booking-com15</Tag>
-              </div>
-              <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
-                Đọc khóa bảo mật từ file <code>backend/.env</code> (<code>RAPIDAPI_KEY</code>). Nếu chưa điền key, hệ thống tự động kích hoạt bộ cào thực địa mẫu chất lượng cao.
-              </Text>
-
-              {crawlResult && (
-                <Alert
-                  type="success"
-                  showIcon
-                  icon={<CheckCircleOutlined />}
-                  message={`Đã nạp ${crawlResult.total_saved} homestay tại ${crawlResult.city}`}
-                  description={
-                    <div style={{ fontSize: 12 }}>
-                      <div>Nguồn dữ liệu: <strong>{crawlResult.source === 'RAPIDAPI_LIVE' ? 'API Booking.com Trực Tiếp' : 'Thư viện Dữ liệu Thực địa Chuẩn'}</strong></div>
-                      <div>Số phòng &amp; album ảnh đã khởi tạo: <strong>{crawlResult.total_rooms_created} phòng</strong></div>
-                    </div>
-                  }
-                />
-              )}
-            </div>
+          <Col xs={12} sm={5}>
+            <Text strong style={{ display: 'block', marginBottom: 4 }}>Số lượng:</Text>
+            <Select style={{ width: '100%' }} size="large" value={limitCount}
+              onChange={(v) => setLimitCount(v)}
+              options={[{ label: '5', value: 5 }, { label: '10', value: 10 }, { label: '20', value: 20 }]} />
           </Col>
+          <Col xs={12} sm={5}>
+            <Button type="primary" icon={<RocketOutlined />} size="large" loading={crawling}
+              onClick={handleCrawl} block style={{ background: '#4f46e5', border: 'none', height: 40 }}>
+              Bắt đầu cào
+            </Button>
+          </Col>
+          {crawlResult && (
+            <Col xs={24}>
+              <Alert type="success" showIcon
+                message={`Đã nạp ${crawlResult.total_saved} homestay tại ${crawlResult.city}`}
+                description={`Nguồn: ${crawlResult.source === 'RAPIDAPI_LIVE' ? 'API Booking.com trực tiếp' : 'Dữ liệu mẫu chuẩn'} — ${crawlResult.total_rooms_created} phòng khởi tạo`}
+                style={{ marginTop: 12 }}
+              />
+            </Col>
+          )}
         </Row>
+      </Card> */}
+
+      {/* FILTER */}
+      <Card style={{ borderRadius: 14, marginBottom: 20 }}>
+        <Space wrap>
+          <Input
+            placeholder="Tìm theo tên, địa chỉ, host"
+            prefix={<SearchOutlined />}
+            allowClear
+            style={{ width: 280 }}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            onPressEnter={() => fetchHomestays(1)}
+          />
+          <Select placeholder="Trạng thái" allowClear style={{ width: 180 }}
+            value={filterStatus} onChange={(v) => setFilterStatus(v)}
+            options={STATUS_OPTIONS.map((s) => ({ value: s, label: STATUS_MAP[s]?.label ?? s }))}
+          />
+          <Select placeholder="Thành phố" allowClear style={{ width: 160 }}
+            value={filterCity} onChange={(v) => setFilterCity(v)}
+            options={TOURIST_CITIES}
+          />
+          <Select placeholder="Chính chủ" allowClear style={{ width: 150 }}
+            value={filterClaimed} onChange={(v) => setFilterClaimed(v)}
+            options={[{ value: 1, label: 'Đã xác nhận' }, { value: 0, label: 'Chưa xác nhận' }]}
+          />
+          <Button type="primary" onClick={() => fetchHomestays(1)}>Lọc</Button>
+        </Space>
       </Card>
 
-      {/* DANH SÁCH HOMESTAY PENDING */}
-      <Card title="Danh Sách Homestay Đăng Ký Chờ Phê Duyệt" style={{ borderRadius: 14 }}>
+      {/* TABLE */}
+      <Card style={{ borderRadius: 14 }}>
         <Table
           rowKey="id"
           loading={loading}
           columns={columns}
           dataSource={data}
+          scroll={{ x: 1020 }}
+          size="middle"
           pagination={{
-            pageSize: 10,
+            current: pagination.page,
+            pageSize: pagination.limit,
+            total: pagination.total,
             showSizeChanger: true,
-            pageSizeOptions: ['10', '20', '50'],
-            showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} homestay chờ duyệt`,
+            showTotal: (total, range) => `${range[0]}-${range[1]} / ${total} homestay`,
+            onChange: (p, size) => {
+              setPagination((prev) => ({ ...prev, limit: size ?? 10 }));
+              fetchHomestays(p);
+            },
           }}
         />
       </Card>
+
+      {/* DRAWER CHI TIẾT */}
+      <Drawer
+        title="Chi tiết Homestay"
+        width={640}
+        open={detailOpen}
+        onClose={() => { setDetailOpen(false); setDetailData(null); }}
+        loading={detailLoading}
+      >
+        {detailData && (
+          <div>
+            <Descriptions column={2} bordered size="small" style={{ marginBottom: 16 }}>
+              <Descriptions.Item label="Tên" span={2}>{detailData.name}</Descriptions.Item>
+              <Descriptions.Item label="Địa chỉ" span={2}>{detailData.address}</Descriptions.Item>
+              <Descriptions.Item label="Thành phố">{detailData.city}</Descriptions.Item>
+              <Descriptions.Item label="Trạng thái">
+                <Badge status={(STATUS_MAP[detailData.status]?.color ?? 'default') as any}
+                  text={STATUS_MAP[detailData.status]?.label ?? detailData.status} />
+              </Descriptions.Item>
+              <Descriptions.Item label="Toạ độ">
+                {detailData.latitude}, {detailData.longitude}
+              </Descriptions.Item>
+              <Descriptions.Item label="Chính chủ">
+                {detailData.is_claimed ? <Tag color="blue">Đã xác nhận</Tag> : <Tag>Chưa nhận</Tag>}
+              </Descriptions.Item>
+              <Descriptions.Item label="SĐT crawl">{detailData.crawled_phone || '—'}</Descriptions.Item>
+              <Descriptions.Item label="Đánh giá">
+                ⭐ {(Number(detailData.average_rating) || 0).toFixed(1)} ({detailData.total_reviews ?? 0} đánh giá)
+              </Descriptions.Item>
+              <Descriptions.Item label="Ngày tạo" span={2}>
+                {new Date(detailData.created_at).toLocaleString('vi-VN')}
+              </Descriptions.Item>
+            </Descriptions>
+
+            {detailData.host && (
+              <>
+                <Title level={5}><AlertOutlined /> Host phụ trách</Title>
+                <Descriptions column={2} bordered size="small" style={{ marginBottom: 16 }}>
+                  <Descriptions.Item label="Họ tên">{detailData.host.full_name}</Descriptions.Item>
+                  <Descriptions.Item label="Email">{detailData.host.email}</Descriptions.Item>
+                  <Descriptions.Item label="SĐT">{detailData.host.phone_number || '—'}</Descriptions.Item>
+                </Descriptions>
+              </>
+            )}
+
+            <Title level={5}><HomeOutlined /> Danh sách phòng ({detailData.rooms.length})</Title>
+            {detailData.rooms.map((r) => (
+              <Card key={r.id} size="small" style={{ marginBottom: 8, borderRadius: 8 }}>
+                <Row>
+                  <Col span={16}>
+                    <div style={{ fontWeight: 500 }}>{r.room_name}</div>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {r.capacity} người{r.area_sqm != null ? ` · ${r.area_sqm}m²` : ''}{r.bed_info ? ` · ${r.bed_info}` : ''}
+                    </Text>
+                  </Col>
+                  <Col span={8} style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 600, color: '#6366f1' }}>
+                      {(r.base_price ?? 0).toLocaleString('vi-VN')}đ/đêm
+                    </div>
+                    <Text type="secondary" style={{ fontSize: 11 }}>{r.images_count} ảnh</Text>
+                  </Col>
+                </Row>
+              </Card>
+            ))}
+          </div>
+        )}
+      </Drawer>
+
+      {/* MODAL ĐỔI TRẠNG THÁI */}
+      <Modal
+        title={<><EditOutlined /> Cập nhật trạng thái Homestay</>}
+        open={statusOpen}
+        onCancel={() => setStatusOpen(false)}
+        onOk={handleUpdateStatus}
+        confirmLoading={statusLoading}
+        okText="Cập nhật"
+        cancelText="Hủy"
+      >
+        <Form form={statusForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="status" label="Trạng thái mới" rules={[{ required: true }]}>
+            <Select options={STATUS_OPTIONS.map((s) => ({ value: s, label: STATUS_MAP[s]?.label ?? s }))} />
+          </Form.Item>
+          <Form.Item name="reason" label="Lý do (tùy chọn)">
+            <Input.TextArea rows={3} placeholder="Nhập lý do thay đổi trạng thái..." />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* MODAL GÁN HOST */}
+      <Modal
+        title={<><UserAddOutlined /> Gán Host cho Homestay</>}
+        open={assignOpen}
+        onCancel={() => setAssignOpen(false)}
+        onOk={handleAssignHost}
+        confirmLoading={assignLoading}
+        okText="Gán"
+        cancelText="Hủy"
+      >
+        <Form form={assignForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="host_id" label="ID Host" rules={[{ required: true, message: 'Nhập ID của host' }]}>
+            <Input placeholder="Nhập UUID của host muốn gán" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }
