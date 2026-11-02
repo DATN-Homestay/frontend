@@ -102,9 +102,14 @@ export interface HostDashboardStats {
 export interface HostCoupon {
   id: string;
   code: string;
-  discount_type: 'PERCENT' | 'FIXED_AMOUNT';
+  discount_type: 'PERCENTAGE' | 'FIXED_AMOUNT';
   discount_value: number;
   min_order_value?: number;
+  name?: string | null;
+  max_discount?: number | string | null;
+  usage_limit?: number | null;
+  used_count?: number;
+  per_user_limit?: number;
   start_date: string;
   end_date: string;
   is_active: number;

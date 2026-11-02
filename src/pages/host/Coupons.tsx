@@ -45,7 +45,7 @@ export default function HostCouponsPage() {
         {
           id: '1',
           code: 'WELCOME10',
-          discount_type: 'PERCENT',
+          discount_type: 'PERCENTAGE',
           discount_value: 10,
           min_order_value: 1000000,
           start_date: '2026-10-01',
@@ -76,9 +76,14 @@ export default function HostCouponsPage() {
       const [start, end] = values.date_range;
       await hostService.createCoupon({
         code: values.code.trim().toUpperCase(),
+        name: values.name?.trim() || undefined,
         discount_type: values.discount_type,
         discount_value: Number(values.discount_value),
         min_order_value: values.min_order_value ? Number(values.min_order_value) : undefined,
+        max_discount:
+          values.discount_type === 'PERCENTAGE' && values.max_discount ? Number(values.max_discount) : undefined,
+        usage_limit: values.usage_limit ? Number(values.usage_limit) : undefined,
+        per_user_limit: values.per_user_limit ? Number(values.per_user_limit) : undefined,
         start_date: start.format('YYYY-MM-DD'),
         end_date: end.format('YYYY-MM-DD'),
       });
@@ -95,8 +100,9 @@ export default function HostCouponsPage() {
 
   const handleDeleteCoupon = async (id: string) => {
     try {
-      await hostService.deleteCoupon(id);
-      message.success('Đã xóa mã giảm giá');
+      const res = await hostService.deleteCoupon(id);
+      const info = res?.data?.data ?? (res?.data as { deactivated?: boolean; message?: string } | undefined);
+      message.success(info?.deactivated ? 'Mã đã có lượt dùng nên được tắt thay vì xóa' : 'Đã xóa mã giảm giá');
       loadCoupons();
     } catch (err: any) {
       message.error(err.message || 'Xóa thất bại');
@@ -121,7 +127,7 @@ export default function HostCouponsPage() {
       key: 'discount',
       render: (_: any, r: HostCoupon) => (
         <strong style={{ color: '#10b981', fontSize: 15 }}>
-          {r.discount_type === 'PERCENT'
+          {r.discount_type === 'PERCENTAGE'
             ? `Giảm ${r.discount_value}%`
             : `Giảm ${Number(r.discount_value).toLocaleString('vi-VN')}đ`}
         </strong>
@@ -133,6 +139,16 @@ export default function HostCouponsPage() {
       key: 'min_order_value',
       render: (val?: number) =>
         val ? `${Number(val).toLocaleString('vi-VN')}đ` : <Text type="secondary">Không giới hạn</Text>,
+    },
+    {
+      title: 'Đã Dùng',
+      key: 'usage',
+      render: (_: any, r: HostCoupon) => (
+        <span>
+          {r.used_count ?? 0}
+          {r.usage_limit ? ` / ${r.usage_limit}` : ' / không giới hạn'}
+        </span>
+      ),
     },
     {
       title: 'Thời Gian Áp Dụng',
@@ -148,7 +164,9 @@ export default function HostCouponsPage() {
       key: 'status',
       render: (_: any, r: HostCoupon) => {
         const isExpired = dayjs().isAfter(dayjs(r.end_date), 'day');
+        if (r.is_active === 0) return <Tag color="default">Đã tắt</Tag>;
         if (isExpired) return <Tag color="default">Đã hết hạn</Tag>;
+        if (r.usage_limit && (r.used_count ?? 0) >= r.usage_limit) return <Tag color="warning">Hết lượt</Tag>;
         return <Tag color="success">Đang hoạt động</Tag>;
       },
     },
@@ -216,7 +234,7 @@ export default function HostCouponsPage() {
         onCancel={() => setModalOpen(false)}
         footer={null}
       >
-        <Form form={form} layout="vertical" onFinish={handleCreateCoupon} initialValues={{ discount_type: 'PERCENT', discount_value: 10 }}>
+        <Form form={form} layout="vertical" onFinish={handleCreateCoupon} initialValues={{ discount_type: 'PERCENTAGE', discount_value: 10 }}>
           <Form.Item
             label="Mã Khuyến Mãi (Viết hoa, không dấu, liền nhau)"
             name="code"
@@ -227,13 +245,23 @@ export default function HostCouponsPage() {
 
           <Form.Item label="Hình Thức Giảm Giá" name="discount_type" rules={[{ required: true }]}>
             <Select size="large">
-              <Select.Option value="PERCENT">Giảm theo tỷ lệ phần trăm (%)</Select.Option>
+              <Select.Option value="PERCENTAGE">Giảm theo tỷ lệ phần trăm (%)</Select.Option>
               <Select.Option value="FIXED_AMOUNT">Giảm số tiền cố định (VNĐ)</Select.Option>
             </Select>
           </Form.Item>
 
           <Form.Item label="Giá Trị Giảm" name="discount_value" rules={[{ required: true, message: 'Vui lòng nhập giá trị giảm' }]}>
             <InputNumber min={1} style={{ width: '100%' }} size="large" placeholder="Ví dụ: 10 (cho 10%) hoặc 50000 (cho 50k VNĐ)" />
+          </Form.Item>
+
+          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.discount_type !== cur.discount_type}>
+            {({ getFieldValue }) =>
+              getFieldValue('discount_type') === 'PERCENTAGE' ? (
+                <Form.Item label="Giảm Tối Đa (VNĐ, không bắt buộc)" name="max_discount">
+                  <InputNumber min={1000} step={10000} style={{ width: '100%' }} size="large" placeholder="Ví dụ: 200000 để giảm không quá 200k" />
+                </Form.Item>
+              ) : null
+            }
           </Form.Item>
 
           <Form.Item label="Giá Trị Đơn Hàng Tối Thiểu (VNĐ)" name="min_order_value">
@@ -246,6 +274,15 @@ export default function HostCouponsPage() {
               formatter={(val) => `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
             />
           </Form.Item>
+
+          <Space style={{ width: '100%' }} size={12} align="start">
+            <Form.Item label="Tổng Số Lượt Dùng" name="usage_limit" style={{ flex: 1 }}>
+              <InputNumber min={1} style={{ width: '100%' }} size="large" placeholder="Để trống = không giới hạn" />
+            </Form.Item>
+            <Form.Item label="Số Lượt Mỗi Khách" name="per_user_limit" style={{ flex: 1 }}>
+              <InputNumber min={1} max={1000} style={{ width: '100%' }} size="large" />
+            </Form.Item>
+          </Space>
 
           <Form.Item
             label="Thời Hạn Áp Dụng (Từ ngày ➔ Đến ngày)"

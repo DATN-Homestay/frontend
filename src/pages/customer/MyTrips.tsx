@@ -319,6 +319,13 @@ export default function MyTripsPage() {
                 { key: 'homestay', label: 'Homestay', children: `${detail.homestay.name} — ${detail.homestay.address}, ${detail.homestay.city}` },
                 { key: 'room', label: 'Phòng', children: detail.room.room_name },
                 { key: 'dates', label: 'Lưu trú', children: `${detail.check_in_date} ➔ ${detail.check_out_date} (${detail.nights} đêm, ${detail.num_guests} khách)` },
+                ...(detail.discount_amount > 0
+                  ? [{
+                      key: 'discount',
+                      label: 'Mã giảm giá',
+                      children: <span style={{ color: '#10b981' }}>{detail.coupon_code ?? 'Đã áp dụng'}: -{money(detail.discount_amount)}</span>,
+                    }]
+                  : []),
                 { key: 'total', label: 'Tổng tiền', children: <strong>{money(detail.total_amount)}</strong> },
                 { key: 'policy', label: 'Chính sách hủy', children: POLICY_LABEL[detail.homestay.cancellation_policy] ?? detail.homestay.cancellation_policy },
                 ...(detail.customer_note ? [{ key: 'note', label: 'Ghi chú', children: detail.customer_note }] : []),

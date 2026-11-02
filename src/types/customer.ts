@@ -117,9 +117,35 @@ export interface CreatedBooking {
   nights: number;
   num_guests: number;
   total_amount: number;
+  room_subtotal?: number;
+  discount_amount?: number;
+  coupon_code?: string | null;
   is_dropship: boolean;
   payment_deadline: string;
 }
+
+/** data của POST /coupons/validate: luôn HTTP 200, `valid` cho biết mã có dùng được không */
+export type CouponCheck =
+  | {
+      valid: true;
+      reason: null;
+      message: string;
+      code: string;
+      name: string | null;
+      discount_type: 'PERCENTAGE' | 'FIXED_AMOUNT';
+      discount_value: number;
+      subtotal: number;
+      discount_amount: number;
+      total_amount: number;
+    }
+  | {
+      valid: false;
+      reason: string;
+      message: string;
+      subtotal: number;
+      discount_amount: number;
+      total_amount: number;
+    };
 
 /** data của POST /bookings/:id/payment-url */
 export interface PaymentLink {
@@ -208,6 +234,7 @@ export interface BookingDetail {
   customer_note: string | null;
   room_subtotal: number;
   discount_amount: number;
+  coupon_code?: string | null;
   total_amount: number;
   payment_deadline: string | null;
   payments: { id: string; amount: number; method: string; status: string; transaction_code: string | null; created_at: string }[];
