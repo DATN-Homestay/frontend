@@ -85,7 +85,7 @@ export default function HomePage() {
   const loadHomestays = async () => {
     setLoading(true);
     try {
-      const res: any = await customerService.getHomestays(undefined, 3000);
+      const res: any = await customerService.getHomestays();
       const items = res?.items || res?.data?.items || (Array.isArray(res) ? res : []);
       setAllHomestays(items);
       // Hiển thị ngay 100% dữ liệu cào về không ràng buộc bất kỳ điều kiện lọc nào
@@ -184,7 +184,7 @@ export default function HomePage() {
     setLoading(true);
     try {
       const cityParam = searchCity && searchCity !== 'Tất cả điểm đến' && searchCity !== 'Tất cả' ? searchCity : undefined;
-      const res: any = await customerService.getHomestays(cityParam, 3000);
+      const res: any = await customerService.getHomestays(cityParam);
       const items = res?.items || res?.data?.items || (Array.isArray(res) ? res : allHomestays);
       if (!cityParam) {
         setAllHomestays(items);
@@ -424,7 +424,7 @@ export default function HomePage() {
             Tìm homestay hoàn hảo cho kỳ nghỉ của bạn
           </Title>
           <Paragraph style={{ color: '#cbd5e1', fontSize: 16, marginBottom: 32 }}>
-            Hơn 1.000+ chỗ nghỉ đã xác thực eKYC chính chủ và bảo vệ thanh toán Escrow 24 giờ
+            Khám phá toàn bộ {allHomestays.length > 0 ? `${allHomestays.length.toLocaleString('vi-VN')}+` : '1.300+'} chỗ nghỉ đã xác thực eKYC chính chủ và bảo vệ thanh toán Escrow 24 giờ
           </Paragraph>
 
           {/* ======================================================== */}

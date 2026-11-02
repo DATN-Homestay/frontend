@@ -16,7 +16,7 @@ import type {
 } from '../types/customer';
 
 export const customerService = {
-  async getHomestays(city?: string, limit = 1000, offset = 0): Promise<{ items: HomestayItem[]; total: number }> {
+  async getHomestays(city?: string, limit?: number, offset?: number): Promise<{ items: HomestayItem[]; total: number }> {
     try {
       const res: any = await apiClient('/homestays', {
         params: {
