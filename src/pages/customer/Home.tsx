@@ -85,7 +85,7 @@ export default function HomePage() {
   const loadHomestays = async () => {
     setLoading(true);
     try {
-      const res: any = await customerService.getHomestays(undefined, 1000);
+      const res: any = await customerService.getHomestays(undefined, 3000);
       const items = res?.items || res?.data?.items || (Array.isArray(res) ? res : []);
       setAllHomestays(items);
       // Hiển thị ngay 100% dữ liệu cào về không ràng buộc bất kỳ điều kiện lọc nào
@@ -130,7 +130,7 @@ export default function HomePage() {
         'quảng nam': ['hội an', 'quảng nam'],
         'hội an': ['hội an', 'quảng nam'],
         'đà nẵng': ['đà nẵng', 'da nang'],
-        'hà nội': ['hà nội', 'ha noi', 'hoàn kiếm', 'tây hồ'],
+        'hà nội': ['hà nội', 'ha noi', 'hoàn kiếm', 'tây hồ', 'hà đông', 'ba đình', 'cầu giấy', 'đống đa', 'hai bà trưng', 'nam từ liêm', 'bắc từ liêm', 'thanh xuân', 'long biên'],
         'hồ chí minh': ['hồ chí minh', 'sài gòn', 'saigon', 'tp.hcm', 'tp hcm'],
       };
       const validNames = aliases[cityLower] || [cityLower];
@@ -183,9 +183,12 @@ export default function HomePage() {
   const handleSearchSubmit = async () => {
     setLoading(true);
     try {
-      const res: any = await customerService.getHomestays(undefined, 1000);
+      const cityParam = searchCity && searchCity !== 'Tất cả điểm đến' && searchCity !== 'Tất cả' ? searchCity : undefined;
+      const res: any = await customerService.getHomestays(cityParam, 3000);
       const items = res?.items || res?.data?.items || (Array.isArray(res) ? res : allHomestays);
-      setAllHomestays(items);
+      if (!cityParam) {
+        setAllHomestays(items);
+      }
       applyFilter(
         items,
         searchCity,
@@ -450,8 +453,17 @@ export default function HomePage() {
                 placeholder="Tất cả điểm đến (Toàn quốc)"
                 value={searchCity || undefined}
                 onChange={(val) => {
-                  setSearchCity(val || undefined);
+                  const cityVal = val && val !== 'Tất cả điểm đến' ? val : undefined;
+                  setSearchCity(cityVal);
                   setSearchDistrict(undefined);
+                  applyFilter(
+                    allHomestays,
+                    cityVal,
+                    undefined,
+                    filterByGuests,
+                    filterByGuests ? guestConfig.adults + guestConfig.children : 0,
+                    filterByGuests ? guestConfig.rooms : 1,
+                  );
                 }}
                 filterOption={(input, option) =>
                   ((option?.value as string) || '').toLowerCase().includes(input.toLowerCase())
@@ -500,7 +512,18 @@ export default function HomePage() {
                 allowClear
                 placeholder="Tất cả quận/huyện"
                 value={searchDistrict || undefined}
-                onChange={(val) => setSearchDistrict(val || undefined)}
+                onChange={(val) => {
+                  const distVal = val && val !== 'Tất cả quận/huyện' ? val : undefined;
+                  setSearchDistrict(distVal);
+                  applyFilter(
+                    allHomestays,
+                    searchCity,
+                    distVal,
+                    filterByGuests,
+                    filterByGuests ? guestConfig.adults + guestConfig.children : 0,
+                    filterByGuests ? guestConfig.rooms : 1,
+                  );
+                }}
                 filterOption={(input, option) =>
                   ((option?.value as string) || '').toLowerCase().includes(input.toLowerCase())
                 }
