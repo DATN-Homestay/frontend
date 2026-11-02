@@ -306,18 +306,6 @@ export default function PriceCalendarPage() {
         is_available: isAvailNum,
       });
 
-      // 3. Ghi nhận qua Dynamic Pricing (tùy chọn)
-      try {
-        await hostService.applyPricing({
-          homestay_id: selectedHomestayId,
-          date: selectedDayDate,
-          applied_price: priceNum,
-          room_id: selectedRoomId,
-        });
-      } catch {
-        // Dynamic pricing apply optional
-      }
-
       const statusText = isAvailNum === 0 ? 'Đã khóa / Đặt offline' : 'Còn trống';
       message.success(`✓ Đã lưu ngày ${dayjs(selectedDayDate).format('DD/MM/YYYY')}: ${priceNum.toLocaleString('vi-VN')}đ [${statusText}]!`);
       setDayModalOpen(false);
