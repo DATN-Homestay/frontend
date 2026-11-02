@@ -118,18 +118,8 @@ export default function PriceCalendarPage() {
 
   const normalizeDate = (d: any): string => {
     if (!d) return '';
-    if (typeof d === 'string') {
-      if (d.includes('T')) {
-        return d.split('T')[0];
-      }
-      return d.slice(0, 10);
-    }
-    if (d instanceof Date) {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
-    }
+    // Sử dụng dayjs để chuyển đổi chính xác theo múi giờ local của trình duyệt (GMT+7)
+    // Tránh bị lệch lùi 1 ngày do cắt chuỗi UTC (VD: 2026-11-03T17:00:00.000Z là ngày 2026-11-04)
     return dayjs(d).format('YYYY-MM-DD');
   };
 

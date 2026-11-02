@@ -259,18 +259,20 @@ export default function HomestayDetailPage() {
     setCheckingAvailability(true);
     customerService
       .quoteBooking({
-        room_id: selectedRoom.id,
+        room_id: String(selectedRoom.id),
         check_in_date: dateRange[0],
         check_out_date: dateRange[1],
       })
-      .then((quote) => {
+      .then((quote: any) => {
         if (isSubscribed) {
-          setRoomAvailabilityQuote(quote);
+          const q = quote?.data ?? quote;
+          setRoomAvailabilityQuote(q);
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('Lỗi khi kiểm tra tình trạng phòng:', err);
         if (isSubscribed) {
-          setRoomAvailabilityQuote({ available: false, error: true });
+          setRoomAvailabilityQuote({ available: false, error: true, error_message: err?.message });
         }
       })
       .finally(() => {
@@ -1579,8 +1581,8 @@ export default function HomestayDetailPage() {
                           <span>⚠️</span> Phòng đã kín / có khách đặt ngày này!
                         </div>
                         <div style={{ fontSize: 12, marginTop: 4, color: '#991b1b' }}>
-                          {roomAvailabilityQuote.held_dates?.length > 0
-                            ? `Các đêm đã có khách đặt: ${roomAvailabilityQuote.held_dates.join(', ')}.`
+                          {(roomAvailabilityQuote.unavailable_dates?.length > 0 || roomAvailabilityQuote.held_dates?.length > 0)
+                            ? `Các đêm đã kín phòng: ${(roomAvailabilityQuote.unavailable_dates || roomAvailabilityQuote.held_dates).join(', ')}.`
                             : 'Chủ nhà đã khóa phòng hoặc phòng đã được đặt các ngày này.'} Vui lòng chọn khoảng ngày khác.
                         </div>
                       </div>
