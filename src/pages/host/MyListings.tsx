@@ -23,8 +23,11 @@ import {
   Tooltip,
   Tabs,
   Alert,
+  DatePicker,
+  Radio,
 } from 'antd';
 import type { UploadFile } from 'antd';
+import dayjs from 'dayjs';
 import {
   PlusOutlined,
   HomeOutlined,
@@ -95,6 +98,12 @@ export default function MyListingsPage() {
   const [roomForm] = Form.useForm();
   const [imageForm] = Form.useForm();
 
+  // Modal Cập nhật tình trạng phòng thủ công (Offline / Mở phòng trống)
+  const [availModalOpen, setAvailModalOpen] = useState(false);
+  const [selectedAvailRoom, setSelectedAvailRoom] = useState<{ homestay: HostHomestay; room: RoomItem } | null>(null);
+  const [availUpdating, setAvailUpdating] = useState(false);
+  const [availForm] = Form.useForm();
+
   useEffect(() => {
     loadListings();
   }, []);
@@ -109,6 +118,37 @@ export default function MyListingsPage() {
       setData([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Cập nhật tình trạng phòng thủ công (Khách đặt offline hoặc mở nhận khách online)
+  const handleUpdateRoomAvailability = async (values: any) => {
+    if (!selectedAvailRoom) return;
+    const { room } = selectedAvailRoom;
+    setAvailUpdating(true);
+    try {
+      const [start, end] = values.date_range;
+      const from_date = start.format('YYYY-MM-DD');
+      const to_date = end.format('YYYY-MM-DD');
+      const is_available = Number(values.is_available);
+      const price = values.price !== undefined && values.price !== null ? Number(values.price) : undefined;
+
+      await hostService.batchUpdateCalendar(room.id, {
+        from_date,
+        to_date,
+        is_available,
+        price,
+      });
+
+      const label = is_available === 0 ? 'Đã có khách đặt offline (Khóa phòng trên web)' : 'Còn phòng trống (Mở cho khách online)';
+      message.success(`✓ Đã cập nhật [${label}] cho phòng "${room.room_name}" từ ${dayjs(from_date).format('DD/MM/YYYY')} đến ${dayjs(to_date).format('DD/MM/YYYY')}!`);
+      setAvailModalOpen(false);
+      availForm.resetFields();
+      loadListings();
+    } catch (err: any) {
+      message.error(err.message || 'Cập nhật tình trạng phòng thất bại');
+    } finally {
+      setAvailUpdating(false);
     }
   };
 
@@ -603,6 +643,28 @@ export default function MyListingsPage() {
         key: 'action',
         render: (_: any, r: RoomItem) => (
           <Space size="small">
+            <Button
+              size="small"
+              style={{
+                borderColor: '#f59e0b',
+                color: '#b45309',
+                background: '#fffbeb',
+                fontWeight: 600,
+              }}
+              icon={<CalendarOutlined />}
+              onClick={() => {
+                setSelectedAvailRoom({ homestay, room: r });
+                availForm.setFieldsValue({
+                  is_available: 0,
+                  date_range: [dayjs(), dayjs().add(1, 'day')],
+                  price: r.base_price,
+                  reason: 'Khách gọi điện thoại đặt trực tiếp (Offline)',
+                });
+                setAvailModalOpen(true);
+              }}
+            >
+              ⚡ Đặt offline / Mở phòng
+            </Button>
             <Button
               size="small"
               icon={<CalendarOutlined />}
@@ -1153,6 +1215,152 @@ export default function MyListingsPage() {
         width={700}
       >
         <img alt="Preview" style={{ width: '100%', borderRadius: 8, marginTop: 8 }} src={previewImage} />
+      </Modal>
+
+      {/* MODAL CẬP NHẬT TRẠNG THÁI PHÒNG THỦ CÔNG (ĐẶT OFFLINE / CÒN TRỐNG) */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 18 }}>⚡</span>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>
+                Cập Nhật Trạng Thái Phòng Thủ Công
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 400, color: '#64748b' }}>
+                Khóa phòng khi có khách đặt offline (gọi điện, vãng lai) hoặc mở nhận khách online trên web
+              </div>
+            </div>
+          </div>
+        }
+        open={availModalOpen}
+        onCancel={() => setAvailModalOpen(false)}
+        footer={null}
+        width={600}
+        destroyOnClose
+      >
+        {selectedAvailRoom && (
+          <Form form={availForm} layout="vertical" onFinish={handleUpdateRoomAvailability} style={{ marginTop: 16 }}>
+            <div
+              style={{
+                background: '#f8fafc',
+                padding: '12px 16px',
+                borderRadius: 10,
+                border: '1px solid #e2e8f0',
+                marginBottom: 20,
+              }}
+            >
+              <div style={{ fontSize: 13, color: '#64748b' }}>
+                Chỗ nghỉ: <strong>{selectedAvailRoom.homestay.name}</strong>
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#4338ca', marginTop: 4 }}>
+                Phòng: {selectedAvailRoom.room.room_name} ({selectedAvailRoom.room.capacity} khách)
+              </div>
+            </div>
+
+            <Form.Item
+              label="Trạng thái phòng"
+              name="is_available"
+              rules={[{ required: true, message: 'Vui lòng chọn trạng thái' }]}
+            >
+              <Radio.Group style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <Radio
+                  value={0}
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 8,
+                    border: '1px solid #fecaca',
+                    background: '#fef2f2',
+                    marginRight: 0,
+                  }}
+                >
+                  <strong style={{ color: '#dc2626' }}>🔴 Đã có khách đặt (Offline / Khóa phòng)</strong>
+                  <div style={{ fontSize: 12, color: '#7f1d1d', marginTop: 4 }}>
+                    Dành cho khách đặt trực tiếp, qua điện thoại hoặc bảo trì phòng. Phòng sẽ bị khóa và khách online trên web KHÔNG THỂ đặt trùng ngày này.
+                  </div>
+                </Radio>
+                <Radio
+                  value={1}
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 8,
+                    border: '1px solid #bbf7d0',
+                    background: '#f0fdf4',
+                    marginRight: 0,
+                  }}
+                >
+                  <strong style={{ color: '#16a34a' }}>🟢 Còn trống (Mở nhận khách online)</strong>
+                  <div style={{ fontSize: 12, color: '#14532d', marginTop: 4 }}>
+                    Mở lại phòng để khách du lịch có thể tìm thấy và đặt phòng trực tuyến qua web StayAI.
+                  </div>
+                </Radio>
+              </Radio.Group>
+            </Form.Item>
+
+            <Form.Item
+              label="Khoảng ngày áp dụng"
+              name="date_range"
+              rules={[{ required: true, message: 'Vui lòng chọn khoảng ngày' }]}
+            >
+              <DatePicker.RangePicker
+                style={{ width: '100%' }}
+                size="large"
+                disabledDate={(current) => {
+                  const startOfToday = dayjs().startOf('day');
+                  return current && current < startOfToday;
+                }}
+              />
+            </Form.Item>
+
+            <Form.Item
+              label="Lý do / Ghi chú quản lý (nội bộ)"
+              name="reason"
+            >
+              <Input
+                placeholder="Ví dụ: Khách gọi điện đặt 2 đêm, Khách quen vãng lai, Đang sửa điều hòa..."
+                size="large"
+              />
+            </Form.Item>
+
+            <Form.Item
+              label="Mức giá (VNĐ/đêm - Tùy chọn nếu muốn đổi giá)"
+              name="price"
+            >
+              <InputNumber
+                style={{ width: '100%' }}
+                size="large"
+                placeholder={`Mặc định giữ giá cơ sở: ${Number(selectedAvailRoom.room.base_price).toLocaleString('vi-VN')}đ`}
+                formatter={(val) => `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              />
+            </Form.Item>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24 }}>
+              <Button
+                type="link"
+                icon={<CalendarOutlined />}
+                onClick={() => {
+                  setAvailModalOpen(false);
+                  navigate(`/host/pricing?homestay_id=${selectedAvailRoom.homestay.id}&room_id=${selectedAvailRoom.room.id}`);
+                }}
+              >
+                Mở lịch chi tiết cả tháng ↗
+              </Button>
+              <Space>
+                <Button onClick={() => setAvailModalOpen(false)} size="large">
+                  Hủy
+                </Button>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  size="large"
+                  loading={availUpdating}
+                  style={{ background: '#4f46e5', fontWeight: 600 }}
+                >
+                  Xác Nhận Lưu Trạng Thái
+                </Button>
+              </Space>
+            </div>
+          </Form>
+        )}
       </Modal>
     </div>
   );

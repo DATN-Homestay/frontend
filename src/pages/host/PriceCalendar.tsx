@@ -16,6 +16,8 @@ import {
   Calendar,
   Switch,
   Divider,
+  Radio,
+  Space,
 } from 'antd';
 import {
   RobotOutlined,
@@ -176,22 +178,27 @@ export default function PriceCalendarPage() {
     }
   };
 
-  // Cập nhật giá hàng loạt (Batch)
+  // Cập nhật giá & trạng thái hàng loạt (Batch)
   const handleBatchUpdate = async (values: any) => {
     if (!selectedRoomId) {
-      message.warning('Vui lòng chọn phòng để cập nhật lịch giá');
+      message.warning('Vui lòng chọn phòng để cập nhật lịch phòng');
       return;
     }
 
     setBatchUpdating(true);
     try {
       const [start, end] = values.date_range;
+      const is_available = values.is_available !== undefined ? Number(values.is_available) : undefined;
+      const price = values.price !== undefined && values.price !== null ? Number(values.price) : undefined;
+
       await hostService.batchUpdateCalendar(selectedRoomId, {
         from_date: start.format('YYYY-MM-DD'),
         to_date: end.format('YYYY-MM-DD'),
-        price: Number(values.price),
+        price,
+        is_available,
       });
-      message.success('Cập nhật giá hàng loạt thành công!');
+      const statusNote = is_available === 0 ? ' [Đã khóa / Đặt offline]' : is_available === 1 ? ' [Mở còn trống]' : '';
+      message.success(`Cập nhật lịch phòng hàng loạt thành công${statusNote}!`);
       setBatchModalOpen(false);
       batchForm.resetFields();
       loadRoomCalendar(selectedRoomId);
@@ -335,19 +342,27 @@ export default function PriceCalendarPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
-          <Title level={2} style={{ margin: 0 }}>Lịch Giá &amp; Định Giá Động AI</Title>
+          <Title level={2} style={{ margin: 0 }}>Lịch Giá &amp; Tình Trạng Phòng</Title>
           <Text type="secondary">
-            Phân tích cụm đối thủ tương đồng (CompSet 3-5km), tỷ lệ kín phòng và tối ưu doanh thu trong biên độ an toàn ±30%
+            Cập nhật tình trạng phòng (còn trống / đặt offline) và phân tích định giá động AI CompSet 3-5km
           </Text>
         </div>
-        <Button
-          type="primary"
-          icon={<ThunderboltOutlined />}
-          onClick={() => setBatchModalOpen(true)}
-          style={{ background: '#4f46e5' }}
-        >
-          Cập Nhật Giá Hàng Loạt
-        </Button>
+        <Space>
+          <Button
+            type="primary"
+            icon={<ThunderboltOutlined />}
+            onClick={() => {
+              batchForm.setFieldsValue({
+                is_available: 0,
+                price: selectedRoom?.base_price,
+              });
+              setBatchModalOpen(true);
+            }}
+            style={{ background: '#4f46e5' }}
+          >
+            Cập Nhật Giá &amp; Tình Trạng Hàng Loạt
+          </Button>
+        </Space>
       </div>
 
       {/* CHỌN HOMESTAY VÀ PHÒNG */}
@@ -522,9 +537,25 @@ export default function PriceCalendarPage() {
       {/* LỊCH PHÒNG THEO THÁNG */}
       <Card
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <CalendarOutlined />
-            <span>Bảng Lịch Giá Phòng Chi Tiết (Bấm vào ngày để định giá AI)</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <CalendarOutlined />
+              <span>Bảng Lịch Phòng &amp; Tình Trạng Trống (Bấm vào ngày để đổi trạng thái / giá)</span>
+            </div>
+            <div style={{ display: 'flex', gap: 14, fontSize: 12, alignItems: 'center' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 12, height: 12, background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 3, display: 'inline-block' }} />
+                Còn trống (Mở bán)
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 12, height: 12, background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 3, display: 'inline-block' }} />
+                <strong style={{ color: '#dc2626' }}>Đã có khách đặt / Khóa phòng</strong>
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 12, height: 12, background: '#f5f3ff', border: '1px solid #c084fc', borderRadius: 3, display: 'inline-block' }} />
+                Áp dụng giá AI
+              </span>
+            </div>
           </div>
         }
         style={{ borderRadius: 14 }}
@@ -765,40 +796,120 @@ export default function PriceCalendarPage() {
         </Form>
       </Modal>
 
-      {/* MODAL CẬP NHẬT GIÁ HÀNG LOẠT */}
+      {/* MODAL CẬP NHẬT GIÁ & TÌNH TRẠNG HÀNG LOẠT */}
       <Modal
-        title="Cập Nhật Giá Hàng Loạt (Batch Update)"
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ThunderboltOutlined style={{ color: '#4f46e5' }} />
+            <span>Cập Nhật Lịch Giá &amp; Tình Trạng Phòng Hàng Loạt</span>
+          </div>
+        }
         open={batchModalOpen}
         onCancel={() => setBatchModalOpen(false)}
         footer={null}
+        width={560}
       >
-        <Form form={batchForm} layout="vertical" onFinish={handleBatchUpdate}>
+        <Form
+          form={batchForm}
+          layout="vertical"
+          onFinish={handleBatchUpdate}
+          initialValues={{ is_available: 0 }}
+        >
+          <div
+            style={{
+              background: '#f8fafc',
+              padding: '10px 14px',
+              borderRadius: 8,
+              border: '1px solid #e2e8f0',
+              marginBottom: 16,
+              fontSize: 13,
+            }}
+          >
+            Phòng đang chọn: <strong style={{ color: '#4f46e5' }}>{selectedRoom?.room_name || 'Vui lòng chọn phòng'}</strong> ({selectedHomestay?.name})
+          </div>
+
+          <Form.Item
+            label={<strong style={{ fontSize: 14 }}>Trạng thái phòng trong khoảng ngày chọn</strong>}
+            name="is_available"
+            rules={[{ required: true, message: 'Vui lòng chọn trạng thái phòng' }]}
+          >
+            <Radio.Group style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <Radio
+                value={0}
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  border: '1px solid #fecaca',
+                  background: '#fef2f2',
+                  marginRight: 0,
+                }}
+              >
+                <strong style={{ color: '#dc2626' }}>🔴 Đã có khách đặt (Offline / Khóa phòng trên web)</strong>
+                <div style={{ fontSize: 12, color: '#7f1d1d', marginTop: 2 }}>
+                  Dành cho phòng khách gọi điện đặt, đặt trực tiếp hoặc cần bảo trì. Khách trên web không thể đặt trùng các ngày này.
+                </div>
+              </Radio>
+              <Radio
+                value={1}
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  border: '1px solid #bbf7d0',
+                  background: '#f0fdf4',
+                  marginRight: 0,
+                }}
+              >
+                <strong style={{ color: '#16a34a' }}>🟢 Còn trống (Mở cho khách online đặt phòng)</strong>
+                <div style={{ fontSize: 12, color: '#14532d', marginTop: 2 }}>
+                  Mở phòng để khách hàng trên web có thể tìm kiếm và đặt phòng trực tuyến.
+                </div>
+              </Radio>
+            </Radio.Group>
+          </Form.Item>
+
           <Form.Item
             label="Khoảng thời gian áp dụng"
             name="date_range"
             rules={[{ required: true, message: 'Vui lòng chọn khoảng ngày' }]}
           >
-            <DatePicker.RangePicker style={{ width: '100%' }} size="large" />
+            <DatePicker.RangePicker
+              style={{ width: '100%' }}
+              size="large"
+              disabledDate={(current) => {
+                const startOfToday = dayjs().startOf('day');
+                return current && current < startOfToday;
+              }}
+            />
           </Form.Item>
 
           <Form.Item
-            label="Mức giá mới cho tất cả các ngày (VNĐ/đêm)"
+            label="Mức giá mới cho tất cả các ngày (VNĐ/đêm - Tùy chọn)"
             name="price"
-            rules={[{ required: true, message: 'Vui lòng nhập giá' }]}
           >
             <InputNumber
               min={50000}
               step={50000}
               style={{ width: '100%' }}
               size="large"
-              placeholder="Ví dụ: 850000"
-              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              placeholder={`Để trống nếu giữ nguyên mức giá hiện tại (Gốc: ${Number(selectedRoom?.base_price || 0).toLocaleString('vi-VN')}đ)`}
+              formatter={(value) => (value ? `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '')}
             />
           </Form.Item>
 
-          <Button type="primary" htmlType="submit" size="large" block loading={batchUpdating} style={{ background: '#4f46e5' }}>
-            Áp Dụng Cho Tất Cả Các Ngày Đã Chọn
-          </Button>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
+            <Button size="large" onClick={() => setBatchModalOpen(false)}>
+              Hủy
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              size="large"
+              loading={batchUpdating}
+              style={{ background: '#4f46e5', fontWeight: 600 }}
+            >
+              Áp Dụng Cho Tất Cả Các Ngày Đã Chọn
+            </Button>
+          </div>
         </Form>
       </Modal>
     </div>
