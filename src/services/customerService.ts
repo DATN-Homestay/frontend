@@ -16,7 +16,7 @@ import type {
 } from '../types/customer';
 
 export const customerService = {
-  async getHomestays(city?: string, limit = 1000, offset = 0): Promise<{ items: HomestayItem[]; total: number }> {
+  async getHomestays(city?: string, limit?: number, offset?: number): Promise<{ items: HomestayItem[]; total: number }> {
     try {
       const res: any = await apiClient('/homestays', {
         params: {
@@ -46,17 +46,20 @@ export const customerService = {
   },
 
   /** Báo giá theo từng đêm, không giữ chỗ (public) */
-  async quoteBooking(data: { room_id: string; check_in_date: string; check_out_date: string; num_guests?: number }) {
+  async quoteBooking(data: { room_id: string | number; check_in_date: string; check_out_date: string; num_guests?: number }) {
     const res = await apiClient<ApiResponse<BookingQuote>>('/bookings/quote', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        ...data,
+        room_id: String(data.room_id),
+      }),
     });
-    return res.data;
+    return res?.data ?? res;
   },
 
   /** Tạo đơn và giữ chỗ 15 phút. Server tự tính tiền, không gửi giá lên. */
   async createBooking(data: {
-    room_id: string;
+    room_id: string | number;
     check_in_date: string;
     check_out_date: string;
     num_guests?: number;
@@ -64,9 +67,12 @@ export const customerService = {
   }) {
     const res = await apiClient<ApiResponse<CreatedBooking>>('/bookings', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        ...data,
+        room_id: String(data.room_id),
+      }),
     });
-    return res.data;
+    return res?.data ?? res;
   },
 
   /** URL thanh toán VNPay đã ký của một đơn đang chờ thanh toán */

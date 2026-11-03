@@ -36,6 +36,13 @@ export function todayInVietnam(now = new Date()): string {
     : '';
 }
 
+/** Keep DATE values intact and convert timestamp values to the Vietnam day. */
+export function calendarDateInVietnam(value: string | Date): string {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value))
+    return value;
+  return todayInVietnam(new Date(value));
+}
+
 export function formatVnd(value: unknown): string {
   const amount = numericValue(value);
   return amount === null || amount < 0 ? '—' : currency.format(amount);

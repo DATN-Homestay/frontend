@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   formatDemandFactor, formatVnd, isPriceWithinBounds, priceBounds,
-  suggestionMatchesSelection, todayInVietnam,
+  suggestionMatchesSelection, todayInVietnam, calendarDateInVietnam,
 } from '../src/features/pricing/pricing.utils.ts';
 import type { PricingSuggestion } from '../src/types/host.ts';
 
@@ -33,6 +33,13 @@ describe('pricing boundaries', () => {
 });
 
 describe('Vietnam pricing dates', () => {
+  it('matches calendar DATE values and timestamp values to the same Vietnam day', () => {
+    assert.equal(calendarDateInVietnam('2026-11-04'), '2026-11-04');
+    assert.equal(calendarDateInVietnam('2026-11-03T17:00:00.000Z'), '2026-11-04');
+    assert.equal(calendarDateInVietnam('2026-11-04T00:00:00+07:00'), '2026-11-04');
+    assert.equal(calendarDateInVietnam(new Date('2026-11-03T16:59:59Z')), '2026-11-03');
+    assert.equal(calendarDateInVietnam('invalid'), '');
+  });
   it('crosses midnight at 17:00 UTC rather than browser midnight', () => {
     assert.equal(todayInVietnam(new Date('2026-11-01T16:59:59Z')), '2026-11-01');
     assert.equal(todayInVietnam(new Date('2026-11-01T17:00:00Z')), '2026-11-02');

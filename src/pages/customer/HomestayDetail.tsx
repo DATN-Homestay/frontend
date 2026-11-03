@@ -41,6 +41,7 @@ import {
   PictureOutlined,
 } from '@ant-design/icons';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import dayjs from 'dayjs';
 import { customerService } from '../../services/customerService';
 import type { HomestayItem, RoomItem } from '../../types/customer';
 import { getHomestayCoverImage, getAllHomestayImages } from '../../utils/imageHelper';
@@ -102,6 +103,10 @@ function HomestayDetailContent() {
   const [selectedRoom, setSelectedRoom] = useState<RoomItem | null>(null);
   const [dateRange, setDateRange] = useState<[string, string] | null>(null);
   const [activeImage, setActiveImage] = useState<string | null>(initialCoverFromState || null);
+
+  // Availability & Quoting state
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+  const [roomAvailabilityQuote, setRoomAvailabilityQuote] = useState<any | null>(null);
 
 
 
@@ -173,6 +178,44 @@ function HomestayDetailContent() {
     homestay?.is_claimed === 0 ||
     !!homestay?.source_url?.toLowerCase().includes('booking.com');
 
+  // Kiểm tra tình trạng phòng real-time khi khách chọn ngày và phòng (đối với homestay chính chủ)
+  useEffect(() => {
+    if (!selectedRoom?.id || !dateRange?.[0] || !dateRange?.[1] || isBookingComHomestay) {
+      setRoomAvailabilityQuote(null);
+      return;
+    }
+
+    let isSubscribed = true;
+    setCheckingAvailability(true);
+    customerService
+      .quoteBooking({
+        room_id: String(selectedRoom.id),
+        check_in_date: dateRange[0],
+        check_out_date: dateRange[1],
+      })
+      .then((quote: any) => {
+        if (isSubscribed) {
+          const q = quote?.data ?? quote;
+          setRoomAvailabilityQuote(q);
+        }
+      })
+      .catch((err) => {
+        console.error('Lỗi khi kiểm tra tình trạng phòng:', err);
+        if (isSubscribed) {
+          setRoomAvailabilityQuote({ available: false, error: true, error_message: err?.message });
+        }
+      })
+      .finally(() => {
+        if (isSubscribed) {
+          setCheckingAvailability(false);
+        }
+      });
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [selectedRoom?.id, dateRange, isBookingComHomestay]);
+
   const handleBooking = () => {
     // 1. NẾU LÀ HOMESTAY TỪ BOOKING.COM: DẪN TRỰC TIẾP SANG BOOKING.COM
     if (isBookingComHomestay) {
@@ -220,6 +263,12 @@ function HomestayDetailContent() {
       message.warning('Vui lòng chọn ngày nhận phòng và trả phòng');
       return;
     }
+
+    if (roomAvailabilityQuote && !roomAvailabilityQuote.available) {
+      message.error('Rất tiếc, phòng này đã có người đặt trong khoảng ngày bạn chọn. Vui lòng chọn ngày khác!');
+      return;
+    }
+
     const checkIn = dateRange[0];
     const checkOut = dateRange[1];
 
@@ -1409,25 +1458,90 @@ function HomestayDetailContent() {
                   </Text>
                   <RangePicker
                     style={{ width: '100%' }}
-                    onChange={(_, dateStrings) => setDateRange([dateStrings[0], dateStrings[1]])}
+                    disabledDate={(current) => {
+                      const startOfToday = dayjs().startOf('day');
+                      return current && current < startOfToday;
+                    }}
+                    onChange={(_, dateStrings) =>
+                      setDateRange(dateStrings[0] && dateStrings[1] ? [dateStrings[0], dateStrings[1]] : null)
+                    }
                   />
                 </div>
+
+                {/* THÔNG BÁO TÌNH TRẠNG PHÒNG REAL-TIME */}
+                {checkingAvailability && (
+                  <div style={{ marginBottom: 14, textAlign: 'center', color: '#6366f1', fontSize: 13 }}>
+                    <Spin size="small" style={{ marginRight: 8 }} /> Đang kiểm tra tình trạng phòng...
+                  </div>
+                )}
+
+                {!checkingAvailability && roomAvailabilityQuote && (
+                  <div style={{ marginBottom: 14 }}>
+                    {roomAvailabilityQuote.available ? (
+                      <div
+                        style={{
+                          background: '#f0fdf4',
+                          border: '1px solid #bbf7d0',
+                          padding: '10px 14px',
+                          borderRadius: 8,
+                          color: '#15803d',
+                          fontSize: 13,
+                        }}
+                      >
+                        <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span>✓</span> Còn phòng trống cho các đêm đã chọn!
+                        </div>
+                        <div style={{ fontSize: 12, marginTop: 4, color: '#166534' }}>
+                          Tổng tiền: <strong>{Number(roomAvailabilityQuote.total_amount).toLocaleString('vi-VN')}đ</strong> ({roomAvailabilityQuote.nightly_prices?.length || 0} đêm)
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          background: '#fef2f2',
+                          border: '1px solid #fecaca',
+                          padding: '10px 14px',
+                          borderRadius: 8,
+                          color: '#b91c1c',
+                          fontSize: 13,
+                        }}
+                      >
+                        <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span>⚠️</span> Phòng đã kín / có khách đặt ngày này!
+                        </div>
+                        <div style={{ fontSize: 12, marginTop: 4, color: '#991b1b' }}>
+                          {(roomAvailabilityQuote.unavailable_dates?.length > 0 || roomAvailabilityQuote.held_dates?.length > 0)
+                            ? `Các đêm đã kín phòng: ${(roomAvailabilityQuote.unavailable_dates || roomAvailabilityQuote.held_dates).join(', ')}.`
+                            : 'Chủ nhà đã khóa phòng hoặc phòng đã được đặt các ngày này.'} Vui lòng chọn khoảng ngày khác.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <Button
                   type="primary"
                   size="large"
                   block
+                  disabled={roomAvailabilityQuote && !roomAvailabilityQuote.available}
                   onClick={handleBooking}
                   style={{
                     height: 48,
                     borderRadius: 10,
-                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                    background: roomAvailabilityQuote && !roomAvailabilityQuote.available
+                      ? '#94a3b8'
+                      : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                    borderColor: roomAvailabilityQuote && !roomAvailabilityQuote.available ? '#94a3b8' : undefined,
                     fontWeight: 600,
                     fontSize: 15,
-                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                    boxShadow: roomAvailabilityQuote && !roomAvailabilityQuote.available
+                      ? 'none'
+                      : '0 4px 12px rgba(99, 102, 241, 0.3)',
                   }}
                 >
-                  Đặt phòng ngay
+                  {roomAvailabilityQuote && !roomAvailabilityQuote.available
+                    ? '⚠️ Phòng đã kín ngày này'
+                    : 'Đặt phòng ngay'}
                 </Button>
 
                 {homestay?.is_claimed === 1 && (

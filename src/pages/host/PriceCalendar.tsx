@@ -41,6 +41,7 @@ import type {
 } from '../../types/host';
 import PricingSuggestionPanel from '../../features/pricing/PricingSuggestionPanel';
 import {
+  calendarDateInVietnam,
   formatVnd,
   isPriceWithinBounds,
   suggestionMatchesSelection,
@@ -86,7 +87,8 @@ interface BatchContext {
 }
 interface BatchValues {
   date_range: [Dayjs, Dayjs];
-  price: number;
+  price?: number | null;
+  is_available: -1 | 0 | 1;
 }
 interface DayContext extends BatchContext {
   date: string;
@@ -276,7 +278,7 @@ export default function PriceCalendarPage() {
     () =>
       new Map(
         calendarMatches
-          ? calendar!.rows.map((day) => [day.date.slice(0, 10), day])
+          ? calendar!.rows.map((day) => [calendarDateInVietnam(day.date), day])
           : [],
       ),
     [calendar, calendarMatches],
@@ -496,6 +498,7 @@ export default function PriceCalendarPage() {
     batchForm.setFieldsValue({
       date_range: [dayjs(selection.date), dayjs(selection.date)],
       price: Number(room.base_price),
+      is_available: -1,
     });
     setBatchContext({
       roomId: String(room.id),
@@ -514,6 +517,13 @@ export default function PriceCalendarPage() {
       setBatchError('Vui lòng chọn khoảng ngày từ hôm nay trở đi.');
       return;
     }
+    const availability = values.is_available === 0 || values.is_available === 1
+      ? values.is_available
+      : undefined;
+    if (values.price == null && availability === undefined) {
+      setBatchError('Vui lòng nhập giá hoặc chọn trạng thái phòng cần cập nhật.');
+      return;
+    }
     setBatchUpdating(true);
     setBatchError(null);
     try {
@@ -526,10 +536,11 @@ export default function PriceCalendarPage() {
       await hostService.batchUpdateCalendar(context.roomId, {
         from_date: from,
         to_date: to,
-        price: values.price,
+        price: values.price ?? undefined,
+        is_available: availability,
       });
       if (!mounted.current) return;
-      message.success(`Đã cập nhật giá cho ${context.roomName}.`);
+      message.success(`Đã cập nhật lịch phòng cho ${context.roomName}.`);
       setBatchContext(null);
       if (selectionRef.current.roomId === context.roomId) {
         aiRequest.current++;
@@ -552,7 +563,7 @@ export default function PriceCalendarPage() {
         <div className="host-pricing-header">
           <div>
             <Text className="host-pricing-eyebrow">QUẢN LÝ DOANH THU</Text>
-            <Title level={2}>Lịch giá & gợi ý AI</Title>
+            <Title level={2}>Lịch giá, tình trạng phòng & gợi ý AI</Title>
             <Text type="secondary">
               Chọn phòng và ngày để xem gợi ý từ dữ liệu chỗ nghỉ tương đồng
               trong cùng thành phố.
@@ -563,7 +574,7 @@ export default function PriceCalendarPage() {
             onClick={openBatch}
             disabled={!room || busy || loadingListings}
           >
-            Cập nhật giá hàng loạt
+            Cập nhật giá & tình trạng hàng loạt
           </Button>
         </div>
 
@@ -888,7 +899,7 @@ export default function PriceCalendarPage() {
                         key={key}
                         aria-label={`${date.format('DD/MM/YYYY')}, ${price}${held ? ', đang giữ chỗ' : closed ? ', không mở bán' : ''}`}
                         aria-pressed={selected}
-                        className={`host-pricing-day${selected ? ' is-selected' : ''}${date.format('YYYY-MM') !== monthKey ? ' is-outside' : ''}${held ? ' is-held' : closed ? ' is-closed' : ''}`}
+                        className={`host-pricing-day${selected ? ' is-selected' : ''}${date.format('YYYY-MM') !== monthKey ? ' is-outside' : ''}${held ? ' is-held' : closed ? ' is-closed' : Number(day?.is_ai_applied) === 1 ? ' is-ai' : day ? ' is-available' : ''}`}
                         disabled={key < today || busy || !calendarReady}
                         onClick={() => openDay(date)}
                       >
@@ -907,13 +918,13 @@ export default function PriceCalendarPage() {
                               <LockOutlined /> Đang giữ chỗ
                             </>
                           ) : closed ? (
-                            'Không mở bán'
+                            'Đã đặt / Không mở bán'
                           ) : Number(day?.is_ai_applied) === 1 ? (
                             <>
                               <CheckOutlined /> Đã áp dụng AI
                             </>
                           ) : day ? (
-                            'Giá đã thiết lập'
+                            'Còn trống'
                           ) : (
                             'Giá gốc'
                           )}
@@ -926,7 +937,8 @@ export default function PriceCalendarPage() {
               <div className="host-pricing-calendar-legend">
                 <Tag color="purple">Ngày đang chọn</Tag>
                 <Tag color="gold">Đang giữ chỗ</Tag>
-                <Tag>Không mở bán</Tag>
+                <Tag color="red">Đã đặt / Không mở bán</Tag>
+                <Tag color="green">Còn trống</Tag>
                 <Text type="secondary">
                   Ngày chưa thiết lập lịch dùng giá gốc{' '}
                   {formatVnd(room.base_price)}. Thay đổi giá không mở lại phòng
@@ -1061,7 +1073,7 @@ export default function PriceCalendarPage() {
 
         <Modal
           className="host-pricing-batch"
-          title="Cập nhật giá hàng loạt"
+          title="Cập nhật giá & tình trạng phòng hàng loạt"
           open={batchContext !== null}
           footer={null}
           onCancel={() => {
@@ -1080,8 +1092,8 @@ export default function PriceCalendarPage() {
               <Alert
                 type="info"
                 showIcon
-                title="Đây là mức giá do bạn tự đặt"
-                description="Thay đổi chỉ áp dụng cho khoảng ngày chọn, không mở lại phòng đã đóng bán."
+                title="Cập nhật lịch phòng trong khoảng ngày chọn"
+                description="Bạn có thể đổi giá, khóa phòng khi có khách đặt offline hoặc mở lại cho khách đặt online."
               />
               {batchError && (
                 <Alert
@@ -1098,6 +1110,15 @@ export default function PriceCalendarPage() {
                 onFinish={(values) => void updateBatch(values)}
                 disabled={batchUpdating}
               >
+                <Form.Item name="is_available" label="Trạng thái nhận khách">
+                  <Select
+                    options={[
+                      { value: -1, label: 'Giữ nguyên trạng thái phòng' },
+                      { value: 0, label: 'Đã đặt offline / Khóa phòng' },
+                      { value: 1, label: 'Còn trống / Mở nhận khách online' },
+                    ]}
+                  />
+                </Form.Item>
                 <Form.Item
                   name="date_range"
                   label="Khoảng ngày"
@@ -1115,9 +1136,8 @@ export default function PriceCalendarPage() {
                 </Form.Item>
                 <Form.Item
                   name="price"
-                  label="Giá mỗi đêm (VNĐ)"
+                  label="Giá mỗi đêm (VNĐ, để trống nếu giữ nguyên giá)"
                   rules={[
-                    { required: true, message: 'Vui lòng nhập mức giá.' },
                     {
                       type: 'number',
                       min: 0.01,

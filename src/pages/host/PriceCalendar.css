@@ -153,7 +153,22 @@
   background: #fffbeb;
 }
 .host-pricing-day.is-closed {
-  background: #f1f5f9;
+  background: #fee2e2;
+  border-color: #f87171;
+}
+.host-pricing-day.is-available:not(.is-selected) {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+.host-pricing-day.is-ai:not(.is-selected) {
+  background: #f5f3ff;
+  border-color: #c084fc;
+}
+.host-pricing-day.is-closed .host-pricing-day-status {
+  color: #dc2626;
+}
+.host-pricing-day.is-available .host-pricing-day-status {
+  color: #16a34a;
 }
 .host-pricing-day.is-selected.is-held {
   background: #fff7df;
