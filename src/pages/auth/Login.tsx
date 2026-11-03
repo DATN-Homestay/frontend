@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Form, Input, Button, Typography, Checkbox, Alert, App } from 'antd';
 import { MailOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/useAuth';
 import { postLoginPath } from '../../services/authService';
 import { glowButtonStyle } from './authStyles';
 

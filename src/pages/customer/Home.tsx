@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Button,
   Card,
@@ -78,24 +78,26 @@ export default function HomePage() {
     }
   };
 
-  useEffect(() => {
-    loadHomestays();
+  const fetchHomestays = useCallback(() => {
+    return customerService
+      .getHomestays()
+      .then((res: any) => {
+        const items = res?.items || res?.data?.items || (Array.isArray(res) ? res : []);
+        setAllHomestays(items);
+        // Hiển thị ngay 100% dữ liệu cào về không ràng buộc bất kỳ điều kiện lọc nào
+        setFilteredHomestays(items);
+      })
+      .catch((err) => {
+        console.warn('Lỗi khi tải dữ liệu homestays:', err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
-  const loadHomestays = async () => {
-    setLoading(true);
-    try {
-      const res: any = await customerService.getHomestays();
-      const items = res?.items || res?.data?.items || (Array.isArray(res) ? res : []);
-      setAllHomestays(items);
-      // Hiển thị ngay 100% dữ liệu cào về không ràng buộc bất kỳ điều kiện lọc nào
-      applyFilter(items, undefined, undefined, false, 0, 1);
-    } catch (err) {
-      console.warn('Lỗi khi tải dữ liệu homestays:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    fetchHomestays();
+  }, [fetchHomestays]);
 
   const applyFilter = (
     list: HomestayItem[],

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Table,
   Tag,
@@ -104,22 +104,29 @@ export default function MyListingsPage() {
   const [availUpdating, setAvailUpdating] = useState(false);
   const [availForm] = Form.useForm();
 
-  useEffect(() => {
-    loadListings();
+  const fetchListings = useCallback(() => {
+    return hostService
+      .getMyListings()
+      .then((res) => {
+        const list = Array.isArray(res) ? res : (res as any)?.data || [];
+        setData(list);
+      })
+      .catch(() => {
+        setData([]);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
-  const loadListings = async () => {
+  const loadListings = (...args: Parameters<typeof fetchListings>) => {
     setLoading(true);
-    try {
-      const res = await hostService.getMyListings();
-      const list = Array.isArray(res) ? res : (res as any)?.data || [];
-      setData(list);
-    } catch {
-      setData([]);
-    } finally {
-      setLoading(false);
-    }
+    return fetchListings(...args);
   };
+
+  useEffect(() => {
+    fetchListings();
+  }, [fetchListings]);
 
   // Cập nhật tình trạng phòng thủ công (Khách đặt offline hoặc mở nhận khách online)
   const handleUpdateRoomAvailability = async (values: any) => {

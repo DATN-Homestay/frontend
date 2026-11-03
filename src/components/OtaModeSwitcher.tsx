@@ -2,27 +2,12 @@ import { useState, useEffect } from 'react';
 import { Card, Segmented, Tag, Typography, message } from 'antd';
 import { GlobalOutlined, ApiOutlined, LinkOutlined, ThunderboltOutlined } from '@ant-design/icons';
 
+import { getStoredOtaMode, setStoredOtaMode, type OtaMode } from '../utils/otaMode';
+
 const { Text } = Typography;
 
-export type OtaMode = 'B2B_DEMAND_API' | 'AFFILIATE_PARTNER';
-
-export const OTA_MODE_STORAGE_KEY = 'stayai_ota_mode';
-
-export function getStoredOtaMode(): OtaMode {
-  const stored = localStorage.getItem(OTA_MODE_STORAGE_KEY);
-  if (stored === 'AFFILIATE_PARTNER' || stored === 'B2B_DEMAND_API') {
-    return stored;
-  }
-  return 'B2B_DEMAND_API';
-}
-
-export function setStoredOtaMode(mode: OtaMode) {
-  localStorage.setItem(OTA_MODE_STORAGE_KEY, mode);
-  window.dispatchEvent(new CustomEvent('ota_mode_changed', { detail: mode }));
-}
-
 export default function OtaModeSwitcher() {
-  const [mode, setMode] = useState<OtaMode>(getStoredOtaMode());
+  const [mode, setMode] = useState<OtaMode>(getStoredOtaMode);
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -64,7 +49,7 @@ export default function OtaModeSwitcher() {
           background: '#ffffff',
           overflow: 'hidden',
         }}
-        bodyStyle={{ padding: '12px 16px' }}
+        styles={{ body: { padding: '12px 16px' } }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: collapsed ? 0 : 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

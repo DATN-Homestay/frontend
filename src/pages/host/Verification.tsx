@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Card,
   Steps,
@@ -147,69 +147,67 @@ export default function VerificationPage() {
   const [otpCode, setOtpCode] = useState('');
 
   // Load danh sách homestay và trạng thái xác thực ban đầu
-  useEffect(() => {
-    loadHomestays();
-    if (queryTab === 'property' || queryHomestayId) {
-      setActiveTab('property_claim');
-    }
-  }, [queryHomestayId, queryTab]);
-
-  const loadHomestays = async () => {
-    try {
-      const res = await hostService.getMyListings();
-      let list = Array.isArray(res) ? res : (res as any)?.data || [];
-
-      // Nếu có query param homestay_id và chưa có trong list của host (ví dụ homestay chưa có chủ cào từ Booking.com):
-      if (queryHomestayId && !list.some((h: any) => String(h.id) === String(queryHomestayId))) {
-        try {
-          const detailRes: any = await customerService.getHomestayDetail(queryHomestayId);
-          const detail = detailRes?.data || detailRes;
-          if (detail && detail.id) {
-            list = [detail as any, ...list];
-          }
-        } catch {
-          // Bỏ qua nếu lỗi
-        }
-      }
-
-      setHomestays(list);
-      const targetId = queryHomestayId && list.some((h: any) => String(h.id) === String(queryHomestayId))
-        ? String(queryHomestayId)
-        : (list[0]?.id ? String(list[0].id) : '');
-
-      if (targetId) {
-        setSelectedHomestayId(targetId);
-        loadStatus(targetId);
-      }
-    } catch {
-      // Fallback
-    }
-  };
-
-  const loadStatus = async (homestayId: string) => {
+  const loadStatus = useCallback((homestayId: string) => {
     if (!homestayId) return;
-    try {
-      const res = await hostService.getVerificationStatus(homestayId);
-      if (res?.data) {
-        setTotalScore(res.data.total_score || 0);
-        if (res.data.status === 'APPROVED' || res.data.steps?.live_image?.verified) {
-          setPropertyCurrentStep(2);
-        } else if (res.data.steps?.gps?.verified) {
-          setPropertyCurrentStep(1);
-        } else {
-          setPropertyCurrentStep(0);
+
+    return hostService
+      .getVerificationStatus(homestayId)
+      .then((res) => {
+        if (res?.data) {
+          setTotalScore(res.data.total_score || 0);
+          if (res.data.status === 'APPROVED' || res.data.steps?.live_image?.verified) {
+            setPropertyCurrentStep(2);
+          } else if (res.data.steps?.gps?.verified) {
+            setPropertyCurrentStep(1);
+          } else {
+            setPropertyCurrentStep(0);
+          }
+
+          if (res.data.steps?.otp?.verified) {
+            setHostCurrentStep(2);
+          } else if (res.data.steps?.cccd?.verified) {
+            setHostCurrentStep(1);
+          } else {
+            setHostCurrentStep(0);
+          }
+        }
+      })
+      .catch(() => {
+        // Keep the initial verification state if loading fails.
+      });
+  }, []);
+
+  const loadHomestays = useCallback(() => {
+    return hostService
+      .getMyListings()
+      .then(async (res) => {
+        let list: HostHomestay[] = Array.isArray(res) ? res : (res as any)?.data || [];
+        if (queryHomestayId && !list.some((h) => String(h.id) === queryHomestayId)) {
+          try {
+            const detailRes = await customerService.getHomestayDetail(queryHomestayId);
+            const detail = (detailRes as any)?.data || detailRes;
+            if (detail?.id) list = [detail as HostHomestay, ...list];
+          } catch {
+            // An unclaimed property may not be in the host's listings yet.
+          }
         }
 
-        if (res.data.steps?.otp?.verified) {
-          setHostCurrentStep(2);
-        } else if (res.data.steps?.cccd?.verified) {
-          setHostCurrentStep(1);
+        setHomestays(list);
+        const targetId = queryHomestayId && list.some((h) => String(h.id) === queryHomestayId)
+          ? queryHomestayId
+          : (list[0]?.id ? String(list[0].id) : '');
+        if (targetId) {
+          setSelectedHomestayId(targetId);
+          void loadStatus(targetId);
         }
-      }
-    } catch {
-      // Giữ mặc định
-    }
-  };
+        if (queryTab === 'property' || queryHomestayId) setActiveTab('property_claim');
+      })
+      .catch(() => {
+        // Keep the initial listings state if loading fails.
+      });
+  }, [loadStatus, queryHomestayId, queryTab]);
+
+  useEffect(() => { void loadHomestays(); }, [loadHomestays]);
 
   // Nén ảnh nhẹ (~200KB - 400KB, kích thước tối đa 1600px) chuẩn hóa cho OCR
   const compressImageForOcr = (file: File, maxDim = 1600, quality = 0.8): Promise<string> => {
