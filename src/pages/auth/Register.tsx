@@ -10,7 +10,7 @@ import {
   SendOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/useAuth';
 import { ApiError } from '../../services/apiClient';
 import { authService, postLoginPath } from '../../services/authService';
 import { glowButtonStyle } from './authStyles';
@@ -41,10 +41,10 @@ export default function RegisterPage() {
   // Trạng thái OTP Email cho Chủ nhà Homestay
   const [sendingOtp, setSendingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
-  const [isOtpVerified, setIsOtpVerified] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otpCountdown, setOtpCountdown] = useState(0);
   const [verifiedEmail, setVerifiedEmail] = useState('');
+  const isOtpVerified = verifiedEmail !== '' && emailValue.trim() === verifiedEmail;
 
   // Đếm ngược 60s khi gửi OTP
   useEffect(() => {
@@ -56,16 +56,6 @@ export default function RegisterPage() {
     }
     return () => clearInterval(timer);
   }, [otpCountdown]);
-
-  // Nếu người dùng thay đổi email sau khi đã xác thực, hủy trạng thái xác thực để yêu cầu gửi lại
-  useEffect(() => {
-    if (isOtpVerified && emailValue !== verifiedEmail) {
-      setIsOtpVerified(false);
-      setOtpSent(false);
-      form.setFieldsValue({ otp_code: '' });
-      message.info('Bạn vừa thay đổi địa chỉ email. Vui lòng xác thực lại mã OTP cho email mới.');
-    }
-  }, [emailValue, isOtpVerified, verifiedEmail, form, message]);
 
   const from = (location.state as { from?: string } | null)?.from;
 
@@ -93,7 +83,7 @@ export default function RegisterPage() {
       message.success(res.message || 'Mã xác thực OTP đã được gửi đến email của bạn');
       setOtpSent(true);
       setOtpCountdown(60);
-      setIsOtpVerified(false);
+      setVerifiedEmail('');
     } catch (err) {
       const text = err instanceof Error ? err.message : 'Không thể gửi mã OTP';
       message.error(text);
@@ -123,12 +113,11 @@ export default function RegisterPage() {
     try {
       const res = await authService.verifyRegisterOtp(email, code);
       if (res.verified) {
-        setIsOtpVerified(true);
         setVerifiedEmail(email);
         message.success('✓ Xác thực Email thành công! Nút Đăng Ký Tài Khoản đã được kích hoạt.');
       }
     } catch (err) {
-      setIsOtpVerified(false);
+      setVerifiedEmail('');
       const text = err instanceof Error ? err.message : 'Mã OTP không chính xác';
       message.error(text);
       form.setFields([{ name: 'otp_code', errors: [text] }]);
@@ -197,7 +186,17 @@ export default function RegisterPage() {
         form={form}
         layout="vertical"
         onFinish={onFinish}
-        onValuesChange={() => setError(null)}
+        onValuesChange={(changed) => {
+          setError(null);
+          if ('email' in changed) {
+            setVerifiedEmail('');
+            setOtpSent(false);
+            form.setFieldValue('otp_code', '');
+            if (isOtpVerified) {
+              message.info('Bạn vừa thay đổi địa chỉ email. Vui lòng xác thực lại mã OTP cho email mới.');
+            }
+          }
+        }}
         initialValues={{ role: defaultRole, agree: false }}
         requiredMark={false}
       >
@@ -283,23 +282,24 @@ export default function RegisterPage() {
 
         {/* 5. EMAIL VÀ NÚT GỬI OTP (CHUYỂN XUỐNG DƯỚI CÙNG THAY THẾ PHẦN SĐT) */}
         <div style={{ marginBottom: isHost ? 16 : 0 }}>
-          <Form.Item
-            name="email"
-            style={{ marginBottom: isHost ? 8 : 16 }}
-            rules={[
-              { required: true, message: 'Vui lòng nhập email' },
-              { type: 'email', message: 'Email không hợp lệ' },
-            ]}
-          >
+          <Form.Item style={{ marginBottom: isHost ? 8 : 16 }}>
             <div style={{ display: 'flex', gap: 8 }}>
-              <Input
-                prefix={<MailOutlined />}
-                placeholder="Email của bạn"
-                size="large"
-                autoComplete="email"
-                disabled={isOtpVerified}
-                style={{ flex: 1 }}
-              />
+              <Form.Item
+                name="email"
+                noStyle
+                rules={[
+                  { required: true, message: 'Vui lòng nhập email' },
+                  { type: 'email', message: 'Email không hợp lệ' },
+                ]}
+              >
+                <Input
+                  prefix={<MailOutlined />}
+                  placeholder="Email của bạn"
+                  size="large"
+                  autoComplete="email"
+                  style={{ flex: 1 }}
+                />
+              </Form.Item>
               {isHost && (
                 <Button
                   size="large"
@@ -317,10 +317,10 @@ export default function RegisterPage() {
                   {isOtpVerified
                     ? 'Đã xác thực'
                     : otpCountdown > 0
-                    ? `Gửi lại (${otpCountdown}s)`
-                    : otpSent
-                    ? 'Gửi lại OTP'
-                    : 'Gửi mã OTP'}
+                      ? `Gửi lại (${otpCountdown}s)`
+                      : otpSent
+                        ? 'Gửi lại OTP'
+                        : 'Gửi mã OTP'}
                 </Button>
               )}
             </div>
@@ -335,41 +335,45 @@ export default function RegisterPage() {
         {/* 6. TRƯỜNG NHẬP MÃ OTP (DÀNH CHO CHỦ NHÀ HOMESTAY) */}
         {isHost && (
           <div style={{ marginBottom: 16 }}>
-            <Form.Item
-              name="otp_code"
-              style={{ marginBottom: 8 }}
-              rules={[
-                {
-                  validator: (_, value) => {
-                    if (isHost && !isOtpVerified) {
-                      if (!value) return Promise.reject(new Error('Vui lòng nhập mã OTP gửi về email'));
-                      if (value.length !== 6) return Promise.reject(new Error('Mã OTP gồm 6 chữ số'));
-                    }
-                    return Promise.resolve();
-                  },
-                },
-              ]}
-            >
+            <Form.Item style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', gap: 8 }}>
-                <Input
-                  prefix={<SafetyCertificateOutlined style={{ color: isOtpVerified ? '#10b981' : undefined }} />}
-                  placeholder="Nhập mã OTP (6 số từ email)"
-                  size="large"
-                  maxLength={6}
-                  disabled={isOtpVerified}
-                  onChange={(e) => {
-                    const val = e.target.value.trim();
-                    if (val.length === 6 && !isOtpVerified) {
-                      handleVerifyOtp(val);
+                <Form.Item
+                  name="otp_code"
+                  noStyle
+                  rules={[
+                    {
+                      validator: (_, value) => {
+                        if (isHost && !isOtpVerified) {
+                          if (!value) return Promise.reject(new Error('Vui lòng nhập mã OTP gửi về email'));
+                          if (value.length !== 6) return Promise.reject(new Error('Mã OTP gồm 6 chữ số'));
+                        }
+                        return Promise.resolve();
+                      },
+                    },
+                  ]}
+                >
+                  <Input
+                    prefix={
+                      <SafetyCertificateOutlined style={{ color: isOtpVerified ? '#10b981' : undefined }} />
                     }
-                  }}
-                  style={{
-                    flex: 1,
-                    letterSpacing: 4,
-                    fontWeight: 600,
-                    borderColor: isOtpVerified ? '#10b981' : undefined,
-                  }}
-                />
+                    placeholder="Nhập mã OTP (6 số từ email)"
+                    size="large"
+                    maxLength={6}
+                    disabled={isOtpVerified}
+                    onChange={(e) => {
+                      const val = e.target.value.trim();
+                      if (val.length === 6 && !isOtpVerified) {
+                        handleVerifyOtp(val);
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      letterSpacing: 4,
+                      fontWeight: 600,
+                      borderColor: isOtpVerified ? '#10b981' : undefined,
+                    }}
+                  />
+                </Form.Item>
                 <Button
                   size="large"
                   onClick={() => handleVerifyOtp()}

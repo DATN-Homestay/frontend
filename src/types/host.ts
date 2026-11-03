@@ -10,19 +10,21 @@ export interface PriceCalendarDay {
   id?: string;
   room_id: string;
   date: string;
-  price: number;
+  price: number | string;
   is_available: number;
-  ai_suggested_price?: number;
-  comp_set_avg_price?: number;
-  comp_set_occupancy_rate?: number;
+  ai_suggested_price?: number | string | null;
+  comp_set_avg_price?: number | string | null;
+  comp_set_occupancy_rate?: number | string | null;
   is_ai_applied?: number;
   locked_until?: string | null;
 }
 
 export interface PricingSuggestion {
   homestay_id: number;
+  room_id: string;
   date: string;
   base_price: number;
+  current_price: number;
   suggested_price: number;
   change_percentage: number;
   comp_set_stats: {
@@ -32,6 +34,30 @@ export interface PricingSuggestion {
   };
   ai_explanation: string;
   cache_status: 'CACHE_HIT' | 'CACHE_MISS';
+  demand_level: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
+  demand_factors?: {
+    occupancy: number;
+    calendar: number;
+    lead_time: number;
+  };
+  data_status: 'SUFFICIENT_DATA' | 'INSUFFICIENT_DATA';
+  warnings: string[];
+}
+
+export interface ApplyPricingRequest {
+  homestay_id: string;
+  room_id?: string;
+  date: string;
+  applied_price?: number;
+  new_price?: number;
+}
+
+export interface ApplyPricingResult {
+  homestay_id: number;
+  room_id: string;
+  date: string;
+  new_price: number;
+  is_ai_applied: 1;
 }
 
 export interface VerificationStatusResponse {

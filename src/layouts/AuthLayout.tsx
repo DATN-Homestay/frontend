@@ -1,7 +1,7 @@
 import { ConfigProvider, Spin, Typography, theme } from 'antd';
 import { CompassOutlined } from '@ant-design/icons';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/useAuth';
 import { postLoginPath } from '../services/authService';
 
 const { Text } = Typography;

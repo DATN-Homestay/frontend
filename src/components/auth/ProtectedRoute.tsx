@@ -1,7 +1,7 @@
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Result, Button, Spin, Space } from 'antd';
 import { HomeOutlined, SafetyCertificateOutlined, ArrowLeftOutlined, LoginOutlined } from '@ant-design/icons';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/useAuth';
 import type { UserRole } from '../../types/auth';
 
 interface ProtectedRouteProps {

@@ -1,8 +1,10 @@
-import { apiClient } from './apiClient';
+import { apiClient, type ApiResponse } from './apiClient';
 import type {
   HostHomestay,
   PriceCalendarDay,
   PricingSuggestion,
+  ApplyPricingRequest,
+  ApplyPricingResult,
   VerificationStatusResponse,
   HostBookingItem,
   HostBalanceInfo,
@@ -18,7 +20,11 @@ export const hostService = {
 
   // 1. Homestays Management
   async getMyListings(): Promise<HostHomestay[]> {
-    return await apiClient('/host/homestays/my-listings');
+    const response = await apiClient<ApiResponse<HostHomestay[]>>('/host/homestays/my-listings');
+    if (!response || !Array.isArray(response.data)) {
+      throw new Error('Dữ liệu danh sách homestay không hợp lệ');
+    }
+    return response.data;
   },
 
   async getHomestayDetail(id: string): Promise<HostHomestay> {
@@ -114,9 +120,13 @@ export const hostService = {
 
   // 3. Calendar & Batch Update
   async getCalendar(roomId: string, fromDate?: string, toDate?: string): Promise<PriceCalendarDay[]> {
-    return await apiClient(`/host/rooms/${roomId}/calendar`, {
+    const response = await apiClient<ApiResponse<PriceCalendarDay[]>>(`/host/rooms/${roomId}/calendar`, {
       params: { from_date: fromDate, to_date: toDate },
     });
+    if (!response || !Array.isArray(response.data)) {
+      throw new Error('Dữ liệu lịch giá phòng không hợp lệ');
+    }
+    return response.data;
   },
 
   async updateCalendar(roomId: string, data: { date: string; price: number; is_available?: number }) {
@@ -137,14 +147,14 @@ export const hostService = {
   },
 
   // 4. Dynamic Pricing AI
-  async getPricingSuggestions(homestayId: string, date: string, roomId?: string): Promise<{ data: PricingSuggestion }> {
-    return await apiClient('/host/pricing/suggestions', {
+  async getPricingSuggestions(homestayId: string, date: string, roomId?: string): Promise<ApiResponse<PricingSuggestion>> {
+    return await apiClient<ApiResponse<PricingSuggestion>>('/host/pricing/suggestions', {
       params: { homestay_id: homestayId, date, room_id: roomId },
     });
   },
 
-  async applyPricing(data: { homestay_id: string; date: string; applied_price?: number; new_price?: number; room_id?: string }) {
-    return await apiClient('/host/pricing/apply', {
+  async applyPricing(data: ApplyPricingRequest): Promise<ApiResponse<ApplyPricingResult>> {
+    return await apiClient<ApiResponse<ApplyPricingResult>>('/host/pricing/apply', {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -216,6 +226,58 @@ export const hostService = {
         front_image_base64: params.frontImageBase64 || params.imageBase64,
         back_image_url: params.backImageUrl,
         back_image_base64: params.backImageBase64,
+      }),
+    });
+  },
+
+  /** Tải ảnh mã QR Ngân hàng (VietQR) lên máy chủ */
+  async uploadBankQr(file: File): Promise<{ file_name: string; image_url: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res: any = await apiClient('/host/verify/upload-bank-qr', {
+      method: 'POST',
+      body: formData,
+    });
+    return res?.data ?? res;
+  },
+
+  /** Quét mã QR Ngân hàng và đối chiếu với họ tên trên CCCD */
+  async scanBankQr(params: {
+    cccdName?: string;
+    imageUrl?: string;
+    imageBase64?: string;
+    file?: File;
+  }): Promise<{
+    data: {
+      success: boolean;
+      bank_name?: string;
+      bank_bin?: string;
+      account_number?: string;
+      account_name?: string;
+      amount?: number;
+      source: 'VIETQR_PAYLOAD' | 'OCR_FALLBACK' | 'COMBINED';
+      is_matched: boolean;
+      match_score: number;
+      cccd_name_normalized?: string;
+      account_name_normalized?: string;
+      comparison_message: string;
+    };
+  }> {
+    if (params.file) {
+      const formData = new FormData();
+      formData.append('file', params.file);
+      if (params.cccdName) formData.append('cccd_name', params.cccdName);
+      return await apiClient('/host/verify/scan-bank-qr', {
+        method: 'POST',
+        body: formData,
+      });
+    }
+    return await apiClient('/host/verify/scan-bank-qr', {
+      method: 'POST',
+      body: JSON.stringify({
+        cccd_name: params.cccdName,
+        image_url: params.imageUrl,
+        image_base64: params.imageBase64,
       }),
     });
   },

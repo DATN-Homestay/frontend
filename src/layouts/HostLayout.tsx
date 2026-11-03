@@ -12,9 +12,11 @@ import {
   SwapOutlined,
   LogoutOutlined,
   GiftOutlined,
+  MessageOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/useAuth';
+import ChatNavBadge from '../features/chat/ChatNavBadge';
 
 const { Sider, Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -58,6 +60,7 @@ export default function HostLayout() {
 
   const menuItems = [
     { key: '/host', icon: <DashboardOutlined />, label: 'Tổng quan (Dashboard)' },
+    { key: '/host/messages', icon: <MessageOutlined />, label: <ChatNavBadge role="HOST" /> },
     { key: '/host/listings', icon: <HomeOutlined />, label: 'Quản lý Homestay' },
     { key: '/host/pricing', icon: <DollarOutlined />, label: 'Lịch giá & AI Đề xuất' },
     { key: '/host/verification', icon: <SafetyCertificateOutlined />, label: 'Xác thực 4 lớp Chính chủ' },
@@ -169,7 +172,7 @@ export default function HostLayout() {
           </Space>
         </Header>
 
-        <Content style={{ margin: '24px', minHeight: 280 }}>
+        <Content className={location.pathname === '/host/messages' ? 'chat-host-content' : undefined} style={{ margin: '24px', minHeight: 280 }}>
           <Outlet />
         </Content>
       </Layout>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, App, Avatar, Button, Card, Descriptions, Form, Input, Popconfirm, Spin, Table, Tabs, Tag, Typography } from 'antd';
 import { LaptopOutlined, LockOutlined, SafetyOutlined, UserOutlined } from '@ant-design/icons';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/useAuth';
 import { userService } from '../../services/userService';
 import { describeDevice } from '../../utils/device';
 import type { SessionInfo, UserRole } from '../../types/auth';

@@ -14,10 +14,10 @@ export interface HomestayItem {
   amenities_json?: Record<string, any>;
   rooms?: RoomItem[];
   /** Backend trả kèm khi xem chi tiết (GET /homestays/:id); có thể thiếu hoặc null */
-  host?: { name?: string } | null;
-  images?: { image_url: string }[];
-  reviews?: any[];
+  host?: { id?: string; name?: string; full_name?: string; avatar_url?: string | null } | null;
   absa_metric?: { ai_summary_vn?: string | null } | null;
+  reviews?: { id: string; comment: string; rating_overall: number; customer?: { name?: string; full_name?: string } }[];
+  images?: { image_url: string; id?: string; is_primary?: number; sort_order?: number }[];
 }
 
 export interface RoomDetailsJson {

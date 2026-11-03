@@ -7,6 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test:pricing": "node --test test/pricing.utils.test.ts test/pricing-panel.test.mjs",
+    "test:chat": "node --test test/chat.utils.test.ts test/chat.integration.test.mjs",
+    "test:regressions": "node --test --test-force-exit test/frontend-regressions.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -16,11 +19,11 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.4",
-    "typescript": "~6.0.2",
-    "vite": "^8.3.0"
+    "socket.io-client": "^4.8.4"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
@@ -29,6 +32,9 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.6",
     "globals": "^17.12.0",
-    "typescript-eslint": "^8.69.0"
+    "jsdom": "^30.1.3",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.69.0",
+    "vite": "^8.3.0"
   }
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   Table,
@@ -29,46 +29,53 @@ export default function HostCouponsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
 
-  useEffect(() => {
-    loadCoupons();
+  const fetchCoupons = useCallback(() => {
+    return hostService
+      .getCoupons()
+      .then((res) => {
+        const list = Array.isArray(res) ? res : (res as any)?.data || [];
+        setCoupons(list);
+      })
+      .catch(() => {
+        // Fallback demo coupons
+        setCoupons([
+          {
+            id: '1',
+            code: 'WELCOME10',
+            discount_type: 'PERCENTAGE',
+            discount_value: 10,
+            min_order_value: 1000000,
+            start_date: '2026-10-01',
+            end_date: '2026-11-30',
+            is_active: 1,
+            created_at: '2026-10-01',
+          },
+          {
+            id: '2',
+            code: 'CUOITUAN50K',
+            discount_type: 'FIXED_AMOUNT',
+            discount_value: 50000,
+            min_order_value: 500000,
+            start_date: '2026-10-15',
+            end_date: '2026-10-31',
+            is_active: 1,
+            created_at: '2026-10-15',
+          },
+        ]);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
-  const loadCoupons = async () => {
+  const loadCoupons = (...args: Parameters<typeof fetchCoupons>) => {
     setLoading(true);
-    try {
-      const res = await hostService.getCoupons();
-      const list = Array.isArray(res) ? res : (res as any)?.data || [];
-      setCoupons(list);
-    } catch {
-      // Fallback demo coupons
-      setCoupons([
-        {
-          id: '1',
-          code: 'WELCOME10',
-          discount_type: 'PERCENTAGE',
-          discount_value: 10,
-          min_order_value: 1000000,
-          start_date: '2026-10-01',
-          end_date: '2026-11-30',
-          is_active: 1,
-          created_at: '2026-10-01',
-        },
-        {
-          id: '2',
-          code: 'CUOITUAN50K',
-          discount_type: 'FIXED_AMOUNT',
-          discount_value: 50000,
-          min_order_value: 500000,
-          start_date: '2026-10-15',
-          end_date: '2026-10-31',
-          is_active: 1,
-          created_at: '2026-10-15',
-        },
-      ]);
-    } finally {
-      setLoading(false);
-    }
+    return fetchCoupons(...args);
   };
+
+  useEffect(() => {
+    fetchCoupons();
+  }, [fetchCoupons]);
 
   const handleCreateCoupon = async (values: any) => {
     setSubmitting(true);
