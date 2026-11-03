@@ -5,7 +5,6 @@ import ChatProvider from './features/chat/ChatProvider';
 import ChatPage from './features/chat/ChatPage';
 
 import ProtectedRoute from './components/auth/ProtectedRoute';
-import OtaModeSwitcher from './components/OtaModeSwitcher';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Layouts
@@ -148,7 +147,6 @@ export default function App() {
                   {/* MẶC ĐỊNH CHUYỂN HƯỚNG VỀ TRANG CHỦ KHÁCH HÀNG */}
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
-                <OtaModeSwitcher />
               </BrowserRouter>
             </ChatProvider>
           </AuthProvider>

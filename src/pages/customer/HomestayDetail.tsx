@@ -44,7 +44,6 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { customerService } from '../../services/customerService';
 import type { HomestayItem, RoomItem } from '../../types/customer';
 import { getHomestayCoverImage, getAllHomestayImages } from '../../utils/imageHelper';
-import { getStoredOtaMode, type OtaMode } from '../../utils/otaMode';
 
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -104,18 +103,7 @@ function HomestayDetailContent() {
   const [dateRange, setDateRange] = useState<[string, string] | null>(null);
   const [activeImage, setActiveImage] = useState<string | null>(initialCoverFromState || null);
 
-  // OTA INTEGRATION MODE (DEMO GVHD: B2B DEMAND API vs AFFILIATE PARTNER)
-  const [otaMode, setOtaMode] = useState<OtaMode>(getStoredOtaMode);
-  const [affiliateModalOpen, setAffiliateModalOpen] = useState(false);
 
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const customEvent = e as CustomEvent<OtaMode>;
-      if (customEvent.detail) setOtaMode(customEvent.detail);
-    };
-    window.addEventListener('ota_mode_changed', handler);
-    return () => window.removeEventListener('ota_mode_changed', handler);
-  }, []);
 
   // ROOM DETAIL MODAL STATE
   const [roomDetailModalOpen, setRoomDetailModalOpen] = useState(false);
@@ -181,7 +169,49 @@ function HomestayDetailContent() {
     }
   }, [id, fetchDetail]);
 
+  const isBookingComHomestay =
+    homestay?.is_claimed === 0 ||
+    !!homestay?.source_url?.toLowerCase().includes('booking.com');
+
   const handleBooking = () => {
+    // 1. NẾU LÀ HOMESTAY TỪ BOOKING.COM: DẪN TRỰC TIẾP SANG BOOKING.COM
+    if (isBookingComHomestay) {
+      let base =
+        homestay?.source_url ||
+        `https://www.booking.com/searchresults.vi.html?ss=${encodeURIComponent(homestay?.name || 'Homestay')}`;
+
+      if (!base.startsWith('http://') && !base.startsWith('https://')) {
+        base = `https://${base.replace(/^\/+/, '')}`;
+      }
+
+      const [cleanBase, existingQuery] = base.split('?');
+      const params = new URLSearchParams(existingQuery || '');
+
+      if (dateRange?.[0] && dateRange?.[1]) {
+        params.set('checkin', dateRange[0]);
+        params.set('checkout', dateRange[1]);
+      }
+      params.set('group_adults', '2');
+      params.set('no_rooms', '1');
+      params.delete('aid');
+      params.delete('label');
+
+      const targetUrl = `${cleanBase}?${params.toString()}`;
+
+      // Mở an toàn bằng thẻ anchor có rel="noopener noreferrer" để không lộ Referer localhost và tránh bị chặn
+      const link = document.createElement('a');
+      link.href = targetUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      message.success('Đang chuyển hướng sang trang đặt phòng trên Booking.com...');
+      return;
+    }
+
+    // 2. NẾU LÀ HOMESTAY CHỦ NHÀ ĐĂNG KÝ TRÊN SÀN STAYAI
     if (!selectedRoom) {
       message.warning('Vui lòng chọn một loại phòng');
       return;
@@ -193,16 +223,13 @@ function HomestayDetailContent() {
     const checkIn = dateRange[0];
     const checkOut = dateRange[1];
 
-    // NẾU Ở CHẾ ĐỘ AFFILIATE PARTNER VÀ CƠ SỞ LIÊN KẾT BOOKING.COM (CHƯA CLAIM)
-    if (otaMode === 'AFFILIATE_PARTNER' && homestay?.is_claimed === 0) {
-      setAffiliateModalOpen(true);
-      return;
-    }
-
-    // MẶC ĐỊNH HOẶC CHẾ ĐỘ B2B DEMAND API: ĐƯA VÀO CHECKOUT NỘI BỘ SÀN (MoR MODEL)
     navigate(
       `/checkout?roomId=${selectedRoom.id}&homestayId=${homestay?.id}&checkIn=${checkIn}&checkOut=${checkOut}`,
     );
+  };
+
+  const handleClaimHomestay = () => {
+    navigate(`/host/verification?tab=property&homestay_id=${homestay?.id}`);
   };
 
   // Ảnh bìa chính: luôn ưu tiên ảnh truyền từ trang chủ hoặc ảnh tính toán chuẩn xác từ helper
@@ -337,7 +364,25 @@ function HomestayDetailContent() {
               Chính chủ eKYC 4 Lớp
             </Tag>
           ) : (
-            <Tag color="blue">Booking.com Verified</Tag>
+            <Space size={6} style={{ display: 'inline-flex', alignItems: 'center' }}>
+              <Tag color="blue">Booking.com Verified</Tag>
+              <Tag color="orange">Chưa có chủ chính thức</Tag>
+              <Button
+                type="link"
+                size="small"
+                icon={<SafetyCertificateOutlined />}
+                onClick={handleClaimHomestay}
+                style={{
+                  color: '#6366f1',
+                  fontWeight: 600,
+                  fontSize: 12,
+                  padding: '0 4px',
+                  height: 'auto',
+                }}
+              >
+                Xác thực chủ nhà ↗
+              </Button>
+            </Space>
           )}
           <Tag color="blue">{homestay.city}</Tag>
           <Tag color="purple">Bảo vệ tiền đặt cọc Escrow 24h</Tag>
@@ -390,22 +435,6 @@ function HomestayDetailContent() {
                 alt="Cover"
                 style={{ width: '100%', height: 420, objectFit: 'cover' }}
               />
-              <Tag
-                color="default"
-                style={{
-                  position: 'absolute',
-                  bottom: 14,
-                  left: 14,
-                  fontWeight: 600,
-                  background: 'rgba(15, 23, 42, 0.75)',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '4px 10px',
-                  borderRadius: 6,
-                }}
-              >
-                📸 {allImages.length || 1} ảnh thật từ Booking.com
-              </Tag>
             </div>
           </Col>
           <Col span={8}>
@@ -479,19 +508,27 @@ function HomestayDetailContent() {
           <Card
             id="rooms-section"
             title={
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                 <Space>
-                  <HomeOutlined style={{ color: '#6366f1', fontSize: 18 }} />
-                  <span style={{ fontWeight: 600 }}>Các hạng phòng khả dụng ({homestay.rooms?.length || 0} loại phòng)</span>
+                  <HomeOutlined style={{ color: isBookingComHomestay ? '#003580' : '#6366f1', fontSize: 18 }} />
+                  <span style={{ fontWeight: 600 }}>
+                    {isBookingComHomestay
+                      ? `Thông tin các hạng phòng (${homestay.rooms?.length || 0} loại phòng tham khảo)`
+                      : `Các hạng phòng khả dụng (${homestay.rooms?.length || 0} loại phòng)`}
+                  </span>
                 </Space>
-                <Tag color="cyan">Giá minh bạch • Đã gồm bảo đảm Escrow 24h</Tag>
+                {isBookingComHomestay ? (
+                  <Tag color="blue">Dữ liệu từ Booking.com • Đặt phòng trực tiếp tại đối tác</Tag>
+                ) : (
+                  <Tag color="cyan">Giá minh bạch • Đã gồm bảo đảm Escrow 24h</Tag>
+                )}
               </div>
             }
             style={{ borderRadius: 16, marginBottom: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {homestay.rooms?.map((r) => {
-                const isSelected = selectedRoom?.id === r.id;
+                const isSelected = !isBookingComHomestay && selectedRoom?.id === r.id;
                 const roomImg =
                   r.images?.[0]?.image_url ||
                   getHomestayCoverImage(homestay);
@@ -502,10 +539,14 @@ function HomestayDetailContent() {
                 return (
                   <div
                     key={r.id}
-                    onClick={() => {
-                      setSelectedRoom(r);
-                      if (r.images?.[0]?.image_url) {
-                        setActiveImage(r.images[0].image_url);
+                    onClick={(e) => {
+                      if (isBookingComHomestay) {
+                        handleOpenRoomDetail(r, e);
+                      } else {
+                        setSelectedRoom(r);
+                        if (r.images?.[0]?.image_url) {
+                          setActiveImage(r.images[0].image_url);
+                        }
                       }
                     }}
                     style={{
@@ -652,31 +693,50 @@ function HomestayDetailContent() {
                       <Text style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 10 }}>
                         /đêm
                       </Text>
-                      <Space direction="vertical" size={6} style={{ width: '100%' }}>
+
+                      {isBookingComHomestay ? (
                         <Button
-                          type={isSelected ? 'primary' : 'default'}
+                          type="primary"
                           size="middle"
-                          block
-                          style={{
-                            borderRadius: 8,
-                            background: isSelected ? '#006ce4' : undefined,
-                            borderColor: isSelected ? '#006ce4' : '#cbd5e1',
-                            fontWeight: 600,
-                          }}
-                        >
-                          {isSelected ? '✓ Đang chọn' : 'Chọn phòng'}
-                        </Button>
-                        <Button
-                          type="text"
-                          size="small"
                           block
                           icon={<EyeOutlined />}
                           onClick={(e) => handleOpenRoomDetail(r, e)}
-                          style={{ color: '#006ce4', fontWeight: 500, fontSize: 12 }}
+                          style={{
+                            borderRadius: 8,
+                            background: '#006ce4',
+                            borderColor: '#006ce4',
+                            fontWeight: 600,
+                          }}
                         >
-                          Xem chi tiết
+                          Xem chi tiết phòng
                         </Button>
-                      </Space>
+                      ) : (
+                        <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                          <Button
+                            type={isSelected ? 'primary' : 'default'}
+                            size="middle"
+                            block
+                            style={{
+                              borderRadius: 8,
+                              background: isSelected ? '#006ce4' : undefined,
+                              borderColor: isSelected ? '#006ce4' : '#cbd5e1',
+                              fontWeight: 600,
+                            }}
+                          >
+                            {isSelected ? '✓ Đang chọn' : 'Chọn phòng'}
+                          </Button>
+                          <Button
+                            type="text"
+                            size="small"
+                            block
+                            icon={<EyeOutlined />}
+                            onClick={(e) => handleOpenRoomDetail(r, e)}
+                            style={{ color: '#006ce4', fontWeight: 500, fontSize: 12 }}
+                          >
+                            Xem chi tiết
+                          </Button>
+                        </Space>
+                      )}
                     </div>
                   </div>
                 );
@@ -842,68 +902,133 @@ function HomestayDetailContent() {
             ) : null}
           </Card>
 
-          {/* HOST PROFILE & DIRECT CHAT CARD */}
-          <Card
-            style={{
-              borderRadius: 16,
-              marginBottom: 24,
-              border: '1px solid #c7d2fe',
-              background: 'linear-gradient(135deg, #fdfbff 0%, #f5f3ff 100%)',
-            }}
-          >
-            <div
+          {/* HOST PROFILE & DIRECT CHAT CARD (Chỉ hiển thị với homestay có chủ nhà thật xác nhận) */}
+          {!isBookingComHomestay && homestay?.is_claimed === 1 && (
+            <Card
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: 16,
+                borderRadius: 16,
+                marginBottom: 24,
+                border: '1px solid #c7d2fe',
+                background: 'linear-gradient(135deg, #fdfbff 0%, #f5f3ff 100%)',
               }}
             >
-              <Space size="middle">
-                <Badge dot status="success" offset={[-6, 42]}>
-                  <Avatar
-                    size={56}
-                    style={{ backgroundColor: '#003b95', border: '2px solid #6366f1', color: '#fff', fontSize: 22 }}
-                    icon={<UserOutlined />}
-                  />
-                </Badge>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <Text strong style={{ fontSize: 16, color: '#1e293b' }}>
-                      {homestay.host?.name ? `Chủ nhà: ${homestay.host.name}` : `Đại diện: ${homestay.name}`}
-                    </Text>
-                    <Tag color="gold" icon={<StarFilled />}>
-                      Chủ nhà Siêu cấp
-                    </Tag>
-                    <Tag color="green" icon={<CheckCircleOutlined />}>
-                      eKYC 4 Lớp
-                    </Tag>
-                  </div>
-                  <Text type="secondary" style={{ fontSize: 13 }}>
-                    🟢 Đang trực tuyến • Tỉ lệ phản hồi <strong style={{ color: '#10b981' }}>100%</strong> (trong vòng 5 phút)
-                  </Text>
-                </div>
-              </Space>
-
-              <Button
-                type="primary"
-                icon={<MessageOutlined />}
-                size="large"
-                onClick={openHostChat}
-                disabled={!homestay.is_claimed}
+              <div
                 style={{
-                  height: 44,
-                  borderRadius: 10,
-                  background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                  fontWeight: 600,
-                  boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 16,
                 }}
               >
-                Nhắn tin với Chủ nhà
-              </Button>
-            </div>
-          </Card>
+                <Space size="middle">
+                  <Badge dot status="success" offset={[-6, 42]}>
+                    <Avatar
+                      size={56}
+                      style={{ backgroundColor: '#003b95', border: '2px solid #6366f1', color: '#fff', fontSize: 22 }}
+                      icon={<UserOutlined />}
+                    />
+                  </Badge>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <Text strong style={{ fontSize: 16, color: '#1e293b' }}>
+                        {homestay.host?.name ? `Chủ nhà: ${homestay.host.name}` : `Đại diện: ${homestay.name}`}
+                      </Text>
+                      <Tag color="gold" icon={<StarFilled />}>
+                        Chủ nhà Siêu cấp
+                      </Tag>
+                      <Tag color="green" icon={<CheckCircleOutlined />}>
+                        eKYC 4 Lớp
+                      </Tag>
+                    </div>
+                    <Text type="secondary" style={{ fontSize: 13 }}>
+                      🟢 Đang trực tuyến • Tỉ lệ phản hồi <strong style={{ color: '#10b981' }}>100%</strong> (trong vòng 5 phút)
+                    </Text>
+                  </div>
+                </Space>
+
+                <Button
+                  type="primary"
+                  icon={<MessageOutlined />}
+                  size="large"
+                  onClick={openHostChat}
+                  style={{
+                    height: 44,
+                    borderRadius: 10,
+                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                    fontWeight: 600,
+                    boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
+                  }}
+                >
+                  Nhắn tin với Chủ nhà
+                </Button>
+              </div>
+            </Card>
+          )}
+
+          {/* OWNER CLAIM CARD CHO CHỦ HOMESTAY (HIỂN THỊ KHI CHƯA CÓ CHỦ CHÍNH THỨC) */}
+          {homestay?.is_claimed === 0 && (
+            <Card
+              style={{
+                borderRadius: 16,
+                marginBottom: 24,
+                border: '1.5px dashed #6366f1',
+                background: 'linear-gradient(135deg, #f5f3ff 0%, #ffffff 100%)',
+                boxShadow: '0 4px 16px rgba(99, 102, 241, 0.08)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 16,
+                }}
+              >
+                <Space size="middle">
+                  <Avatar
+                    size={52}
+                    style={{
+                      backgroundColor: '#6366f1',
+                      color: '#ffffff',
+                      fontSize: 22,
+                      boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)',
+                    }}
+                    icon={<SafetyCertificateOutlined />}
+                  />
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                      <Text strong style={{ fontSize: 16, color: '#1e1b4b' }}>
+                        Bạn là chủ sở hữu của chỗ nghỉ này?
+                      </Text>
+                      <Tag color="purple">Dành cho Chủ Nhà</Tag>
+                      <Tag color="cyan">Chưa có chủ chính thức</Tag>
+                    </div>
+                    <Text type="secondary" style={{ fontSize: 13, display: 'block', maxWidth: 640 }}>
+                      Tiếp nhận quyền quản trị chỗ nghỉ, tự do cập nhật giá & đóng/mở phòng, nhận tiền cọc minh bạch qua tài khoản Ký quỹ Escrow StayAI bằng cách hoàn tất quy trình Xác thực 4 Lớp eKYC.
+                    </Text>
+                  </div>
+                </Space>
+
+                <Button
+                  type="primary"
+                  icon={<SafetyCertificateOutlined />}
+                  size="large"
+                  onClick={handleClaimHomestay}
+                  style={{
+                    height: 44,
+                    borderRadius: 10,
+                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                    fontWeight: 600,
+                    boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
+                  }}
+                >
+                  Xác thực làm chủ homestay
+                </Button>
+              </div>
+            </Card>
+          )}
 
           {/* ESCROW & POLICIES */}
           <Card title="Chính sách bảo đảm & Hoàn hủy" style={{ borderRadius: 14, marginBottom: 32 }}>
@@ -1142,31 +1267,37 @@ function HomestayDetailContent() {
               border: '1px solid #e2e8f0',
             }}
           >
-            {/* Selected Room Tag */}
-            <div
-              style={{
-                background: '#f8fafc',
-                padding: '10px 14px',
-                borderRadius: 10,
-                border: '1px solid #e2e8f0',
-                marginBottom: 16,
-              }}
-            >
-              <Text style={{ fontSize: 12, color: '#64748b', display: 'block' }}>Hạng phòng đang chọn:</Text>
-              <Text strong style={{ fontSize: 14, color: '#4338ca' }}>
-                {selectedRoom?.room_name || 'Vui lòng chọn phòng bên trái'}
-              </Text>
-            </div>
+            {isBookingComHomestay ? (
+              <>
+                <div
+                  style={{
+                    background: '#f0f7ff',
+                    padding: '12px 16px',
+                    borderRadius: 12,
+                    border: '1px solid #bae0ff',
+                    marginBottom: 16,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <span style={{ fontSize: 16 }}>🔗</span>
+                    <Text strong style={{ fontSize: 14, color: '#003580' }}>
+                      Đối tác ủy quyền Booking.com
+                    </Text>
+                  </div>
+                  <Text style={{ fontSize: 12, color: '#475569', lineHeight: 1.5, display: 'block' }}>
+                    Chỗ nghỉ này được liên kết trực tiếp từ Booking.com. Bạn có thể xem hình ảnh và tiện nghi chi tiết từng phòng ở danh sách bên cạnh.
+                  </Text>
+                </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <Text style={{ fontSize: 13, color: '#64748b' }}>Giá phòng niêm yết</Text>
-              <div>
-                <Text strong style={{ fontSize: 26, color: '#6366f1' }}>
-                  {(selectedRoom?.base_price || 650000).toLocaleString('vi-VN')}đ
-                </Text>
-                <Text type="secondary"> /đêm</Text>
-              </div>
-            </div>
+                <div style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 13, color: '#64748b' }}>Giá tham khảo chỉ từ</Text>
+                  <div>
+                    <Text strong style={{ fontSize: 26, color: '#003580' }}>
+                      {(homestay.rooms?.[0]?.base_price || 500000).toLocaleString('vi-VN')}đ
+                    </Text>
+                    <Text type="secondary"> /đêm</Text>
+                  </div>
+                </div>
 
             <div style={{ marginBottom: 16 }}>
               <Text strong style={{ display: 'block', marginBottom: 6 }}>
@@ -1184,69 +1315,149 @@ function HomestayDetailContent() {
                 }
               />
             </div>
+                <div
+                  style={{
+                    background: '#f8fafc',
+                    padding: '12px 14px',
+                    borderRadius: 10,
+                    border: '1px dashed #cbd5e1',
+                    marginBottom: 20,
+                    fontSize: 13,
+                    color: '#334155',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  ℹ️ Để chọn ngày lưu trú, kiểm tra tình trạng phòng trống thực tế và hoàn tất thủ tục đặt phòng, vui lòng tiếp tục trên Booking.com.
+                </div>
 
-            {otaMode === 'AFFILIATE_PARTNER' && homestay?.is_claimed === 0 ? (
-              <Button
-                type="primary"
-                size="large"
-                block
-                onClick={handleBooking}
-                style={{
-                  height: 48,
-                  borderRadius: 10,
-                  background: '#003580',
-                  borderColor: '#003580',
-                  fontWeight: 700,
-                  boxShadow: '0 4px 12px rgba(0, 53, 128, 0.35)',
-                }}
-              >
-                🌐 Đặt qua Đối tác Booking.com
-              </Button>
+                <Button
+                  type="primary"
+                  size="large"
+                  block
+                  onClick={handleBooking}
+                  style={{
+                    height: 50,
+                    borderRadius: 10,
+                    background: '#003580',
+                    borderColor: '#003580',
+                    fontWeight: 700,
+                    fontSize: 16,
+                    boxShadow: '0 4px 14px rgba(0, 53, 128, 0.35)',
+                  }}
+                >
+                  Đặt phòng tại Booking.com ↗
+                </Button>
+
+                <div style={{ textAlign: 'center', marginTop: 14, paddingTop: 12, borderTop: '1px dashed #e2e8f0' }}>
+                  <Text style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4 }}>
+                    Bạn là chủ sở hữu của chỗ nghỉ này?
+                  </Text>
+                  <Button
+                    type="link"
+                    icon={<SafetyCertificateOutlined />}
+                    onClick={handleClaimHomestay}
+                    style={{
+                      color: '#6366f1',
+                      fontWeight: 600,
+                      fontSize: 13,
+                      padding: 0,
+                      height: 'auto',
+                    }}
+                  >
+                    Xác thực làm chủ homestay ↗
+                  </Button>
+                </div>
+
+                <Text
+                  type="secondary"
+                  style={{ fontSize: 12, textAlign: 'center', display: 'block', marginTop: 14 }}
+                >
+                  🔗 Đặt phòng an toàn & xác thực trực tiếp trên Booking.com
+                </Text>
+              </>
             ) : (
-              <Button
-                type="primary"
-                size="large"
-                block
-                onClick={handleBooking}
-                style={{
-                  height: 48,
-                  borderRadius: 10,
-                  background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                  fontWeight: 600,
-                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
-                }}
-              >
-                Đặt phòng ngay
-              </Button>
+              <>
+                {/* Selected Room Tag */}
+                <div
+                  style={{
+                    background: '#f8fafc',
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    border: '1px solid #e2e8f0',
+                    marginBottom: 16,
+                  }}
+                >
+                  <Text style={{ fontSize: 12, color: '#64748b', display: 'block' }}>Hạng phòng đang chọn:</Text>
+                  <Text strong style={{ fontSize: 14, color: '#4338ca' }}>
+                    {selectedRoom?.room_name || 'Vui lòng chọn phòng bên trái'}
+                  </Text>
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 13, color: '#64748b' }}>Giá phòng niêm yết</Text>
+                  <div>
+                    <Text strong style={{ fontSize: 26, color: '#6366f1' }}>
+                      {(selectedRoom?.base_price || 650000).toLocaleString('vi-VN')}đ
+                    </Text>
+                    <Text type="secondary"> /đêm</Text>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <Text strong style={{ display: 'block', marginBottom: 6 }}>
+                    Chọn ngày lưu trú
+                  </Text>
+                  <RangePicker
+                    style={{ width: '100%' }}
+                    onChange={(_, dateStrings) => setDateRange([dateStrings[0], dateStrings[1]])}
+                  />
+                </div>
+
+                <Button
+                  type="primary"
+                  size="large"
+                  block
+                  onClick={handleBooking}
+                  style={{
+                    height: 48,
+                    borderRadius: 10,
+                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                    fontWeight: 600,
+                    fontSize: 15,
+                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                  }}
+                >
+                  Đặt phòng ngay
+                </Button>
+
+                {homestay?.is_claimed === 1 && (
+                  <Button
+                    size="large"
+                    block
+                    icon={<MessageOutlined />}
+                    onClick={openHostChat}
+                    style={{
+                      marginTop: 12,
+                      height: 44,
+                      borderRadius: 10,
+                      borderColor: '#6366f1',
+                      color: '#6366f1',
+                      fontWeight: 600,
+                      background: '#fdfbff',
+                    }}
+                  >
+                    Nhắn tin hỏi chủ nhà
+                  </Button>
+                )}
+
+                <Text
+                  type="secondary"
+                  style={{ fontSize: 12, textAlign: 'center', display: 'block', marginTop: 14 }}
+                >
+                  🛡️ Bảo vệ thanh toán: Ký quỹ Escrow StayAI
+                </Text>
+              </>
             )}
-
-            <Button
-              size="large"
-              block
-              icon={<MessageOutlined />}
-              onClick={openHostChat}
-                disabled={!homestay.is_claimed}
-              style={{
-                marginTop: 12,
-                height: 44,
-                borderRadius: 10,
-                borderColor: '#6366f1',
-                color: '#6366f1',
-                fontWeight: 600,
-                background: '#fdfbff',
-              }}
-            >
-              Nhắn tin hỏi chủ nhà
-            </Button>
-
-            <Text
-              type="secondary"
-              style={{ fontSize: 12, textAlign: 'center', display: 'block', marginTop: 14 }}
-            >
-              {otaMode === 'AFFILIATE_PARTNER' && homestay?.is_claimed === 0
-                ? '🔗 Chương trình Đối tác Ủy quyền Booking.com Affiliate'
-                : '🛡️ Bảo vệ thanh toán: Ký quỹ Escrow & Tự động xuất vé B2B'}
-            </Text>
           </Card>
         </Col>
       </Row>
@@ -1683,28 +1894,49 @@ function HomestayDetailContent() {
                         </Text>
                       </div>
 
-                      <Button
-                        type="primary"
-                        size="large"
-                        onClick={() => {
-                          setSelectedRoom(room);
-                          if (room.images?.[0]?.image_url) {
-                            setActiveImage(room.images[0].image_url);
-                          }
-                          setRoomDetailModalOpen(false);
-                          message.success(`Đã chọn phòng: ${room.room_name}`);
-                        }}
-                        style={{
-                          background: '#006ce4',
-                          borderColor: '#006ce4',
-                          fontWeight: 700,
-                          borderRadius: 8,
-                          padding: '0 24px',
-                          height: 44,
-                        }}
-                      >
-                        {selectedRoom?.id === room.id ? '✓ Đang chọn phòng này' : 'Chọn phòng này'}
-                      </Button>
+                      {isBookingComHomestay ? (
+                        <Button
+                          type="primary"
+                          size="large"
+                          onClick={() => {
+                            setRoomDetailModalOpen(false);
+                            handleBooking();
+                          }}
+                          style={{
+                            background: '#003580',
+                            borderColor: '#003580',
+                            fontWeight: 700,
+                            borderRadius: 8,
+                            padding: '0 24px',
+                            height: 44,
+                          }}
+                        >
+                          Đặt phòng này tại Booking.com ↗
+                        </Button>
+                      ) : (
+                        <Button
+                          type="primary"
+                          size="large"
+                          onClick={() => {
+                            setSelectedRoom(room);
+                            if (room.images?.[0]?.image_url) {
+                              setActiveImage(room.images[0].image_url);
+                            }
+                            setRoomDetailModalOpen(false);
+                            message.success(`Đã chọn phòng: ${room.room_name}`);
+                          }}
+                          style={{
+                            background: '#006ce4',
+                            borderColor: '#006ce4',
+                            fontWeight: 700,
+                            borderRadius: 8,
+                            padding: '0 24px',
+                            height: 44,
+                          }}
+                        >
+                          {selectedRoom?.id === room.id ? '✓ Đang chọn phòng này' : 'Chọn phòng này'}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </Col>
@@ -1714,108 +1946,6 @@ function HomestayDetailContent() {
         })()}
       </Modal>
 
-      {/* ========================================================= */}
-      {/* MODAL CHUYỂN TIẾP ĐỐI TÁC BOOKING.COM AFFILIATE (DEMO GVHD) */}
-      {/* ========================================================= */}
-      <Modal
-        title={null}
-        open={affiliateModalOpen}
-        onCancel={() => setAffiliateModalOpen(false)}
-        footer={null}
-        width={560}
-        centered
-        styles={{ body: { padding: 0 } }}
-      >
-        <div style={{ borderRadius: 12, overflow: 'hidden' }}>
-          {/* Header Xanh Booking.com */}
-          <div style={{ background: '#003580', color: '#fff', padding: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 24 }}>🌐</span>
-                <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: -0.3 }}>Booking.com</span>
-                <span style={{ fontSize: 14, opacity: 0.9 }}>Affiliate Network</span>
-              </div>
-              <Tag color="#00ba74" style={{ fontWeight: 700, margin: 0, padding: '2px 8px' }}>
-                ĐỐI TÁC ỦY QUYỀN
-              </Tag>
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>
-              Chuyển hướng đặt phòng an toàn qua Booking.com
-            </div>
-            <div style={{ fontSize: 12, opacity: 0.85, marginTop: 4 }}>
-              Mã đối tác tiếp thị liên kết: <strong>aid=2409182</strong> (StayAI Official Partner)
-            </div>
-          </div>
-
-          <div style={{ padding: '24px' }}>
-            <div style={{ background: '#f8fafc', padding: '16px', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 20 }}>
-              <div style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
-                Thông tin phòng lưu trú:
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>
-                {homestay?.name}
-              </div>
-              <div style={{ fontSize: 14, color: '#006ce4', fontWeight: 600, marginTop: 2 }}>
-                {selectedRoom?.room_name}
-              </div>
-              <div style={{ fontSize: 13, color: '#475569', marginTop: 6 }}>
-                📅 Thời gian: <strong>{dateRange?.[0]} ➔ {dateRange?.[1]}</strong>
-              </div>
-              <div style={{ fontSize: 13, color: '#475569', marginTop: 2 }}>
-                💰 Giá niêm yết: <strong>{(selectedRoom?.base_price || 0).toLocaleString('vi-VN')}đ</strong> / đêm
-              </div>
-            </div>
-
-            <div style={{ background: '#eff6ff', padding: '12px 16px', borderRadius: 8, border: '1px solid #bfdbfe', fontSize: 13, color: '#1e40af', lineHeight: 1.5, marginBottom: 24 }}>
-              🛡️ <strong>Chính sách minh bạch:</strong> Bạn sẽ được chuyển trực tiếp sang giao diện Booking.com để nhập thông tin và thanh toán. Nền tảng StayAI nhận hoa hồng chia sẻ (25% - 40%) từ Booking.com sau khi kỳ nghỉ kết thúc.
-            </div>
-
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <Button size="large" onClick={() => setAffiliateModalOpen(false)}>
-                Hủy
-              </Button>
-              <Button
-                type="primary"
-                size="large"
-                style={{
-                  background: '#003580',
-                  borderColor: '#003580',
-                  fontWeight: 700,
-                  padding: '0 24px',
-                }}
-                onClick={() => {
-                  // Ghi nhận lượt click Affiliate vào localStorage để Admin thống kê
-                  const clicks = JSON.parse(localStorage.getItem('stayai_affiliate_clicks') || '[]');
-                  clicks.unshift({
-                    id: String(Date.now()),
-                    homestay_id: homestay?.id,
-                    homestay_name: homestay?.name,
-                    room_name: selectedRoom?.room_name,
-                    check_in: dateRange?.[0],
-                    check_out: dateRange?.[1],
-                    price: selectedRoom?.base_price || 0,
-                    estimated_commission: Math.round((Number(selectedRoom?.base_price) || 600000) * 0.4),
-                    timestamp: new Date().toISOString(),
-                    affiliate_id: '2409182',
-                  });
-                  localStorage.setItem('stayai_affiliate_clicks', JSON.stringify(clicks.slice(0, 50)));
-
-                  const sourceUrl = homestay?.source_url || 'https://www.booking.com';
-                  const redirectUrl = sourceUrl.includes('?')
-                    ? `${sourceUrl}&aid=2409182&label=stayai_affiliate_demo`
-                    : `${sourceUrl}?aid=2409182&label=stayai_affiliate_demo`;
-
-                  message.success('Đang chuyển hướng sang Booking.com qua mã đối tác aid=2409182...');
-                  setAffiliateModalOpen(false);
-                  window.open(redirectUrl, '_blank');
-                }}
-              >
-                Xác nhận đến Booking.com ➔
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }
