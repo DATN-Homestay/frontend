@@ -214,7 +214,7 @@ export default function SyncMarketDataPage() {
             <Descriptions.Item label="Thời điểm đồng bộ">
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <ClockCircleOutlined style={{ color: '#6366f1' }} />
-                {new Date(result.synced_at).toLocaleString('vi-VN')}
+                {new Date(result.synced_at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false })}
               </div>
             </Descriptions.Item>
             <Descriptions.Item label="Thời gian xử lý">

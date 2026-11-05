@@ -226,7 +226,7 @@ export default function UsersPage() {
     {
       title: 'Ngày tạo',
       dataIndex: 'created_at',
-      render: (v: string) => v ? new Date(v).toLocaleDateString('vi-VN') : '—',
+      render: (v: string) => v ? new Date(v).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : '—',
     },
     {
       title: 'Hành động',
@@ -412,7 +412,7 @@ export default function UsersPage() {
               <Descriptions.Item label="Email">{detailData.email}</Descriptions.Item>
               <Descriptions.Item label="SĐT">{detailData.phone_number || '—'}</Descriptions.Item>
               <Descriptions.Item label="Ngày tạo">
-                {new Date(detailData.created_at).toLocaleString('vi-VN')}
+                {new Date(detailData.created_at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false })}
               </Descriptions.Item>
               <Descriptions.Item label="Số homestay">{detailData.homestays_count}</Descriptions.Item>
               <Descriptions.Item label="Số booking">{detailData.bookings_count}</Descriptions.Item>

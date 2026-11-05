@@ -402,7 +402,7 @@ export default function VerificationPage() {
 ${ext.mrz_code || 'N/A'}
 ===================================================
 Trạng thái thẩm định: ${ocrScanResult?.is_authentic ? 'HỢP CHUẨN' : 'CÓ CẢNH BÁO'}
-Thời gian xuất: ${new Date().toLocaleString('vi-VN')}
+Thời gian xuất: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false })}
     `.trim();
 
     navigator.clipboard.writeText(exportText).then(() => {

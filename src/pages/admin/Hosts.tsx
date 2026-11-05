@@ -151,7 +151,7 @@ export default function HostsPage() {
     {
       title: 'Ngày tham gia',
       dataIndex: 'created_at',
-      render: (v: string) => v ? new Date(v).toLocaleDateString('vi-VN') : '—',
+      render: (v: string) => v ? new Date(v).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : '—',
     },
     {
       title: 'Hành động',
@@ -261,7 +261,7 @@ export default function HostsPage() {
                   text={STATUS_MAP[detailData.status]?.label ?? detailData.status} />
               </Descriptions.Item>
               <Descriptions.Item label="Ngày tham gia" span={2}>
-                {new Date(detailData.created_at).toLocaleString('vi-VN')}
+                {new Date(detailData.created_at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false })}
               </Descriptions.Item>
             </Descriptions>
 
