@@ -12,10 +12,13 @@ let dom,
   Register,
   AuthContext,
   authService,
+  customerService,
+  useRoomAvailability,
   ConfigProvider,
   AntApp,
   MemoryRouter;
 let payload;
+let originalQuoteBooking;
 const requests = [];
 const nativeFetch = globalThis.fetch;
 const financial = {
@@ -100,6 +103,9 @@ before(async () => {
   Register = (await vite.ssrLoadModule('/src/pages/auth/Register.tsx')).default;
   ({ AuthContext } = await vite.ssrLoadModule('/src/contexts/AuthContextDefinition.ts'));
   ({ authService } = await vite.ssrLoadModule('/src/services/authService.ts'));
+  ({ customerService } = await vite.ssrLoadModule('/src/services/customerService.ts'));
+  ({ useRoomAvailability } = await vite.ssrLoadModule('/src/pages/customer/useRoomAvailability.ts'));
+  originalQuoteBooking = customerService.quoteBooking;
   ({ ConfigProvider, App: AntApp } = await import('antd'));
   ({ MemoryRouter } = await import('react-router-dom'));
   globalThis.fetch = async (url, options) => {
@@ -115,6 +121,7 @@ before(async () => {
 afterEach(() => {
   testing.cleanup();
   requests.length = 0;
+  customerService.quoteBooking = originalQuoteBooking;
 });
 after(async () => {
   await vite?.close();
@@ -193,4 +200,76 @@ test('binds OTP fields to the form and requires verification again after changin
   await testing.waitFor(() => assert.equal(otp.value, ''));
   assert.equal(testing.screen.queryByText('Đã xác thực'), null);
   assert.equal(otp.disabled, false);
+});
+
+function pendingQuotes() {
+  const pending = [];
+  customerService.quoteBooking = (params) => new Promise((resolve, reject) => {
+    pending.push({ params, resolve, reject });
+  });
+  return pending;
+}
+
+test('uses only the selected room quote when responses arrive out of order', async () => {
+  const pending = pendingQuotes();
+  const dates = ['2026-11-10', '2026-11-12'];
+  const { result, rerender } = testing.renderHook(
+    ({ roomId }) => useRoomAvailability(roomId, dates, true),
+    { initialProps: { roomId: '9007199254740993' } },
+  );
+  assert.equal(result.current.loading, true);
+  assert.deepEqual(pending[0].params, {
+    room_id: '9007199254740993', check_in_date: dates[0], check_out_date: dates[1],
+  });
+  rerender({ roomId: '2' });
+  const selectedQuote = { room_id: '2', available: false, held_dates: [dates[0]] };
+  await testing.act(async () => pending[1].resolve(selectedQuote));
+  assert.deepEqual(result.current, { quote: selectedQuote, error: null, loading: false });
+  await testing.act(async () => pending[0].resolve({ room_id: '9007199254740993', available: true }));
+  assert.equal(result.current.quote, selectedQuote);
+
+  // Revisiting a room must check again rather than reuse its earlier response.
+  rerender({ roomId: '9007199254740993' });
+  assert.deepEqual(result.current, { quote: null, error: null, loading: true });
+  assert.equal(pending.length, 3);
+});
+
+test('clears an old quote on date changes and stops loading when dates are removed', async () => {
+  const pending = pendingQuotes();
+  const dates = ['2026-11-10', '2026-11-12'];
+  const { result, rerender } = testing.renderHook(
+    ({ dates }) => useRoomAvailability('1', dates, true),
+    { initialProps: { dates } },
+  );
+  await testing.act(async () => pending[0].resolve({ available: true, total_amount: 1000000 }));
+  assert.equal(result.current.quote.total_amount, 1000000);
+
+  rerender({ dates: ['2026-11-12', '2026-11-14'] });
+  assert.deepEqual(result.current, { quote: null, error: null, loading: true });
+  rerender({ dates: null });
+  assert.deepEqual(result.current, { quote: null, error: null, loading: false });
+  await testing.act(async () => pending[1].resolve({ available: false }));
+  assert.deepEqual(result.current, { quote: null, error: null, loading: false });
+
+  rerender({ dates });
+  assert.equal(result.current.loading, true);
+  assert.equal(pending.length, 3);
+});
+
+test('reports availability errors separately and skips quotes for partner homestays', async () => {
+  const pending = pendingQuotes();
+  const dates = ['2026-11-10', '2026-11-12'];
+  const { result, rerender } = testing.renderHook(
+    ({ enabled }) => useRoomAvailability('1', dates, enabled),
+    { initialProps: { enabled: false } },
+  );
+  assert.equal(pending.length, 0);
+  assert.deepEqual(result.current, { quote: null, error: null, loading: false });
+  rerender({ enabled: true });
+  await testing.act(async () => pending[0].reject(new Error('Máy chủ tạm thời không phản hồi')));
+  assert.deepEqual(result.current, {
+    quote: null, error: 'Máy chủ tạm thời không phản hồi', loading: false,
+  });
+  rerender({ enabled: false });
+  assert.deepEqual(result.current, { quote: null, error: null, loading: false });
 });

@@ -45,6 +45,7 @@ import dayjs from 'dayjs';
 import { customerService } from '../../services/customerService';
 import type { HomestayItem, RoomItem } from '../../types/customer';
 import { getHomestayCoverImage, getAllHomestayImages } from '../../utils/imageHelper';
+import { useRoomAvailability } from './useRoomAvailability';
 
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -103,12 +104,6 @@ function HomestayDetailContent() {
   const [selectedRoom, setSelectedRoom] = useState<RoomItem | null>(null);
   const [dateRange, setDateRange] = useState<[string, string] | null>(null);
   const [activeImage, setActiveImage] = useState<string | null>(initialCoverFromState || null);
-
-  // Availability & Quoting state
-  const [checkingAvailability, setCheckingAvailability] = useState(false);
-  const [roomAvailabilityQuote, setRoomAvailabilityQuote] = useState<any | null>(null);
-
-
 
   // ROOM DETAIL MODAL STATE
   const [roomDetailModalOpen, setRoomDetailModalOpen] = useState(false);
@@ -178,43 +173,9 @@ function HomestayDetailContent() {
     homestay?.is_claimed === 0 ||
     !!homestay?.source_url?.toLowerCase().includes('booking.com');
 
-  // Kiểm tra tình trạng phòng real-time khi khách chọn ngày và phòng (đối với homestay chính chủ)
-  useEffect(() => {
-    if (!selectedRoom?.id || !dateRange?.[0] || !dateRange?.[1] || isBookingComHomestay) {
-      setRoomAvailabilityQuote(null);
-      return;
-    }
-
-    let isSubscribed = true;
-    setCheckingAvailability(true);
-    customerService
-      .quoteBooking({
-        room_id: String(selectedRoom.id),
-        check_in_date: dateRange[0],
-        check_out_date: dateRange[1],
-      })
-      .then((quote: any) => {
-        if (isSubscribed) {
-          const q = quote?.data ?? quote;
-          setRoomAvailabilityQuote(q);
-        }
-      })
-      .catch((err) => {
-        console.error('Lỗi khi kiểm tra tình trạng phòng:', err);
-        if (isSubscribed) {
-          setRoomAvailabilityQuote({ available: false, error: true, error_message: err?.message });
-        }
-      })
-      .finally(() => {
-        if (isSubscribed) {
-          setCheckingAvailability(false);
-        }
-      });
-
-    return () => {
-      isSubscribed = false;
-    };
-  }, [selectedRoom?.id, dateRange, isBookingComHomestay]);
+  const { quote: roomAvailabilityQuote, loading: checkingAvailability, error: availabilityError } =
+    useRoomAvailability(selectedRoom?.id, dateRange, !isBookingComHomestay);
+  const bookingBlocked = checkingAvailability || !!availabilityError || roomAvailabilityQuote?.available === false;
 
   const handleBooking = () => {
     // 1. NẾU LÀ HOMESTAY TỪ BOOKING.COM: DẪN TRỰC TIẾP SANG BOOKING.COM
@@ -264,6 +225,14 @@ function HomestayDetailContent() {
       return;
     }
 
+    if (checkingAvailability) {
+      message.warning('Vui lòng chờ kiểm tra tình trạng phòng.');
+      return;
+    }
+    if (availabilityError) {
+      message.error(availabilityError);
+      return;
+    }
     if (roomAvailabilityQuote && !roomAvailabilityQuote.available) {
       message.error('Rất tiếc, phòng này đã có người đặt trong khoảng ngày bạn chọn. Vui lòng chọn ngày khác!');
       return;
@@ -1475,6 +1444,12 @@ function HomestayDetailContent() {
                   </div>
                 )}
 
+                {availabilityError && (
+                  <div role="alert" style={{ marginBottom: 14, color: '#b91c1c', fontSize: 13 }}>
+                    Không thể kiểm tra tình trạng phòng: {availabilityError} Vui lòng chọn lại ngày để thử lại.
+                  </div>
+                )}
+
                 {!checkingAvailability && roomAvailabilityQuote && (
                   <div style={{ marginBottom: 14 }}>
                     {roomAvailabilityQuote.available ? (
@@ -1523,24 +1498,25 @@ function HomestayDetailContent() {
                   type="primary"
                   size="large"
                   block
-                  disabled={roomAvailabilityQuote && !roomAvailabilityQuote.available}
+                  disabled={bookingBlocked}
                   onClick={handleBooking}
                   style={{
                     height: 48,
                     borderRadius: 10,
-                    background: roomAvailabilityQuote && !roomAvailabilityQuote.available
+                    background: bookingBlocked
                       ? '#94a3b8'
                       : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                    borderColor: roomAvailabilityQuote && !roomAvailabilityQuote.available ? '#94a3b8' : undefined,
+                    borderColor: bookingBlocked ? '#94a3b8' : undefined,
                     fontWeight: 600,
                     fontSize: 15,
-                    boxShadow: roomAvailabilityQuote && !roomAvailabilityQuote.available
+                    boxShadow: bookingBlocked
                       ? 'none'
                       : '0 4px 12px rgba(99, 102, 241, 0.3)',
                   }}
                 >
-                  {roomAvailabilityQuote && !roomAvailabilityQuote.available
-                    ? '⚠️ Phòng đã kín ngày này'
+                  {checkingAvailability ? 'Đang kiểm tra phòng...'
+                    : availabilityError ? 'Không thể kiểm tra phòng'
+                    : roomAvailabilityQuote?.available === false ? '⚠️ Phòng đã kín ngày này'
                     : 'Đặt phòng ngay'}
                 </Button>
 
