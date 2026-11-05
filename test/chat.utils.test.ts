@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { applyReadReceipt, compareIds, conversationType, mergeMessages, recipientRoles, searchable, sortConversations } from '../src/features/chat/chat.utils.ts';
+import { applyReadReceipt, chatDayKey, compareIds, conversationType, dateLabel, dayLabel, inboxTime, mergeMessages, parseChatDate, recipientRoles, searchable, sortConversations, timeLabel, timestampLabel } from '../src/features/chat/chat.utils.ts';
 import type { ChatMessage, Conversation, ReadReceipt } from '../src/types/chat.ts';
 
 const message = (patch: Partial<ChatMessage> = {}): ChatMessage => ({
@@ -9,6 +9,36 @@ const message = (patch: Partial<ChatMessage> = {}): ChatMessage => ({
 });
 const receipt: ReadReceipt = { conversation_id: '1', reader_id: '3', up_to_message_id: '9007199254740994',
   read_at: '2026-11-02T03:01:00Z', updated_count: 1 };
+
+describe('Chat timestamps in Vietnam', () => {
+  it('keeps persisted MySQL timestamps and optimistic ISO timestamps at the same time', () => {
+    for (const value of ['2026-11-03 04:45:09.732283', '2026-11-03T04:45:09.732Z', '2026-11-03T11:45:09.732+07:00']) {
+      assert.equal(parseChatDate(value)?.toISOString(), '2026-11-03T04:45:09.732Z');
+      assert.equal(timeLabel(value), '11:45');
+      assert.equal(timestampLabel(value), '11:45, 03/11/2026');
+    }
+  });
+  it('groups messages and labels today/yesterday at Vietnam midnight', () => {
+    const now = new Date('2026-11-03T17:05:00Z');
+    assert.notEqual(chatDayKey('2026-11-03 16:59:00'), chatDayKey('2026-11-03 17:00:00'));
+    assert.equal(dayLabel('2026-11-03 17:00:00', now), 'Hôm nay');
+    assert.equal(dayLabel('2026-11-03 16:59:00', now), 'Hôm qua');
+    assert.equal(inboxTime('2026-11-03 17:00:00', now), '00:00');
+    assert.equal(inboxTime('2026-11-03 16:59:00', now), '03/11');
+    assert.equal(dateLabel('2026-11-03 17:00:00'), '04/11/2026');
+  });
+  it('includes the year for old conversations and handles invalid values', () => {
+    assert.equal(inboxTime('2025-01-01 00:00:00', new Date('2026-11-03T00:00:00Z')), '01/01/2025');
+    assert.equal(timeLabel('invalid'), '—');
+    assert.equal(chatDayKey(''), '');
+    assert.equal(timestampLabel('invalid'), 'Chưa có thời gian');
+  });
+  it('sorts mixed MySQL and ISO inbox timestamps by the actual instant', () => {
+    const old = { id: '1', created_at: '2026-11-03 04:00:00', last_message_at: null } as Conversation;
+    const recent = { ...old, id: '2', created_at: '2026-11-03T04:01:00Z' };
+    assert.deepEqual(sortConversations([old, recent]).map((item) => item.id), ['2', '1']);
+  });
+});
 
 describe('Chat message reconciliation', () => {
   it('compares BIGINT IDs without Number precision loss', () => {

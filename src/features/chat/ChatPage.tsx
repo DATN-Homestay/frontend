@@ -12,7 +12,7 @@ import type { ChatMessage, Conversation } from '../../types/chat';
 import { useChat } from './ChatContext';
 import { useChatThread } from './useChatThread';
 import NewConversationModal from './NewConversationModal';
-import { chatError, dayLabel, inboxTime, ROLE_LABEL, searchable, timeLabel } from './chat.utils';
+import { chatDayKey, chatError, dateLabel, dayLabel, inboxTime, parseChatDate, ROLE_LABEL, searchable, timeLabel, timestampLabel } from './chat.utils';
 import './ChatPage.css';
 
 const FILTER_LABEL: Record<UserRole, string> = { CUSTOMER: 'Khách hàng', HOST: 'Chủ nhà', ADMIN: 'Hỗ trợ' };
@@ -29,7 +29,7 @@ function MessageBubble({ message, mine, onRetry }: { message: ChatMessage; mine:
   return <div className={`chat-message ${mine ? 'is-mine' : ''} ${message.delivery === 'failed' ? 'is-failed' : ''}`}>
     <div className="chat-bubble">{message.content}</div>
     <div className="chat-message-meta">
-      <time dateTime={message.created_at}>{timeLabel(message.created_at)}</time>
+      <time dateTime={parseChatDate(message.created_at)?.toISOString()} title={timestampLabel(message.created_at)}>{timeLabel(message.created_at)}</time>
       {mine && <span className={message.is_read ? 'chat-read-status' : ''}>
         {message.delivery === 'sending' ? <LoadingOutlined /> : message.delivery !== 'failed' ? <CheckOutlined /> : null} {status}
       </span>}
@@ -209,7 +209,7 @@ export default function ChatPage({ portalRole }: { portalRole: UserRole }) {
                 className={`chat-inbox-item ${selectedId === conversation.id ? 'is-selected' : ''} ${conversation.unread_count ? 'has-unread' : ''}`}
                 aria-pressed={selectedId === conversation.id} aria-label={`${conversation.partner?.full_name ?? 'Người dùng'}${conversation.unread_count ? `, ${conversation.unread_count} tin chưa đọc` : ''}`}>
                 <PersonAvatar person={conversation.partner} size={46} />
-                <span className="chat-inbox-item-copy"><span className="chat-inbox-item-title"><strong>{conversation.partner?.full_name ?? 'Người dùng'}</strong><time>{inboxTime(conversation.last_message_at ?? conversation.created_at)}</time></span>
+                <span className="chat-inbox-item-copy"><span className="chat-inbox-item-title"><strong>{conversation.partner?.full_name ?? 'Người dùng'}</strong><time dateTime={parseChatDate(conversation.last_message_at ?? conversation.created_at)?.toISOString()} title={timestampLabel(conversation.last_message_at ?? conversation.created_at)}>{inboxTime(conversation.last_message_at ?? conversation.created_at)}</time></span>
                   <span className="chat-inbox-item-role">{conversation.partner ? ROLE_LABEL[conversation.partner.role] : 'Cuộc trò chuyện'}{conversation.homestay && <span> · {conversation.homestay.name}</span>}</span>
                   <span className="chat-inbox-preview"><span>{conversation.last_message ? `${conversation.last_message.sender_id === user?.id ? 'Bạn: ' : ''}${conversation.last_message.content}` : 'Bắt đầu bằng một lời chào'}</span><Badge count={conversation.unread_count} size="small" overflowCount={99} /></span>
                 </span>
@@ -242,7 +242,7 @@ export default function ChatPage({ portalRole }: { portalRole: UserRole }) {
                 : !thread.messages.length && thread.loaded ? <div className="chat-first-message"><PersonAvatar person={active.partner} size={64} /><h3>Gửi lời chào đến {active.partner?.full_name}</h3><p>Đây là nơi bắt đầu cuộc trò chuyện của bạn.</p>
                   <div className="chat-prompts">{(active.partner?.role === 'ADMIN' ? ['Tôi cần hỗ trợ về đặt phòng', 'Tôi có một câu hỏi'] : role === 'HOST' || role === 'ADMIN' ? ['Chào bạn, mình có thể hỗ trợ gì?', 'Cảm ơn bạn đã liên hệ!'] : ['Chỗ ở có chỗ đỗ xe không?', 'Mình muốn hỏi giờ nhận phòng']).map((prompt) => <button key={prompt} onClick={() => updateDraft(prompt)}>{prompt}</button>)}</div></div>
                   : thread.messages.map((message, index) => <Fragment key={`${message.sender_id}:${message.client_message_id ?? message.id}`}>
-                    {(index === 0 || new Date(thread.messages[index - 1].created_at).toDateString() !== new Date(message.created_at).toDateString()) && <div className="chat-day-separator"><span>{dayLabel(message.created_at)}</span></div>}
+                    {(index === 0 || chatDayKey(thread.messages[index - 1].created_at) !== chatDayKey(message.created_at)) && <div className="chat-day-separator"><span>{dayLabel(message.created_at)}</span></div>}
                     <MessageBubble message={message} mine={message.sender_id === user?.id} onRetry={() => void thread.send(message.content, message)} />
                   </Fragment>)}
               {thread.typing && <div className="chat-typing" role="status"><span><i /><i /><i /></span>{active.partner?.full_name ?? 'Đối phương'} đang nhập…</div>}
@@ -264,7 +264,7 @@ export default function ChatPage({ portalRole }: { portalRole: UserRole }) {
       {active && <aside className={`chat-details ${detailsOpen ? 'is-open' : ''}`} aria-label="Thông tin hội thoại">
         <div className="chat-details-title"><h3>Thông tin hội thoại</h3><Button type="text" size="small" icon={<CloseOutlined />} aria-label="Đóng thông tin hội thoại" onClick={() => setDetailsOpen(false)} /></div>
         <div className="chat-details-person"><PersonAvatar person={active.partner} size={72} /><h3>{active.partner?.full_name}</h3><span className={`chat-role-tag chat-role-tag--${active.partner?.role.toLowerCase()}`}>{active.partner ? ROLE_LABEL[active.partner.role] : 'Người đối thoại'}</span></div>
-        <div className="chat-details-section"><span className="chat-section-label">VỀ CUỘC TRÒ CHUYỆN</span><p><TeamOutlined />{active.type === 'CUSTOMER_HOST' ? 'Khách hàng & Chủ nhà' : active.type === 'HOST_ADMIN' ? 'Chủ nhà & StayAI' : 'Khách hàng & StayAI'}</p><p><MessageOutlined />Bắt đầu {new Date(active.created_at).toLocaleDateString('vi-VN')}</p></div>
+        <div className="chat-details-section"><span className="chat-section-label">VỀ CUỘC TRÒ CHUYỆN</span><p><TeamOutlined />{active.type === 'CUSTOMER_HOST' ? 'Khách hàng & Chủ nhà' : active.type === 'HOST_ADMIN' ? 'Chủ nhà & StayAI' : 'Khách hàng & StayAI'}</p><p><MessageOutlined />Bắt đầu {dateLabel(active.created_at)}</p></div>
         {active.homestay && <div className="chat-details-section"><span className="chat-section-label">CHỖ Ở ĐANG TRAO ĐỔI</span><Link className="chat-property-card" to={`/homestay/${active.homestay.id}`}><HomeOutlined /><strong>{active.homestay.name}</strong><ArrowRightOutlined /></Link></div>}
         <div className="chat-details-note"><CustomerServiceOutlined /><strong>Cùng trao đổi rõ ràng</strong><p>Giữ mọi thông tin về chuyến đi trong cuộc trò chuyện để dễ dàng xem lại khi cần.</p></div>
       </aside>}

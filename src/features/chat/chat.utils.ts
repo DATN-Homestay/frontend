@@ -36,7 +36,7 @@ export function mergeMessages(current: ChatMessage[], incoming: ChatMessage[]): 
     const aPending = a.id.startsWith('local:');
     const bPending = b.id.startsWith('local:');
     if (!aPending && !bPending) return compareIds(a.id, b.id);
-    return Date.parse(a.created_at) - Date.parse(b.created_at) || (aPending ? 1 : -1);
+    return (parseChatDate(a.created_at)?.getTime() ?? 0) - (parseChatDate(b.created_at)?.getTime() ?? 0) || (aPending ? 1 : -1);
   });
 }
 
@@ -49,7 +49,8 @@ export function applyReadReceipt(messages: ChatMessage[], receipt: ReadReceipt):
 
 export function sortConversations(conversations: Conversation[]): Conversation[] {
   return [...conversations].sort((a, b) =>
-    Date.parse(b.last_message_at ?? b.created_at) - Date.parse(a.last_message_at ?? a.created_at) || compareIds(b.id, a.id));
+    (parseChatDate(b.last_message_at ?? b.created_at)?.getTime() ?? 0) -
+    (parseChatDate(a.last_message_at ?? a.created_at)?.getTime() ?? 0) || compareIds(b.id, a.id));
 }
 
 export function searchable(value: string): string {
@@ -60,20 +61,59 @@ export function chatError(error: unknown): string {
   return error instanceof Error ? error.message : 'Không thể tải tin nhắn. Vui lòng thử lại.';
 }
 
+const CHAT_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+const clock = new Intl.DateTimeFormat('vi-VN', {
+  timeZone: CHAT_TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+});
+const calendar = new Intl.DateTimeFormat('vi-VN', {
+  timeZone: CHAT_TIME_ZONE, day: '2-digit', month: '2-digit', year: 'numeric',
+});
+const dayKey = new Intl.DateTimeFormat('en-CA', {
+  timeZone: CHAT_TIME_ZONE, day: '2-digit', month: '2-digit', year: 'numeric',
+});
+
+/** MySQL chat TIMESTAMP strings are UTC; ISO values already carry their offset. */
+export function parseChatDate(value: string): Date | null {
+  let normalized = value.trim().replace(' ', 'T').replace(/(\.\d{3})\d+/, '$1');
+  if (!normalized) return null;
+  if (!/(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)) normalized += 'Z';
+  const date = new Date(normalized);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+export function chatDayKey(value: string): string {
+  const date = parseChatDate(value);
+  return date ? dayKey.format(date) : '';
+}
+
 export function timeLabel(value: string): string {
-  return new Date(value).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  const date = parseChatDate(value);
+  return date ? clock.format(date) : '—';
 }
 
-export function dayLabel(value: string): string {
-  const date = new Date(value);
-  const today = new Date();
-  if (date.toDateString() === today.toDateString()) return 'Hôm nay';
-  today.setDate(today.getDate() - 1);
-  if (date.toDateString() === today.toDateString()) return 'Hôm qua';
-  return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+export function dateLabel(value: string): string {
+  const date = parseChatDate(value);
+  return date ? calendar.format(date) : '—';
 }
 
-export function inboxTime(value: string): string {
-  return new Date(value).toDateString() === new Date().toDateString() ? timeLabel(value)
-    : new Date(value).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+export function timestampLabel(value: string): string {
+  return parseChatDate(value) ? `${timeLabel(value)}, ${dateLabel(value)}` : 'Chưa có thời gian';
+}
+
+export function dayLabel(value: string, now = new Date()): string {
+  const key = chatDayKey(value);
+  if (!key) return 'Chưa có thời gian';
+  if (key === dayKey.format(now)) return 'Hôm nay';
+  if (key === dayKey.format(new Date(now.getTime() - 24 * 60 * 60 * 1000))) return 'Hôm qua';
+  return dateLabel(value);
+}
+
+export function inboxTime(value: string, now = new Date()): string {
+  const date = parseChatDate(value);
+  if (!date) return '—';
+  if (chatDayKey(value) === dayKey.format(now)) return timeLabel(value);
+  const parts = calendar.formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const currentYear = calendar.formatToParts(now).find((part) => part.type === 'year')?.value;
+  return year === currentYear ? dateLabel(value).replace(/\/\d{4}$/, '') : dateLabel(value);
 }
