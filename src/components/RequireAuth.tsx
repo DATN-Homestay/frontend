@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/useAuth';
  */
 export default function RequireAuth({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const { user, initializing } = useAuth();
+  const { user, initializing, isSessionRevoked } = useAuth();
 
   if (initializing) {
     return (
@@ -17,7 +17,7 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
       </div>
     );
   }
-  if (!user) {
+  if (!user && !isSessionRevoked) {
     return <Navigate to="/auth/login" replace state={{ from: `${location.pathname}${location.search}` }} />;
   }
   return <>{children}</>;

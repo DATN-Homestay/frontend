@@ -5,6 +5,7 @@ import ChatProvider from './features/chat/ChatProvider';
 import ChatPage from './features/chat/ChatPage';
 
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import SessionRevokedModal from './components/auth/SessionRevokedModal';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Layouts
@@ -92,6 +93,7 @@ export default function App() {
           <AuthProvider>
             <ChatProvider>
               <BrowserRouter>
+                <SessionRevokedModal />
                 <Routes>
                   {/* PHÂN HỆ 1: KHÁCH HÀNG (CUSTOMER PORTAL) */}
                   <Route path="/" element={<CustomerLayout />}>
