@@ -15,7 +15,7 @@ const ROLE_LABEL: Record<UserRole, { text: string; color: string }> = {
   ADMIN: { text: 'Quản trị viên', color: 'red' },
 };
 
-const formatTime = (iso: string) => new Date(iso).toLocaleString('vi-VN');
+const formatTime = (iso: string) => new Date(iso).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
 
 // =========================================================
 // TAB 1: THÔNG TIN CÁ NHÂN

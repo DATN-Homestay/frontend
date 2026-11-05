@@ -254,7 +254,7 @@ export default function HomestaysPage() {
       title: 'Ngày tạo',
       dataIndex: 'created_at',
       width: 100,
-      render: (v: string) => v ? new Date(v).toLocaleDateString('vi-VN') : '—',
+      render: (v: string) => v ? new Date(v).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : '—',
     },
     {
       title: 'Hành động',
@@ -446,7 +446,7 @@ export default function HomestaysPage() {
                 ⭐ {(Number(detailData.average_rating) || 0).toFixed(1)} ({detailData.total_reviews ?? 0} đánh giá)
               </Descriptions.Item>
               <Descriptions.Item label="Ngày tạo" span={2}>
-                {new Date(detailData.created_at).toLocaleString('vi-VN')}
+                {new Date(detailData.created_at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false })}
               </Descriptions.Item>
             </Descriptions>
 
