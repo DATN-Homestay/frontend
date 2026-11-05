@@ -89,7 +89,26 @@ function refreshAccessToken(): Promise<boolean> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: refreshToken }),
       });
-      if (!response.ok) return false;
+      if (!response.ok) {
+        try {
+          const body = await response.json();
+          if (body?.message === 'SESSION_REVOKED_REMOTE') {
+            (window as any).__SESSION_REVOKED__ = true;
+            window.dispatchEvent(
+              new CustomEvent('auth:session_revoked', {
+                detail: {
+                  reason: 'REMOTE_LOGIN',
+                  message: 'Tài khoản của bạn vừa được đăng nhập trên một thiết bị hoặc trình duyệt khác.',
+                  revoked_at: new Date().toISOString(),
+                },
+              }),
+            );
+          }
+        } catch {
+          // A non-JSON refresh error still expires the session.
+        }
+        return false;
+      }
       const body = (await response.json()) as ApiResponse<{ access_token: string; refresh_token: string }>;
       tokenStorage.updateTokens(body.data.access_token, body.data.refresh_token);
       return true;

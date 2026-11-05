@@ -27,13 +27,14 @@ function ChatSession({ userId, children }: { userId: string | null; children: Re
   const refreshAgain = useRef(false);
   const alive = useRef(true);
   const requestAbort = useRef<AbortController | null>(null);
+  const isRevokedRef = useRef(false);
 
   const publish = useCallback((event: ChatEvent) => {
     for (const listener of listeners.current) listener(event);
   }, []);
 
   const refreshInbox = useCallback(async () => {
-    if (!userId) return;
+    if (!userId || isRevokedRef.current || (window as any).__SESSION_REVOKED__) return;
     if (refreshJob.current) { refreshAgain.current = true; return refreshJob.current; }
     refreshJob.current = (async () => {
       do {
@@ -101,7 +102,7 @@ function ChatSession({ userId, children }: { userId: string | null; children: Re
     let connectedOnce = false;
     let authenticatedToken = tokenStorage.getAccessToken();
     const recoverSession = async () => {
-      if (recovering || !alive.current) return;
+      if (recovering || !alive.current || isRevokedRef.current || (window as any).__SESSION_REVOKED__) return;
       recovering = true;
       try {
         // Reuses apiClient's single-flight refresh; never rotates refresh tokens independently.
@@ -142,10 +143,41 @@ function ChatSession({ userId, children }: { userId: string | null; children: Re
     socket.on('messages_read', notifyRead);
     socket.on('user_typing', (data: TypingEvent) => publish({ type: 'typing', data }));
     socket.on('conversation_created', scheduleRefresh);
-    const onOnline = () => { socket.connect(); void refreshInbox(); };
-    const onVisible = () => { if (document.visibilityState === 'visible') { void refreshInbox(); if (!socket.connected) socket.connect(); } };
+    socket.on('session_revoked', (data: unknown) => {
+      isRevokedRef.current = true;
+      (window as any).__SESSION_REVOKED__ = true;
+      socket.disconnect();
+      window.dispatchEvent(new CustomEvent('auth:session_revoked', { detail: data }));
+    });
+    const onOnline = () => {
+      if (isRevokedRef.current || (window as any).__SESSION_REVOKED__) return;
+      socket.connect();
+      void refreshInbox();
+    };
+    const onVisible = () => {
+      if (isRevokedRef.current || (window as any).__SESSION_REVOKED__) return;
+      if (document.visibilityState === 'visible') {
+        void refreshInbox();
+        if (!socket.connected) socket.connect();
+      }
+    };
     const onStorage = (event: StorageEvent) => {
-      if (event.key === 'access_token' && event.newValue) { socket.disconnect().connect(); }
+      if (event.key === 'access_token' && event.newValue) {
+        if (event.newValue !== authenticatedToken) {
+          isRevokedRef.current = true;
+          (window as any).__SESSION_REVOKED__ = true;
+          socket.disconnect();
+          window.dispatchEvent(
+            new CustomEvent('auth:session_revoked', {
+              detail: {
+                reason: 'REMOTE_LOGIN',
+                message: 'Tài khoản của bạn vừa được đăng nhập trên một cửa sổ hoặc thiết bị khác.',
+                revoked_at: new Date().toISOString(),
+              },
+            }),
+          );
+        }
+      }
     };
     window.addEventListener('online', onOnline);
     window.addEventListener('storage', onStorage);
