@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, afterEach, before, test } from 'node:test';
 import { JSDOM } from 'jsdom';
-import { createElement } from 'react';
+import { createElement, useState } from 'react';
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -11,6 +11,7 @@ let dom,
   DropshipOrders,
   Register,
   AuthContext,
+  FavoritesContext,
   authService,
   customerService,
   HomestayDetail,
@@ -26,7 +27,8 @@ let dom,
   AntApp,
   MemoryRouter,
   Routes,
-  Route;
+  Route,
+  useLocation;
 let payload;
 let originalQuoteBooking;
 let originalGetHomestayDetail;
@@ -118,6 +120,7 @@ before(async () => {
   DropshipOrders = (await vite.ssrLoadModule('/src/pages/admin/DropshipOrders.tsx')).default;
   Register = (await vite.ssrLoadModule('/src/pages/auth/Register.tsx')).default;
   ({ AuthContext } = await vite.ssrLoadModule('/src/contexts/AuthContextDefinition.ts'));
+  ({ FavoritesContext } = await vite.ssrLoadModule('/src/contexts/FavoritesContextDefinition.ts'));
   ({ authService } = await vite.ssrLoadModule('/src/services/authService.ts'));
   ({ customerService } = await vite.ssrLoadModule('/src/services/customerService.ts'));
   ({ useRoomAvailability } = await vite.ssrLoadModule('/src/pages/customer/useRoomAvailability.ts'));
@@ -135,7 +138,7 @@ before(async () => {
   originalQuoteBooking = customerService.quoteBooking;
   originalGetHomestayDetail = customerService.getHomestayDetail;
   ({ ConfigProvider, App: AntApp } = await import('antd'));
-  ({ MemoryRouter, Routes, Route } = await import('react-router-dom'));
+  ({ MemoryRouter, Routes, Route, useLocation } = await import('react-router-dom'));
   globalThis.fetch = async (url, options) => {
     requests.push({ url: String(url), method: options?.method ?? 'GET' });
     assert.ok(String(url).endsWith('/admin/dropship/orders'), `Unexpected request: ${url}`);
@@ -307,6 +310,7 @@ test('reports availability errors separately and skips quotes for partner homest
 });
 
 test('shows a claimed room daily price field even when the property retains its Booking.com source URL', async () => {
+  const favorites = [];
   customerService.getHomestayDetail = async () => ({
     id: '42', name: 'Homestay giá theo ngày', city: 'Đà Lạt', address: 'Đà Lạt',
     is_claimed: 1, source_url: 'https://www.booking.com/hotel/vn/example.html',
@@ -316,12 +320,17 @@ test('shows a claimed room daily price field even when the property retains its 
       images: [{ id: '1', image_url: 'https://example.test/room.jpg', is_primary: 1 }],
     }],
   });
-  render(createElement(MemoryRouter, { initialEntries: ['/homestays/42'] },
+  render(createElement(FavoritesContext.Provider, { value: {
+    isFavorite: () => false,
+    toggleFavorite: async (id) => { favorites.push(id); return true; },
+  } }, createElement(MemoryRouter, { initialEntries: ['/homestays/42'] },
     createElement(Routes, null, createElement(Route, {
       path: '/homestays/:id', element: createElement(HomestayDetail),
     })),
-  ));
+  )));
   await testing.screen.findByRole('button', { name: 'Đặt phòng ngay' });
+  testing.fireEvent.click(testing.screen.getByRole('button', { name: /Lưu vào yêu thích/ }));
+  assert.deepEqual(favorites, ['42']);
   testing.fireEvent.click(testing.screen.getByRole('button', { name: /Xem chi tiết$/ }));
   const priceTable = await testing.screen.findByRole('table', { name: 'Giá theo ngày' });
   assert.match(priceTable.textContent, /10\/02\/2099/);
@@ -559,4 +568,31 @@ test('view tracking runs only for loaded homestays on an authenticated account',
   assert.deepEqual(views, ['21']);
   view.rerender(tree({ id: '16' }, '21'));
   assert.deepEqual(views, ['21', '21']);
+});
+
+test('merges favorites into behavior recommendations without navigating away from the home page', async () => {
+  const toggles = [];
+  recommendationsService.get = async () => recommendationResult('Nhà gợi ý yêu thích QA');
+  function Location() { return createElement('output', { 'data-testid': 'favorite-location' }, useLocation().pathname); }
+  function Harness() {
+    const [saved, setSaved] = useState(false);
+    return createElement(FavoritesContext.Provider, { value: {
+      isFavorite: () => saved,
+      toggleFavorite: async (id) => { toggles.push(id); setSaved((value) => !value); return !saved; },
+    } }, createElement(AuthContext.Provider, { value: { user: { id: '15' }, initializing: false } },
+      createElement(MemoryRouter, { initialEntries: ['/'] }, createElement(HomestayRecommendations), createElement(Location)),
+    ));
+  }
+  render(createElement(Harness));
+  const save = await testing.screen.findByRole('button', { name: 'Lưu vào yêu thích: Nhà gợi ý yêu thích QA' });
+  assert.equal(save.getAttribute('aria-pressed'), 'false');
+  testing.fireEvent.click(save);
+  const remove = await testing.screen.findByRole('button', { name: 'Bỏ lưu yêu thích: Nhà gợi ý yêu thích QA' });
+  assert.equal(remove.getAttribute('aria-pressed'), 'true');
+  assert.equal(testing.screen.getByTestId('favorite-location').textContent, '/');
+  assert.deepEqual(toggles, ['9007199254740993']);
+  testing.fireEvent.click(remove);
+  await testing.screen.findByRole('button', { name: 'Lưu vào yêu thích: Nhà gợi ý yêu thích QA' });
+  assert.equal(toggles.length, 2);
+  assert.ok(testing.screen.getByRole('heading', { name: 'Gợi ý theo sở thích của bạn' }));
 });

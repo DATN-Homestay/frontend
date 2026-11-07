@@ -1,4 +1,4 @@
-import { Layout, Menu, Button, Space, Typography, Dropdown, Avatar } from 'antd';
+import { Layout, Menu, Button, Space, Typography, Dropdown, Avatar, Badge } from 'antd';
 import {
   HomeOutlined,
   CompassOutlined,
@@ -7,10 +7,12 @@ import {
   SwapOutlined,
   LogoutOutlined,
   MessageOutlined,
+  HeartOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/useAuth';
 import ChatNavBadge from '../features/chat/ChatNavBadge';
+import { useFavorites } from '../contexts/useFavorites';
 
 const { Header, Content, Footer } = Layout;
 const { Title, Text } = Typography;
@@ -19,9 +21,19 @@ export default function CustomerLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isHost, isAdmin, logout } = useAuth();
+  const { favoritesCount } = useFavorites();
 
   const menuItems = [
     { key: '/', icon: <HomeOutlined />, label: 'Khám phá Homestay' },
+    {
+      key: '/favorites',
+      icon: <HeartOutlined />,
+      label: (
+        <span>
+          Yêu thích {favoritesCount > 0 && <Badge count={favoritesCount} size="small" style={{ backgroundColor: '#ef4444' }} />}
+        </span>
+      ),
+    },
     { key: '/trips', icon: <CalendarOutlined />, label: 'Chuyến đi của tôi' },
     { key: '/messages', icon: <MessageOutlined />, label: <ChatNavBadge role={isAdmin ? 'ADMIN' : 'CUSTOMER'} /> },
   ];
@@ -29,6 +41,7 @@ export default function CustomerLayout() {
   // Các mục menu theo vai trò của người dùng
   const userMenuItems = [
     { key: 'profile', icon: <UserOutlined />, label: 'Hồ sơ của tôi', onClick: () => navigate('/profile') },
+    { key: 'favorites', icon: <HeartOutlined style={{ color: '#ef4444' }} />, label: 'Homestay yêu thích', onClick: () => navigate('/favorites') },
     { key: 'trips', icon: <CalendarOutlined />, label: 'Chuyến đi của tôi', onClick: () => navigate('/trips') },
     ...(isHost
       ? [

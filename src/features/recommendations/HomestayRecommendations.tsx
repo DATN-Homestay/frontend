@@ -1,8 +1,9 @@
 import { useContext, useEffect, useState } from 'react';
 import { Alert, Button, Card, Col, Empty, Row, Skeleton, Space, Tag, Typography } from 'antd';
-import { EnvironmentOutlined, StarFilled, ThunderboltOutlined } from '@ant-design/icons';
+import { EnvironmentOutlined, HeartFilled, HeartOutlined, StarFilled, ThunderboltOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContextDefinition';
+import { useFavorites } from '../../contexts/useFavorites';
 import { getHomestayCoverImage } from '../../utils/imageHelper';
 import { formatVnd } from '../pricing/pricing.utils';
 import { recommendationsService, type HomestayRecommendationsResult } from './recommendations.service';
@@ -10,6 +11,7 @@ import { recommendationsService, type HomestayRecommendationsResult } from './re
 const { Title, Text } = Typography;
 
 export default function HomestayRecommendations() {
+  const { isFavorite, toggleFavorite } = useFavorites();
   const auth = useContext(AuthContext);
   const userId = auth?.user?.id;
   const initializing = auth?.initializing ?? false;
@@ -56,9 +58,22 @@ export default function HomestayRecommendations() {
                 return (
                   <Col xs={24} sm={12} lg={6} key={homestay.id}>
                     <Card hoverable style={{ height: '100%', borderRadius: 14, overflow: 'hidden' }}
-                      cover={<Link to={`/homestay/${homestay.id}`} state={{ coverImage }} aria-label={`Xem ${homestay.name}`}>
-                        <img src={coverImage} alt={homestay.name} style={{ width: '100%', height: 190, objectFit: 'cover', display: 'block' }} />
-                      </Link>}>
+                      cover={<div style={{ position: 'relative' }}>
+                        <Link to={`/homestay/${homestay.id}`} state={{ coverImage }} aria-label={`Xem ${homestay.name}`}>
+                          <img src={coverImage} alt={homestay.name} style={{ width: '100%', height: 190, objectFit: 'cover', display: 'block' }} />
+                        </Link>
+                        <Button
+                          shape="circle"
+                          aria-label={`${isFavorite(homestay.id) ? 'Bỏ lưu yêu thích' : 'Lưu vào yêu thích'}: ${homestay.name}`}
+                          aria-pressed={isFavorite(homestay.id)}
+                          icon={isFavorite(homestay.id) ? <HeartFilled style={{ color: '#ef4444' }} /> : <HeartOutlined />}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void toggleFavorite(homestay.id);
+                          }}
+                          style={{ position: 'absolute', top: 10, right: 12, background: 'rgba(255,255,255,0.95)' }}
+                        />
+                      </div>}>
                       <Space style={{ justifyContent: 'space-between', width: '100%', alignItems: 'start' }}>
                         <Link to={`/homestay/${homestay.id}`} state={{ coverImage }} style={{ fontWeight: 700, fontSize: 16 }}>{homestay.name}</Link>
                         <span><StarFilled style={{ color: '#f59e0b' }} /> {Number(homestay.average_rating) > 0 ? Number(homestay.average_rating).toFixed(1) : 'Mới'}</span>
