@@ -18,7 +18,6 @@ import {
   StarFilled,
   EnvironmentOutlined,
   CheckCircleOutlined,
-  ThunderboltOutlined,
   UserOutlined,
   CalendarOutlined,
   MinusOutlined,
@@ -27,6 +26,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { customerService } from '../../services/customerService';
+import HomestayRecommendations from '../../features/recommendations/HomestayRecommendations';
 import type { HomestayItem } from '../../types/customer';
 import { getHomestayCoverImage } from '../../utils/imageHelper';
 import {
@@ -220,14 +220,6 @@ export default function HomePage() {
     setDateRange(null);
     applyFilter(allHomestays, undefined, undefined, false, 0, 1);
   };
-
-  // INVISIBLE RAG RECOMMENDATION: TỰ ĐỘNG PHÂN TÍCH HÀNH VI ĐẨY HOMESTAY PHÙ HỢP NHẤT LÊN TOP
-  // Tiêu chí: rating cao >= 4.5, tiện nghi BBQ/View/Không gian yên tĩnh
-  const aiRecommendedHomestays = (
-    filteredHomestays.filter((h) => Number(h.average_rating) >= 4.5).length > 0
-      ? filteredHomestays.filter((h) => Number(h.average_rating) >= 4.5)
-      : filteredHomestays
-  ).slice(0, 4);
 
   // POPOVER CHỌN SỐ LƯỢNG NGƯỜI & PHÒNG
   const guestPopoverContent = (
@@ -703,197 +695,8 @@ export default function HomePage() {
         ))}
       </div>
 
-      {/* ======================================================== */}
-      {/* PHẦN 1: GỢI Ý THÔNG MINH DỰA TRÊN HÀNH VI (INVISIBLE RAG) */}
-      {/* ĐƯỢC ƯU TIÊN ĐẨY LÊN TOP ĐẦU TRANG CHỦ */}
-      {/* ======================================================== */}
-      {aiRecommendedHomestays.length > 0 && (
-        <div
-          style={{
-            background: 'linear-gradient(135deg, #f8f7ff 0%, #f1f0fe 100%)',
-            border: '1px solid #c7d2fe',
-            borderRadius: 20,
-            padding: '24px 24px 28px',
-            marginBottom: 36,
-            boxShadow: '0 4px 15px rgba(99, 102, 241, 0.08)',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
-            <Space size="middle">
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 12,
-                  background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#fff',
-                  fontSize: 20,
-                  boxShadow: '0 4px 10px rgba(99, 102, 241, 0.3)',
-                }}
-              >
-                <ThunderboltOutlined />
-              </div>
-              <div>
-                <div>
-                  <Title level={3} style={{ margin: 0, color: '#1e1b4b', fontSize: 20 }}>
-                    Đề xuất dành riêng cho bạn
-                  </Title>
-                </div>
-                <Text type="secondary" style={{ fontSize: 13 }}>
-                  Phù hợp với sở thích của bạn: Ưu tiên không gian đẹp · Yên tĩnh · Tiện nghi BBQ
-                </Text>
-              </div>
-            </Space>
+      <HomestayRecommendations />
 
-            <Tag color="cyan" style={{ padding: '4px 10px', fontSize: 13, borderRadius: 8, border: 'none', background: '#e0e7ff', color: '#4338ca', fontWeight: 600 }}>
-              ✨ Độ tương thích 98%
-            </Tag>
-          </div>
-
-          {/* Grid các Homestay được đẩy lên Top */}
-          <Row gutter={[20, 20]}>
-            {aiRecommendedHomestays.map((h) => {
-              const firstRoom = h.rooms?.[0];
-              const coverImage = getHomestayCoverImage(h);
-              const price = Number(firstRoom?.base_price) || 600000;
-
-              return (
-                <Col xs={24} sm={12} md={8} lg={6} key={'top_' + h.id}>
-                  <Card
-                    hoverable
-                    onClick={() => navigate(`/homestay/${h.id}`, { state: { coverImage } })}
-                    cover={
-                      <div style={{ position: 'relative', height: 200, overflow: 'hidden' }}>
-                        <img
-                          alt={h.name}
-                          src={coverImage}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
-                        {h.is_claimed === 1 ? (
-                          <Tag
-                            color="success"
-                            icon={<CheckCircleOutlined />}
-                            style={{ position: 'absolute', bottom: 10, left: 12, fontWeight: 600 }}
-                          >
-                            Chính chủ eKYC
-                          </Tag>
-                        ) : (
-                          <Tag
-                            color="blue"
-                            style={{ position: 'absolute', bottom: 10, left: 12, fontWeight: 600 }}
-                          >
-                            Booking.com
-                          </Tag>
-                        )}
-                        {h.rooms && h.rooms.length > 0 && (
-                          <Tag
-                            color="default"
-                            style={{
-                              position: 'absolute',
-                              bottom: 10,
-                              right: 12,
-                              fontWeight: 600,
-                              background: 'rgba(15, 23, 42, 0.75)',
-                              color: '#ffffff',
-                              border: 'none',
-                            }}
-                          >
-                            {h.rooms.length} loại phòng
-                          </Tag>
-                        )}
-                      </div>
-                    }
-                    style={{
-                      borderRadius: 14,
-                      overflow: 'hidden',
-                      border: '2px solid #a5b4fc',
-                      background: '#ffffff',
-                    }}
-                    styles={{ body: { padding: '16px' } }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        marginBottom: 6,
-                      }}
-                    >
-                      <Text strong style={{ fontSize: 16, color: '#0f172a' }}>
-                        {h.name}
-                      </Text>
-                      <Space size={4}>
-                        <StarFilled style={{ color: '#f59e0b' }} />
-                        <Text strong style={{ color: '#0f172a' }}>
-                          {Number(h.average_rating) > 0 ? Number(h.average_rating).toFixed(1) : 'Mới'}
-                        </Text>
-                      </Space>
-                    </div>
-
-                    <Text
-                      type="secondary"
-                      style={{ fontSize: 13, display: 'block', marginBottom: 8 }}
-                    >
-                      <EnvironmentOutlined /> {h.city} {h.district ? `(${h.district})` : ''} • {h.address}
-                    </Text>
-
-                    {h.source_url && (
-                      <div style={{ marginBottom: 10 }}>
-                        <a
-                          href={h.source_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          style={{
-                            fontSize: 11,
-                            color: '#2563eb',
-                            background: '#eff6ff',
-                            padding: '3px 8px',
-                            borderRadius: 6,
-                            border: '1px solid #bfdbfe',
-                            fontWeight: 600,
-                            textDecoration: 'none',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                          }}
-                        >
-                          🌐 Xem trên Booking.com
-                        </a>
-                      </div>
-                    )}
-
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'baseline',
-                        marginTop: 4,
-                      }}
-                    >
-                      <div>
-                        <Text style={{ fontSize: 12, color: '#64748b' }}>Từ </Text>
-                        <Text strong style={{ fontSize: 18, color: '#6366f1' }}>
-                          {price.toLocaleString('vi-VN')}đ
-                        </Text>
-                        <Text style={{ fontSize: 12, color: '#64748b' }}> /đêm</Text>
-                      </div>
-                      <Tag color="purple">Escrow 24h</Tag>
-                    </div>
-                  </Card>
-                </Col>
-              );
-            })}
-          </Row>
-        </div>
-      )}
-
-      {/* ======================================================== */}
-      {/* PHẦN 2: KHÁM PHÁ TẤT CẢ CHỖ NGHỈ TẠI ĐỊA ĐIỂM */}
-      {/* ======================================================== */}
       <div id="all-homestays-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <Title level={3} style={{ margin: 0, color: '#0f172a' }}>

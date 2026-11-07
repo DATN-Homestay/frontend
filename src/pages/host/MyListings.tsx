@@ -48,6 +48,7 @@ import { hostService } from '../../services/hostService';
 import { VIETNAM_LOCATIONS } from '../../data/vietnamLocations';
 import type { HostHomestay } from '../../types/host';
 import type { RoomItem, RoomImageItem } from '../../types/customer';
+import RoomDailyPrices from '../../features/pricing/RoomDailyPrices';
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -622,6 +623,20 @@ export default function MyListingsPage() {
         dataIndex: 'base_price',
         key: 'base_price',
         render: (p: number) => <span style={{ color: '#10b981', fontWeight: 600 }}>{Number(p).toLocaleString('vi-VN')}đ / đêm</span>,
+      },
+      {
+        title: 'Giá Theo Ngày',
+        key: 'daily_prices',
+        render: (_: unknown, room: RoomItem) => (
+          <details>
+            <summary style={{ cursor: 'pointer', color: '#4338ca' }}>
+              Xem giá theo ngày ({room.daily_prices?.length ?? 0})
+            </summary>
+            <div style={{ minWidth: 220, marginTop: 8 }}>
+              <RoomDailyPrices room={room} />
+            </div>
+          </details>
+        ),
       },
       {
         title: 'Ảnh (Cloudinary)',

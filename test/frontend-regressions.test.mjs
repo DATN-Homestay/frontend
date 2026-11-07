@@ -13,12 +13,26 @@ let dom,
   AuthContext,
   authService,
   customerService,
+  HomestayDetail,
+  UsersPage,
+  adminService,
+  AdminBookingsPage,
+  adminBookingsService,
+  HomestayRecommendations,
+  recommendationsService,
+  useTrackHomestayView,
   useRoomAvailability,
   ConfigProvider,
   AntApp,
-  MemoryRouter;
+  MemoryRouter,
+  Routes,
+  Route;
 let payload;
 let originalQuoteBooking;
+let originalGetHomestayDetail;
+let originalAdminService;
+let originalAdminBookingsService;
+let originalRecommendationsService;
 const requests = [];
 const nativeFetch = globalThis.fetch;
 const financial = {
@@ -55,6 +69,7 @@ before(async () => {
   for (const key of [
     'window',
     'document',
+    'Document',
     'HTMLElement',
     'Element',
     'Node',
@@ -88,6 +103,7 @@ before(async () => {
     addEventListener() {},
     removeEventListener() {},
   });
+  window.scrollTo = () => {};
   testing = await import('@testing-library/react');
   testing.configure({ getElementError: (message) => new Error(message), asyncUtilTimeout: 5000 });
   vite = await createServer({
@@ -105,9 +121,21 @@ before(async () => {
   ({ authService } = await vite.ssrLoadModule('/src/services/authService.ts'));
   ({ customerService } = await vite.ssrLoadModule('/src/services/customerService.ts'));
   ({ useRoomAvailability } = await vite.ssrLoadModule('/src/pages/customer/useRoomAvailability.ts'));
+  HomestayDetail = (await vite.ssrLoadModule('/src/pages/customer/HomestayDetail.tsx')).default;
+  UsersPage = (await vite.ssrLoadModule('/src/pages/admin/Users.tsx')).default;
+  ({ adminService } = await vite.ssrLoadModule('/src/services/adminService.ts'));
+  originalAdminService = { ...adminService };
+  AdminBookingsPage = (await vite.ssrLoadModule('/src/pages/admin/Bookings.tsx')).default;
+  ({ adminBookingsService } = await vite.ssrLoadModule('/src/services/adminBookingsService.ts'));
+  originalAdminBookingsService = { ...adminBookingsService };
+  HomestayRecommendations = (await vite.ssrLoadModule('/src/features/recommendations/HomestayRecommendations.tsx')).default;
+  ({ recommendationsService } = await vite.ssrLoadModule('/src/features/recommendations/recommendations.service.ts'));
+  ({ useTrackHomestayView } = await vite.ssrLoadModule('/src/features/recommendations/useTrackHomestayView.ts'));
+  originalRecommendationsService = { ...recommendationsService };
   originalQuoteBooking = customerService.quoteBooking;
+  originalGetHomestayDetail = customerService.getHomestayDetail;
   ({ ConfigProvider, App: AntApp } = await import('antd'));
-  ({ MemoryRouter } = await import('react-router-dom'));
+  ({ MemoryRouter, Routes, Route } = await import('react-router-dom'));
   globalThis.fetch = async (url, options) => {
     requests.push({ url: String(url), method: options?.method ?? 'GET' });
     assert.ok(String(url).endsWith('/admin/dropship/orders'), `Unexpected request: ${url}`);
@@ -122,6 +150,10 @@ afterEach(() => {
   testing.cleanup();
   requests.length = 0;
   customerService.quoteBooking = originalQuoteBooking;
+  customerService.getHomestayDetail = originalGetHomestayDetail;
+  Object.assign(adminService, originalAdminService);
+  Object.assign(adminBookingsService, originalAdminBookingsService);
+  Object.assign(recommendationsService, originalRecommendationsService);
 });
 after(async () => {
   await vite?.close();
@@ -272,4 +304,259 @@ test('reports availability errors separately and skips quotes for partner homest
   });
   rerender({ enabled: false });
   assert.deepEqual(result.current, { quote: null, error: null, loading: false });
+});
+
+test('shows a claimed room daily price field even when the property retains its Booking.com source URL', async () => {
+  customerService.getHomestayDetail = async () => ({
+    id: '42', name: 'Homestay giá theo ngày', city: 'Đà Lạt', address: 'Đà Lạt',
+    is_claimed: 1, source_url: 'https://www.booking.com/hotel/vn/example.html',
+    rooms: [{
+      id: '21', homestay_id: '42', room_name: 'Deluxe theo ngày', capacity: 2, base_price: 700000,
+      daily_prices: [{ date: '2099-02-10', price: 840000, is_ai_applied: 1 }],
+      images: [{ id: '1', image_url: 'https://example.test/room.jpg', is_primary: 1 }],
+    }],
+  });
+  render(createElement(MemoryRouter, { initialEntries: ['/homestays/42'] },
+    createElement(Routes, null, createElement(Route, {
+      path: '/homestays/:id', element: createElement(HomestayDetail),
+    })),
+  ));
+  await testing.screen.findByRole('button', { name: 'Đặt phòng ngay' });
+  testing.fireEvent.click(testing.screen.getByRole('button', { name: /Xem chi tiết$/ }));
+  const priceTable = await testing.screen.findByRole('table', { name: 'Giá theo ngày' });
+  assert.match(priceTable.textContent, /10\/02\/2099/);
+  assert.match(priceTable.textContent, /840\.000/);
+  assert.match(priceTable.textContent, /Đã áp dụng giá AI/);
+});
+
+async function renderUserManagement() {
+  const userRow = (id, name, roles, status = 'ACTIVE') => ({
+    id, full_name: name, email: `${id}@example.test`, roles, status, created_at: '2026-11-01',
+  });
+  const items = [
+    userRow('1', 'Admin hiện tại', ['ADMIN']),
+    userRow('2', 'Admin khác', ['ADMIN']),
+    userRow('3', 'Admin kiêm chủ nhà', ['HOST', 'ADMIN']),
+    userRow('4', 'Admin đang khóa', ['ADMIN'], 'SUSPENDED'),
+    userRow('5', 'Khách bình thường', ['CUSTOMER']),
+    userRow('6', 'Chủ nhà bình thường', ['HOST']),
+  ];
+  adminService.listUsers = async () => ({
+    items, pagination: { page: 1, limit: 10, total: items.length, total_pages: 1 },
+  });
+  render(createElement(AuthContext.Provider, {
+    value: { user: { id: '1', roles: ['ADMIN'] } },
+  }, createElement(UsersPage)));
+  await testing.screen.findByText('Khách bình thường');
+  return (name) => testing.within(testing.screen.getByText(name, { exact: true }).closest('tr'));
+}
+
+test('renders other admins as read-only, including mixed-role and suspended admin accounts', async () => {
+  const row = await renderUserManagement();
+  for (const name of ['Admin khác', 'Admin kiêm chủ nhà', 'Admin đang khóa']) {
+    const account = row(name);
+    assert.equal(account.getAllByRole('button').length, 1);
+    assert.ok(account.getByRole('button', { name: 'Xem chi tiết' }));
+    assert.equal(account.queryByRole('button', { name: 'Đổi role' }), null);
+    assert.equal(account.queryByRole('button', { name: 'Khóa tài khoản' }), null);
+    assert.equal(account.queryByRole('button', { name: 'Mở khóa' }), null);
+    assert.equal(account.queryByRole('button', { name: 'Xóa' }), null);
+  }
+  const self = row('Admin hiện tại');
+  assert.equal(self.queryByRole('button', { name: 'Khóa tài khoản' }), null);
+  assert.equal(self.queryByRole('button', { name: 'Xóa' }), null);
+});
+
+test('keeps customer and host management available and allows updating a customer status', async () => {
+  const changes = [];
+  adminService.updateUserStatus = async (...args) => { changes.push(args); };
+  const row = await renderUserManagement();
+  for (const name of ['Khách bình thường', 'Chủ nhà bình thường']) {
+    const account = row(name);
+    assert.ok(account.getByRole('button', { name: 'Đổi role' }));
+    assert.ok(account.getByRole('button', { name: 'Khóa tài khoản' }));
+    assert.ok(account.getByRole('button', { name: 'Xóa' }));
+  }
+  testing.fireEvent.click(row('Khách bình thường').getByRole('button', { name: 'Khóa tài khoản' }));
+  await testing.screen.findByText('Khóa tài khoản này?');
+  testing.fireEvent.click(testing.screen.getByRole('button', { name: 'OK', exact: true }));
+  await testing.waitFor(() => assert.deepEqual(changes, [['5', 'SUSPENDED', 'Vi phạm quy định']]));
+});
+
+function bookingFixture(id = '9007199254740993') {
+  return {
+    id, booking_code: `BK-QA-${id}`, status: 'PAID_ESCROW', is_dropship: false,
+    check_in_date: '2026-11-10', check_out_date: '2026-11-12', nights: 2, num_guests: 2,
+    total_amount: 1700000, created_at: '2026-11-07T02:00:00Z',
+    customer: { id: '11', full_name: 'Khách booking QA', email: 'guest@example.test', phone_number: '0900000000' },
+    host: { id: '12', full_name: 'Chủ nhà booking QA', email: 'host@example.test', phone_number: null },
+    homestay: { id: '42', name: 'Nhà booking QA', city: 'Đà Lạt' },
+    room: { id: '21', room_name: 'Deluxe booking QA' }, escrow_status: 'HOLDING',
+  };
+}
+function bookingPage(items = [bookingFixture()]) {
+  return {
+    items, pagination: { page: 1, limit: 10, total: 53, total_pages: 6 },
+    summary: { total_amount: 15100000, by_status: { PENDING_PAYMENT: 50, PAID_ESCROW: 3 } },
+  };
+}
+function bookingDetail(id = '9007199254740993') {
+  return {
+    ...bookingFixture(id), room_subtotal: 1800000, service_fee: 0, discount_amount: 100000,
+    customer_note: 'Đến muộn QA', address: 'Địa chỉ booking QA', cancellation_policy: 'FLEXIBLE',
+    escrow: { status: 'HOLDING', amount: 1700000, release_due_at: '2026-11-11T02:00:00Z' },
+    payments: [{ id: '1', amount: 1700000, method: 'VNPAY', status: 'SUCCESS', transaction_code: 'TX-BOOKING-QA', paid_at: '2026-11-07T02:01:00Z' }],
+    refunds: [], payout: { id: '31', status: 'PENDING', platform_commission: 127500, actual_payout_amount: 1572500 },
+  };
+}
+
+test('admin bookings shows full-filter totals and real contact, payment and escrow details', async () => {
+  const details = [];
+  adminBookingsService.list = async () => bookingPage();
+  adminBookingsService.detail = async (id) => { details.push(id); return bookingDetail(id); };
+  render(createElement(AdminBookingsPage));
+  await testing.screen.findByRole('button', { name: 'Xem booking BK-QA-9007199254740993' });
+  assert.ok(testing.screen.getByText('53', { exact: true }));
+  assert.ok(testing.screen.getByText('15.100.000', { exact: true }));
+  testing.fireEvent.click(testing.screen.getByRole('button', { name: 'Xem booking BK-QA-9007199254740993' }));
+  const drawer = await testing.screen.findByRole('dialog', { name: 'Booking BK-QA-9007199254740993' });
+  const detail = testing.within(drawer);
+  await detail.findByText('TX-BOOKING-QA');
+  assert.ok(detail.getByText('Đang giữ ký quỹ'));
+  assert.ok(detail.getByText('Đến muộn QA'));
+  assert.ok(detail.getByText('guest@example.test'));
+  assert.ok(detail.getByText('Chủ nhà booking QA'));
+  assert.deepEqual(details, ['9007199254740993']);
+});
+
+test('admin bookings sends pagination and search filters to the API and resets search results to page one', async () => {
+  const queries = [];
+  adminBookingsService.list = async (query) => {
+    queries.push(query);
+    return { ...bookingPage(), pagination: { ...bookingPage().pagination, page: query.page } };
+  };
+  render(createElement(AdminBookingsPage));
+  await testing.screen.findByText('Khách booking QA');
+  testing.fireEvent.click(testing.screen.getByTitle('2'));
+  await testing.waitFor(() => assert.equal(queries.at(-1).page, 2));
+  const search = testing.screen.getByRole('searchbox', { name: 'Tìm booking' });
+  testing.fireEvent.change(search, { target: { value: 'BK-QA' } });
+  testing.fireEvent.keyDown(search, { key: 'Enter', code: 'Enter', keyCode: 13 });
+  await testing.waitFor(() => assert.equal(queries.at(-1).search, 'BK-QA'));
+  assert.equal(queries.at(-1).page, 1);
+  testing.fireEvent.mouseDown(testing.screen.getByRole('combobox', { name: 'Lọc trạng thái booking' }));
+  testing.fireEvent.click(await testing.screen.findByText('Đã hủy', { exact: true }));
+  await testing.waitFor(() => assert.equal(queries.at(-1).status, 'CANCELLED'));
+  testing.fireEvent.mouseDown(testing.screen.getByRole('combobox', { name: 'Lọc nguồn booking' }));
+  testing.fireEvent.click(await testing.screen.findByText('Dropship B2B', { exact: true }));
+  await testing.waitFor(() => assert.equal(queries.at(-1).source, 'DROPSHIP'));
+});
+
+test('admin bookings ignores late detail responses after switching to another booking', async () => {
+  const pending = [];
+  adminBookingsService.list = async () => bookingPage([bookingFixture('21'), bookingFixture('22')]);
+  adminBookingsService.detail = (id) => new Promise((resolve) => pending.push({ id, resolve }));
+  render(createElement(AdminBookingsPage));
+  testing.fireEvent.click(await testing.screen.findByRole('button', { name: 'Xem booking BK-QA-21' }));
+  await testing.waitFor(() => assert.equal(pending.length, 1));
+  testing.fireEvent.click(testing.screen.getByRole('button', { name: 'Close' }));
+  await testing.waitFor(() => assert.equal(testing.screen.queryByRole('dialog'), null));
+  testing.fireEvent.click(testing.screen.getByRole('button', { name: 'Xem booking BK-QA-22' }));
+  await testing.waitFor(() => assert.equal(pending.length, 2));
+  await testing.act(async () => pending[1].resolve(bookingDetail('22')));
+  await testing.screen.findByRole('dialog', { name: 'Booking BK-QA-22' });
+  await testing.act(async () => pending[0].resolve(bookingDetail('21')));
+  assert.ok(testing.screen.getByRole('dialog', { name: 'Booking BK-QA-22' }));
+  assert.equal(testing.screen.queryByRole('dialog', { name: 'Booking BK-QA-21' }), null);
+});
+
+test('admin bookings reports loading failures and can retry without showing mock data', async () => {
+  let attempts = 0;
+  adminBookingsService.list = async () => {
+    if (++attempts === 1) throw new Error('Máy chủ booking không phản hồi');
+    return bookingPage([]);
+  };
+  render(createElement(AdminBookingsPage));
+  await testing.screen.findByText('Máy chủ booking không phản hồi');
+  testing.fireEvent.click(testing.screen.getByRole('button', { name: 'Thử lại' }));
+  await testing.screen.findByText('Không có booking phù hợp');
+  assert.equal(attempts, 2);
+});
+
+function recommendationResult(name, mode = 'PERSONALIZED') {
+  return {
+    mode, signals: { viewed_homestays: mode === 'PERSONALIZED' ? 1 : 0, bookings: 0 },
+    items: [{ homestay: {
+      id: '9007199254740993', name, city: 'Đà Lạt', average_rating: 4.7,
+      is_claimed: 1, rooms: [{ id: '21', base_price: 700000, images: [] }],
+    }, reasons: [mode === 'PERSONALIZED' ? 'Thuộc khu vực Đà Lạt bạn quan tâm' : 'Nổi bật theo điểm và số lượt đánh giá'] }],
+  };
+}
+function recommendationTree(user) {
+  return createElement(AuthContext.Provider, { value: { user, initializing: false } },
+    createElement(MemoryRouter, null, createElement(HomestayRecommendations)));
+}
+
+test('recommendations show real behavior reasons and label the guest fallback honestly', async () => {
+  const calls = [];
+  recommendationsService.get = async (personalized) => {
+    calls.push(personalized);
+    return recommendationResult(personalized ? 'Gợi ý cá nhân QA' : 'Chỗ nghỉ phổ biến QA', personalized ? 'PERSONALIZED' : 'POPULAR');
+  };
+  const view = render(recommendationTree({ id: '15' }));
+  await testing.screen.findByRole('heading', { name: 'Gợi ý theo sở thích của bạn' });
+  assert.ok(testing.screen.getByText('Thuộc khu vực Đà Lạt bạn quan tâm'));
+  assert.equal(testing.screen.getByRole('link', { name: 'Gợi ý cá nhân QA' }).getAttribute('href'), '/homestay/9007199254740993');
+  assert.doesNotMatch(document.body.textContent, /98%/);
+  view.rerender(createElement(ConfigProvider, null, createElement(AntApp, null, recommendationTree(null))));
+  await testing.screen.findByRole('heading', { name: 'Chỗ nghỉ nổi bật' });
+  await testing.screen.findByRole('link', { name: 'Chỗ nghỉ phổ biến QA' });
+  assert.deepEqual(calls, [true, false]);
+  assert.equal(testing.screen.queryByText('Thuộc khu vực Đà Lạt bạn quan tâm'), null);
+});
+
+test('recommendations never display another account history when requests finish out of order', async () => {
+  const pending = [];
+  recommendationsService.get = () => new Promise((resolve) => pending.push(resolve));
+  const tree = (id) => createElement(ConfigProvider, null, createElement(AntApp, null, recommendationTree({ id })));
+  const view = testing.render(tree('15'));
+  view.rerender(tree('16'));
+  await testing.act(async () => pending[1](recommendationResult('Gợi ý tài khoản 16')));
+  await testing.screen.findByRole('link', { name: 'Gợi ý tài khoản 16' });
+  await testing.act(async () => pending[0](recommendationResult('Gợi ý tài khoản 15')));
+  assert.equal(testing.screen.queryByRole('link', { name: 'Gợi ý tài khoản 15' }), null);
+});
+
+test('recommendations report errors and retry instead of inventing personalized results', async () => {
+  let calls = 0;
+  recommendationsService.get = async () => {
+    if (++calls === 1) throw new Error('Dịch vụ gợi ý chưa phản hồi');
+    return recommendationResult('Gợi ý sau khi thử lại');
+  };
+  render(recommendationTree({ id: '15' }));
+  await testing.screen.findByText('Dịch vụ gợi ý chưa phản hồi');
+  assert.equal(testing.screen.queryByRole('heading', { name: 'Gợi ý theo sở thích của bạn' }), null);
+  testing.fireEvent.click(testing.screen.getByRole('button', { name: 'Thử lại' }));
+  await testing.screen.findByRole('link', { name: 'Gợi ý sau khi thử lại' });
+});
+
+test('view tracking runs only for loaded homestays on an authenticated account', async () => {
+  const views = [];
+  recommendationsService.recordView = async (id) => { views.push(id); };
+  function Tracker({ id }) { useTrackHomestayView(id); return null; }
+  const tree = (user, id, initializing = false) => createElement(AuthContext.Provider, {
+    value: { user, initializing },
+  }, createElement(Tracker, { id }));
+  const view = testing.render(tree(null, '21'));
+  assert.equal(views.length, 0);
+  view.rerender(tree({ id: '15' }, undefined));
+  assert.equal(views.length, 0);
+  view.rerender(tree({ id: '15' }, '21', true));
+  assert.equal(views.length, 0);
+  view.rerender(tree({ id: '15' }, '21'));
+  assert.deepEqual(views, ['21']);
+  view.rerender(tree(null, '21'));
+  assert.deepEqual(views, ['21']);
+  view.rerender(tree({ id: '16' }, '21'));
+  assert.deepEqual(views, ['21', '21']);
 });

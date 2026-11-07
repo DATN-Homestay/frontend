@@ -57,7 +57,7 @@ before(async () => {
     appType: 'custom',
     cacheDir: 'node_modules/.cache/pricing-ui-qa/ssr-cache',
     optimizeDeps: { noDiscovery: true, include: [] },
-    server: { middlewareMode: true, watch: { ignored: ['**/*'] } },
+    server: { middlewareMode: true, hmr: false, watch: { ignored: ['**/*'] } },
   });
   PricingSuggestionPanel = (await vite.ssrLoadModule('/src/features/pricing/PricingSuggestionPanel.tsx')).default;
 });

@@ -46,6 +46,9 @@ import { customerService } from '../../services/customerService';
 import type { HomestayItem, RoomItem } from '../../types/customer';
 import { getHomestayCoverImage, getAllHomestayImages } from '../../utils/imageHelper';
 import { useRoomAvailability } from './useRoomAvailability';
+import RoomStayPrice from './RoomStayPrice';
+import RoomDailyPrices from '../../features/pricing/RoomDailyPrices';
+import { useTrackHomestayView } from '../../features/recommendations/useTrackHomestayView';
 
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -100,6 +103,7 @@ function HomestayDetailContent() {
   const initialCoverFromState = (location.state as any)?.coverImage;
 
   const [homestay, setHomestay] = useState<HomestayItem | null>(null);
+  useTrackHomestayView(homestay?.id);
   const [loading, setLoading] = useState(true);
   const [selectedRoom, setSelectedRoom] = useState<RoomItem | null>(null);
   const [dateRange, setDateRange] = useState<[string, string] | null>(null);
@@ -170,11 +174,22 @@ function HomestayDetailContent() {
   }, [id, fetchDetail]);
 
   const isBookingComHomestay =
-    homestay?.is_claimed === 0 ||
-    !!homestay?.source_url?.toLowerCase().includes('booking.com');
+    homestay?.is_claimed !== 1 && (
+      homestay?.is_claimed === 0 ||
+      !!homestay?.source_url?.toLowerCase().includes('booking.com')
+    );
 
   const { quote: roomAvailabilityQuote, loading: checkingAvailability, error: availabilityError } =
     useRoomAvailability(selectedRoom?.id, dateRange, !isBookingComHomestay);
+  const detailAvailability = useRoomAvailability(
+    roomDetailModalOpen && activeDetailRoom?.id !== selectedRoom?.id
+      ? activeDetailRoom?.id : undefined,
+    dateRange,
+    !isBookingComHomestay,
+  );
+  const detailPrice = activeDetailRoom?.id === selectedRoom?.id
+    ? { quote: roomAvailabilityQuote, loading: checkingAvailability, error: availabilityError }
+    : detailAvailability;
   const bookingBlocked = checkingAvailability || !!availabilityError || roomAvailabilityQuote?.available === false;
 
   const handleBooking = () => {
@@ -705,12 +720,14 @@ function HomestayDetailContent() {
 
                     {/* Room Price & Actions */}
                     <div style={{ textAlign: 'right', flexShrink: 0, minWidth: 150 }}>
-                      <Text strong style={{ fontSize: 20, color: '#006ce4' }}>
-                        {Number(r.base_price).toLocaleString('vi-VN')}đ
-                      </Text>
-                      <Text style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 10 }}>
-                        /đêm
-                      </Text>
+                      <div style={{ marginBottom: 10 }}>
+                        <RoomStayPrice
+                          room={r} dateRange={dateRange} partner={isBookingComHomestay}
+                          quote={isSelected ? roomAvailabilityQuote : null}
+                          loading={isSelected && checkingAvailability}
+                          error={isSelected ? availabilityError : null}
+                        />
+                      </div>
 
                       {isBookingComHomestay ? (
                         <Button
@@ -1412,13 +1429,11 @@ function HomestayDetailContent() {
                 </div>
 
                 <div style={{ marginBottom: 16 }}>
-                  <Text style={{ fontSize: 13, color: '#64748b' }}>Giá phòng niêm yết</Text>
-                  <div>
-                    <Text strong style={{ fontSize: 26, color: '#6366f1' }}>
-                      {(selectedRoom?.base_price || 650000).toLocaleString('vi-VN')}đ
-                    </Text>
-                    <Text type="secondary"> /đêm</Text>
-                  </div>
+                  <RoomStayPrice
+                    room={selectedRoom} dateRange={dateRange} quote={roomAvailabilityQuote}
+                    loading={checkingAvailability} error={availabilityError}
+                    detailed fontSize={26} color="#6366f1"
+                  />
                 </div>
 
                 <div style={{ marginBottom: 16 }}>
@@ -1966,6 +1981,12 @@ function HomestayDetailContent() {
                       )}
                     </div>
 
+                    {!isBookingComHomestay && (
+                      <div style={{ margin: '16px 0' }}>
+                        <RoomDailyPrices room={room} />
+                      </div>
+                    )}
+
                     {/* Footer Modal: Giá & Nút chọn phòng */}
                     <div
                       style={{
@@ -1978,10 +1999,11 @@ function HomestayDetailContent() {
                       }}
                     >
                       <div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>Giá mỗi đêm</div>
-                        <Text strong style={{ fontSize: 22, color: '#006ce4' }}>
-                          {Number(room.base_price).toLocaleString('vi-VN')}đ
-                        </Text>
+                        <RoomStayPrice
+                          room={room} dateRange={dateRange} partner={isBookingComHomestay}
+                          quote={detailPrice.quote} loading={detailPrice.loading}
+                          error={detailPrice.error} detailed fontSize={22}
+                        />
                       </div>
 
                       {isBookingComHomestay ? (

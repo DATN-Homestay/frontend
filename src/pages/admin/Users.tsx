@@ -10,6 +10,7 @@ import {
 import { useEffect, useState, useCallback } from 'react';
 import { adminService } from '../../services/adminService';
 import type { AdminUserItem, AdminUserDetail, AdminListUsersQuery } from '../../services/adminService';
+import { useAuth } from '../../contexts/useAuth';
 
 const { Title, Text } = Typography;
 
@@ -26,6 +27,9 @@ const ROLE_MAP: Record<string, { color: string }> = {
 };
 
 export default function UsersPage() {
+  const { user: currentUser } = useAuth();
+  const isOtherAdmin = (user: AdminUserItem) =>
+    user.roles.includes('ADMIN') && user.id !== currentUser?.id;
   const [data, setData] = useState<AdminUserItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
@@ -146,13 +150,14 @@ export default function UsersPage() {
 
   // Đổi role
   const handleOpenRoleModal = (user: AdminUserItem) => {
+    if (isOtherAdmin(user)) return;
     setEditingUser(user);
     roleForm.setFieldsValue({ roles: user.roles });
     setRoleOpen(true);
   };
 
   const handleUpdateRoles = async () => {
-    if (!editingUser) return;
+    if (!editingUser || isOtherAdmin(editingUser)) return;
     try {
       const values = await roleForm.validateFields();
       setRoleLoading(true);
@@ -235,36 +240,46 @@ export default function UsersPage() {
       render: (_: any, record: AdminUserItem) => (
         <Space size={4}>
           <Tooltip title="Xem chi tiết">
-            <Button size="small" icon={<EyeOutlined />} onClick={() => handleViewDetail(record.id)} />
+            <Button size="small" aria-label="Xem chi tiết" icon={<EyeOutlined />} onClick={() => handleViewDetail(record.id)} />
           </Tooltip>
-          <Tooltip title="Đổi role">
-            <Button size="small" icon={<EditOutlined />} onClick={() => handleOpenRoleModal(record)} />
-          </Tooltip>
-          {record.status === 'ACTIVE' ? (
-            <Tooltip title="Khóa tài khoản">
-              <Popconfirm
-                title="Khóa tài khoản này?"
-                description="Người dùng sẽ không thể đăng nhập"
-                onConfirm={() => handleChangeStatus(record.id, 'SUSPENDED', 'Vi phạm quy định')}
-              >
-                <Button size="small" danger icon={<LockOutlined />} />
-              </Popconfirm>
-            </Tooltip>
-          ) : record.status === 'SUSPENDED' ? (
-            <Tooltip title="Mở khóa">
-              <Button size="small" type="primary" icon={<UnlockOutlined />}
-                onClick={() => handleChangeStatus(record.id, 'ACTIVE')} />
-            </Tooltip>
-          ) : null}
-          <Tooltip title="Xóa">
-            <Popconfirm
-              title="Xác nhận xóa người dùng?"
-              description="Hành động này không thể hoàn tác"
-              onConfirm={() => handleDelete(record.id)}
-            >
-              <Button size="small" danger icon={<DeleteOutlined />} />
-            </Popconfirm>
-          </Tooltip>
+          {isOtherAdmin(record) ? (
+            <Text type="secondary">Không được quản lý Admin khác</Text>
+          ) : (
+            <>
+              <Tooltip title="Đổi role">
+                <Button size="small" aria-label="Đổi role" icon={<EditOutlined />} onClick={() => handleOpenRoleModal(record)} />
+              </Tooltip>
+              {record.id !== currentUser?.id && (
+                <>
+                  {record.status === 'ACTIVE' ? (
+                    <Tooltip title="Khóa tài khoản">
+                      <Popconfirm
+                        title="Khóa tài khoản này?"
+                        description="Người dùng sẽ không thể đăng nhập"
+                        onConfirm={() => handleChangeStatus(record.id, 'SUSPENDED', 'Vi phạm quy định')}
+                      >
+                        <Button size="small" aria-label="Khóa tài khoản" danger icon={<LockOutlined />} />
+                      </Popconfirm>
+                    </Tooltip>
+                  ) : record.status === 'SUSPENDED' ? (
+                    <Tooltip title="Mở khóa">
+                      <Button size="small" aria-label="Mở khóa" type="primary" icon={<UnlockOutlined />}
+                        onClick={() => handleChangeStatus(record.id, 'ACTIVE')} />
+                    </Tooltip>
+                  ) : null}
+                  <Tooltip title="Xóa">
+                    <Popconfirm
+                      title="Xác nhận xóa người dùng?"
+                      description="Hành động này không thể hoàn tác"
+                      onConfirm={() => handleDelete(record.id)}
+                    >
+                      <Button size="small" aria-label="Xóa" danger icon={<DeleteOutlined />} />
+                    </Popconfirm>
+                  </Tooltip>
+                </>
+              )}
+            </>
+          )}
         </Space>
       ),
     },

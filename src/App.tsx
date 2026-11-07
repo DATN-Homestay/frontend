@@ -33,6 +33,7 @@ import MyListingsPage from './pages/host/MyListings';
 import PriceCalendarPage from './pages/host/PriceCalendar';
 import VerificationPage from './pages/host/Verification';
 import HostBookingsPage from './pages/host/Bookings';
+import AdminBookingsPage from './pages/admin/Bookings';
 import HostPayoutsPage from './pages/host/Payouts';
 import HostCouponsPage from './pages/host/Coupons';
 
@@ -126,6 +127,7 @@ export default function App() {
                       <Route index element={<DashboardPage />} />
                       <Route path="dropship" element={<DropshipOrdersPage />} />
                       <Route path="users" element={<UsersPage />} />
+                      <Route path="bookings" element={<AdminBookingsPage />} />
                       <Route path="hosts" element={<HostsPage />} />
                       <Route path="host-verifications" element={<HostVerificationsPage />} />
                       <Route path="homestays" element={<HomestaysPage />} />

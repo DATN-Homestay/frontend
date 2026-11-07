@@ -82,6 +82,14 @@ test('shows real unread counts and keeps admin finance pages directly accessible
   assert.equal(testing.screen.getByTestId('location').textContent, '/admin/messages');
 });
 
+test('provides the admin bookings navigation and selects it on a booking route', async () => {
+  mount('ADMIN', '/admin');
+  await testing.screen.findByRole('button', { name: 'Thu gọn menu' });
+  testing.fireEvent.click(testing.screen.getByRole('menuitem', { name: /Quản lý booking/ }));
+  assert.equal(testing.screen.getByTestId('location').textContent, '/admin/bookings');
+  assert.ok(testing.screen.getByRole('heading', { name: 'Quản lý booking' }));
+});
+
 test('opens a mobile drawer and closes it after choosing a page', async () => {
   viewport = 390;
   mount('HOST', '/host');

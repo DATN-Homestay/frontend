@@ -36,12 +36,20 @@ export interface RoomItem {
   room_name: string;
   capacity: number;
   base_price: number;
+  /** Giá bán đã lưu theo ngày; ngày chưa có giá riêng sử dụng base_price. */
+  daily_prices?: RoomDailyPrice[];
   bed_info?: string;
   area_sqm?: number;
   description?: string;
   room_details_json?: RoomDetailsJson;
   amenities?: string[];
   images?: RoomImageItem[];
+}
+
+export interface RoomDailyPrice {
+  date: string;
+  price: number;
+  is_ai_applied: number;
 }
 
 export interface RoomImageItem {

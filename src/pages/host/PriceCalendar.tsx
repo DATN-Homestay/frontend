@@ -415,21 +415,22 @@ export default function PriceCalendarPage() {
     }
   };
 
-  const openConfirmation = () => {
+  const openConfirmation = (price: number | null = appliedPrice) => {
     if (
       !currentQuote ||
       !targetReady ||
       locked ||
-      busy ||
+      saving ||
+      batchContext !== null ||
       currentQuote.data.data_status !== 'SUFFICIENT_DATA' ||
-      !isPriceWithinBounds(appliedPrice, currentQuote.data.base_price)
+      !isPriceWithinBounds(price, currentQuote.data.base_price)
     )
       return;
     if (Date.now() - currentQuote.receivedAt >= QUOTE_LIFETIME) {
       setNow(Date.now());
       return;
     }
-    setConfirmation({ suggestion: currentQuote.data, price: appliedPrice! });
+    setConfirmation({ suggestion: currentQuote.data, price: price! });
   };
 
   const applyPrice = async () => {
@@ -473,7 +474,9 @@ export default function PriceCalendarPage() {
         `Đã áp dụng ${formatVnd(response.data.new_price)} cho ngày ${dayjs(confirmed.suggestion.date).format('DD/MM/YYYY')}.`,
       );
       setConfirmation(null);
+      setDayContext(null);
       setQuote(null);
+      setAppliedPrice(null);
       setCalendarRevision((value) => value + 1);
     } catch (error: unknown) {
       if (!mounted.current) return;
@@ -780,7 +783,7 @@ export default function PriceCalendarPage() {
                 suggestion={currentQuote.data}
                 appliedPrice={appliedPrice}
                 onPriceChange={setAppliedPrice}
-                onApply={openConfirmation}
+                onApply={() => openConfirmation()}
                 onDiscard={() => {
                   setQuote(null);
                   setAppliedPrice(null);
@@ -1016,9 +1019,9 @@ export default function PriceCalendarPage() {
                         disabled={dayUpdating || locked || !isPriceWithinBounds(
                           currentQuote.data.suggested_price, currentQuote.data.base_price,
                         )}
-                        onClick={() => dayForm.setFieldValue('price', currentQuote.data.suggested_price)}
+                        onClick={() => openConfirmation(currentQuote.data.suggested_price)}
                       >
-                        Dùng giá gợi ý {formatVnd(currentQuote.data.suggested_price)}
+                        Áp dụng giá AI {formatVnd(currentQuote.data.suggested_price)}
                       </Button>
                     ) : (
                       <Text type="secondary">{expired ? 'Gợi ý đã hết hiệu lực. Vui lòng lấy lại.' : 'Chưa đủ dữ liệu để đề xuất giá.'}</Text>
