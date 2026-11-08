@@ -6,6 +6,8 @@ import {
   SafetyCertificateOutlined, SwapOutlined, UserOutlined,
 } from '@ant-design/icons';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Suspense } from 'react';
+import PageLoading from '../components/PageLoading';
 import { useAuth } from '../contexts/useAuth';
 import { useChat } from '../features/chat/ChatContext';
 import ChatNavBadge from '../features/chat/ChatNavBadge';
@@ -111,7 +113,7 @@ export default function PortalLayout({ role, groups }: { role: 'HOST' | 'ADMIN';
           </Dropdown>
         </div>
       </Layout.Header>
-      <Layout.Content className={`portal-content${messagesPage ? ' portal-content--messages' : ''}`}><Outlet /></Layout.Content>
+      <Layout.Content className={`portal-content${messagesPage ? ' portal-content--messages' : ''}`}><Suspense fallback={<PageLoading />}><Outlet /></Suspense></Layout.Content>
     </Layout>
   </Layout>;
 }

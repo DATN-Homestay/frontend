@@ -7,6 +7,7 @@ import { useFavorites } from '../../contexts/useFavorites';
 import { getHomestayCoverImage } from '../../utils/imageHelper';
 import { formatVnd } from '../pricing/pricing.utils';
 import { recommendationsService, type HomestayRecommendationsResult } from './recommendations.service';
+import { RECOMMENDATION_CHANGED } from './recommendation-events';
 
 const { Title, Text } = Typography;
 
@@ -19,6 +20,14 @@ export default function HomestayRecommendations() {
   const key = `${userId ?? 'guest'}:${revision}`;
   const [result, setResult] = useState<{ key: string; data: HomestayRecommendationsResult } | null>(null);
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
+
+  useEffect(() => {
+    const changed = (event: Event) => {
+      if (userId && (event as CustomEvent<string>).detail === userId) setRevision((value) => value + 1);
+    };
+    window.addEventListener(RECOMMENDATION_CHANGED, changed);
+    return () => window.removeEventListener(RECOMMENDATION_CHANGED, changed);
+  }, [userId]);
 
   useEffect(() => {
     if (initializing) return;
@@ -34,9 +43,14 @@ export default function HomestayRecommendations() {
   const data = !initializing && result?.key === key ? result.data : null;
   const error = !initializing && failure?.key === key ? failure.message : null;
   const personalized = data?.mode === 'PERSONALIZED';
+  const sources = data ? [
+    data.signals.favorites ? 'danh sách yêu thích' : '',
+    data.signals.viewed_homestays ? 'lượt xem gần đây' : '',
+    data.signals.searches ? 'lịch sử tìm kiếm' : '',
+    data.signals.bookings ? 'các chuyến đi đã thanh toán' : '',
+  ].filter(Boolean) : [];
   const description = !personalized ? 'Khám phá các chỗ nghỉ nổi bật theo điểm và số lượt đánh giá.'
-    : data.signals.viewed_homestays && data.signals.bookings ? 'Dựa trên lượt xem gần đây và các chuyến đi đã thanh toán của bạn.'
-      : data.signals.bookings ? 'Dựa trên các chuyến đi đã thanh toán của bạn.' : 'Dựa trên các homestay bạn đã xem gần đây.';
+    : `Dựa trên ${sources.join(', ')} của bạn.`;
 
   return (
     <section aria-label="Gợi ý homestay" style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 20, padding: 24, marginBottom: 36 }}>
@@ -60,7 +74,7 @@ export default function HomestayRecommendations() {
                     <Card hoverable style={{ height: '100%', borderRadius: 14, overflow: 'hidden' }}
                       cover={<div style={{ position: 'relative' }}>
                         <Link to={`/homestay/${homestay.id}`} state={{ coverImage }} aria-label={`Xem ${homestay.name}`}>
-                          <img src={coverImage} alt={homestay.name} style={{ width: '100%', height: 190, objectFit: 'cover', display: 'block' }} />
+                          <img src={coverImage} alt={homestay.name} loading="lazy" decoding="async" style={{ width: '100%', height: 190, objectFit: 'cover', display: 'block' }} />
                         </Link>
                         <Button
                           shape="circle"

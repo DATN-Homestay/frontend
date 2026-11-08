@@ -15,29 +15,34 @@ import type {
   CancelResult,
 } from '../types/customer';
 
+export interface HomestayCatalogFilters { district?: string; guests?: number; rooms?: number }
+interface HomestayCatalog { items: HomestayItem[]; total: number }
+// Public catalog only: coalesce StrictMode/concurrent reads and reuse pages for five seconds.
+const catalogRequests = new Map<string, { promise: Promise<HomestayCatalog>; expiresAt: number }>();
+
 export const customerService = {
-  async getHomestays(city?: string, limit?: number, offset?: number): Promise<{ items: HomestayItem[]; total: number }> {
-    try {
-      const res: any = await apiClient('/homestays', {
-        params: {
-          city: city && city !== 'Tất cả điểm đến' && city !== 'Tất cả' ? city : undefined,
-          limit,
-          offset,
-        },
-      });
-      // Backend bọc response trong { statusCode, message, data: { items, total } }
-      const data = res?.data ?? res;
-      if (data && Array.isArray(data.items)) {
-        return { items: data.items, total: data.total ?? data.items.length };
-      }
-      if (Array.isArray(data)) {
-        return { items: data, total: data.length };
-      }
-      return { items: [], total: 0 };
-    } catch (err) {
-      console.warn('Lỗi khi gọi API /homestays:', err);
-      return { items: [], total: 0 };
-    }
+  getHomestays(city?: string, limit = 24, offset = 0, filters: HomestayCatalogFilters = {}): Promise<HomestayCatalog> {
+    const params = {
+      city: city && !city.startsWith('Tất cả') ? city : undefined,
+      limit, offset, district: filters.district, guests: filters.guests, rooms: filters.rooms,
+    };
+    const key = JSON.stringify(params);
+    const cached = catalogRequests.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.promise;
+    for (const [entryKey, entry] of catalogRequests) if (entry.expiresAt <= Date.now()) catalogRequests.delete(entryKey);
+    if (catalogRequests.size >= 100) catalogRequests.delete(catalogRequests.keys().next().value!);
+    const promise = apiClient<ApiResponse<HomestayCatalog>>('/homestays', { params, signal: AbortSignal.timeout(15000) }).then((res) => {
+      const data = res.data;
+      if (!data || !Array.isArray(data.items) || !Number.isFinite(data.total)) throw new Error('Dữ liệu danh sách homestay không hợp lệ.');
+      const entry = catalogRequests.get(key);
+      if (entry?.promise === promise) entry.expiresAt = Date.now() + 5000;
+      return data;
+    }).catch((error: unknown) => {
+      if (catalogRequests.get(key)?.promise === promise) catalogRequests.delete(key);
+      throw error;
+    });
+    catalogRequests.set(key, { promise, expiresAt: Infinity });
+    return promise;
   },
 
   async getHomestayDetail(id: string): Promise<HomestayItem> {

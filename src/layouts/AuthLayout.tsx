@@ -1,3 +1,5 @@
+import { Suspense } from 'react';
+import PageLoading from '../components/PageLoading';
 import { ConfigProvider, Spin, Typography, theme } from 'antd';
 import { CompassOutlined } from '@ant-design/icons';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -95,7 +97,7 @@ export default function AuthLayout() {
                 <Spin />
               </div>
             ) : (
-              <Outlet />
+              <Suspense fallback={<PageLoading />}><Outlet /></Suspense>
             )}
           </div>
         </div>

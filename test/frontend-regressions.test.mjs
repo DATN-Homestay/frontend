@@ -12,6 +12,10 @@ let dom,
   Register,
   AuthContext,
   FavoritesContext,
+  FavoritesProvider,
+  favoritesService,
+  HomePage,
+  useHomestayCatalog,
   authService,
   customerService,
   HomestayDetail,
@@ -22,6 +26,8 @@ let dom,
   HomestayRecommendations,
   recommendationsService,
   useTrackHomestayView,
+  useTrackHomestaySearch,
+  notifyRecommendationChange,
   useRoomAvailability,
   ConfigProvider,
   AntApp,
@@ -35,6 +41,8 @@ let originalGetHomestayDetail;
 let originalAdminService;
 let originalAdminBookingsService;
 let originalRecommendationsService;
+let originalFavoritesService;
+let originalGetHomestays;
 const requests = [];
 const nativeFetch = globalThis.fetch;
 const financial = {
@@ -121,8 +129,14 @@ before(async () => {
   Register = (await vite.ssrLoadModule('/src/pages/auth/Register.tsx')).default;
   ({ AuthContext } = await vite.ssrLoadModule('/src/contexts/AuthContextDefinition.ts'));
   ({ FavoritesContext } = await vite.ssrLoadModule('/src/contexts/FavoritesContextDefinition.ts'));
+  ({ FavoritesProvider } = await vite.ssrLoadModule('/src/contexts/FavoritesContext.tsx'));
+  ({ favoritesService } = await vite.ssrLoadModule('/src/services/favoritesService.ts'));
+  originalFavoritesService = { ...favoritesService };
   ({ authService } = await vite.ssrLoadModule('/src/services/authService.ts'));
   ({ customerService } = await vite.ssrLoadModule('/src/services/customerService.ts'));
+  originalGetHomestays = customerService.getHomestays;
+  HomePage = (await vite.ssrLoadModule('/src/pages/customer/Home.tsx')).default;
+  ({ useHomestayCatalog } = await vite.ssrLoadModule('/src/pages/customer/useHomestayCatalog.ts'));
   ({ useRoomAvailability } = await vite.ssrLoadModule('/src/pages/customer/useRoomAvailability.ts'));
   HomestayDetail = (await vite.ssrLoadModule('/src/pages/customer/HomestayDetail.tsx')).default;
   UsersPage = (await vite.ssrLoadModule('/src/pages/admin/Users.tsx')).default;
@@ -134,6 +148,8 @@ before(async () => {
   HomestayRecommendations = (await vite.ssrLoadModule('/src/features/recommendations/HomestayRecommendations.tsx')).default;
   ({ recommendationsService } = await vite.ssrLoadModule('/src/features/recommendations/recommendations.service.ts'));
   ({ useTrackHomestayView } = await vite.ssrLoadModule('/src/features/recommendations/useTrackHomestayView.ts'));
+  ({ useTrackHomestaySearch } = await vite.ssrLoadModule('/src/features/recommendations/useTrackHomestaySearch.ts'));
+  ({ notifyRecommendationChange } = await vite.ssrLoadModule('/src/features/recommendations/recommendation-events.ts'));
   originalRecommendationsService = { ...recommendationsService };
   originalQuoteBooking = customerService.quoteBooking;
   originalGetHomestayDetail = customerService.getHomestayDetail;
@@ -157,6 +173,8 @@ afterEach(() => {
   Object.assign(adminService, originalAdminService);
   Object.assign(adminBookingsService, originalAdminBookingsService);
   Object.assign(recommendationsService, originalRecommendationsService);
+  Object.assign(favoritesService, originalFavoritesService);
+  customerService.getHomestays = originalGetHomestays;
 });
 after(async () => {
   await vite?.close();
@@ -494,7 +512,7 @@ test('admin bookings reports loading failures and can retry without showing mock
 
 function recommendationResult(name, mode = 'PERSONALIZED') {
   return {
-    mode, signals: { viewed_homestays: mode === 'PERSONALIZED' ? 1 : 0, bookings: 0 },
+    mode, signals: { viewed_homestays: mode === 'PERSONALIZED' ? 1 : 0, bookings: 0, favorites: 0, searches: 0 },
     items: [{ homestay: {
       id: '9007199254740993', name, city: 'Đà Lạt', average_rating: 4.7,
       is_claimed: 1, rooms: [{ id: '21', base_price: 700000, images: [] }],
@@ -595,4 +613,169 @@ test('merges favorites into behavior recommendations without navigating away fro
   await testing.screen.findByRole('button', { name: 'Lưu vào yêu thích: Nhà gợi ý yêu thích QA' });
   assert.equal(toggles.length, 2);
   assert.ok(testing.screen.getByRole('heading', { name: 'Gợi ý theo sở thích của bạn' }));
+});
+
+test('saving and removing a favorite refreshes recommendations and describes the real source', async () => {
+  let saved = false;
+  let calls = 0;
+  favoritesService.getFavoriteIds = async () => [];
+  favoritesService.toggleFavorite = async () => ({ is_favorite: saved = !saved });
+  recommendationsService.get = async () => {
+    calls++;
+    const data = recommendationResult('Nhà theo yêu thích', saved ? 'PERSONALIZED' : 'POPULAR');
+    data.signals = { viewed_homestays: 0, bookings: 0, favorites: saved ? 1 : 0, searches: 0 };
+    return data;
+  };
+  render(createElement(AuthContext.Provider, { value: { user: { id: '15' }, isAuthenticated: true, initializing: false } },
+    createElement(FavoritesProvider, null, createElement(MemoryRouter, null, createElement(HomestayRecommendations)))));
+  testing.fireEvent.click(await testing.screen.findByRole('button', { name: 'Lưu vào yêu thích: Nhà theo yêu thích' }));
+  await testing.screen.findByText('Dựa trên danh sách yêu thích của bạn.');
+  assert.equal(calls, 2);
+  testing.fireEvent.click(await testing.screen.findByRole('button', { name: 'Bỏ lưu yêu thích: Nhà theo yêu thích' }));
+  await testing.screen.findByRole('heading', { name: 'Chỗ nghỉ nổi bật' });
+  assert.equal(calls, 3);
+});
+
+test('recommendations refresh only for the current account behavior', async () => {
+  let calls = 0;
+  recommendationsService.get = async () => {
+    calls++;
+    const data = recommendationResult('Nhà sau tìm kiếm');
+    data.signals = { viewed_homestays: 0, bookings: 0, favorites: 0, searches: 1 };
+    return data;
+  };
+  render(recommendationTree({ id: '15' }));
+  await testing.screen.findByText('Dựa trên lịch sử tìm kiếm của bạn.');
+  await testing.act(async () => notifyRecommendationChange('16'));
+  assert.equal(calls, 1);
+  await testing.act(async () => notifyRecommendationChange('15'));
+  assert.equal(calls, 2);
+});
+
+test('late favorite history cannot replace another account preferences', async () => {
+  const pending = [];
+  favoritesService.getFavoriteIds = () => new Promise((resolve) => pending.push(resolve));
+  const tree = (user) => createElement(AuthContext.Provider, { value: { user, isAuthenticated: Boolean(user), initializing: false } },
+    createElement(FavoritesProvider, null, createElement(FavoritesContext.Consumer, null,
+      (value) => createElement('output', { 'data-testid': 'saved-ids' }, [...value.favoriteIds].join(',')))));
+  const view = testing.render(tree({ id: '15' }));
+  view.rerender(tree({ id: '16' }));
+  await testing.act(async () => pending[1](['222']));
+  assert.equal(testing.screen.getByTestId('saved-ids').textContent, '222');
+  await testing.act(async () => pending[0](['111']));
+  assert.equal(testing.screen.getByTestId('saved-ids').textContent, '222');
+  view.rerender(tree(null));
+  assert.equal(testing.screen.getByTestId('saved-ids').textContent, '');
+});
+
+test('search tracking ignores guests and defaults, and does not run merely from opening a page', async () => {
+  const searches = [];
+  recommendationsService.recordSearch = async (search) => searches.push(search);
+  function Search() {
+    const track = useTrackHomestaySearch();
+    return createElement('div', null,
+      createElement('button', { onClick: () => track({ city: 'Đà Lạt', guests: 4, rooms: 2 }) }, 'Tìm địa điểm'),
+      createElement('button', { onClick: () => track({ city: 'Tất cả điểm đến', district: 'Tất cả quận/huyện' }) }, 'Tìm tất cả'));
+  }
+  const tree = (user, initializing = false) => createElement(AuthContext.Provider, { value: { user, initializing } }, createElement(Search));
+  const view = testing.render(tree(null));
+  testing.fireEvent.click(testing.screen.getByText('Tìm địa điểm'));
+  assert.equal(searches.length, 0);
+  view.rerender(tree({ id: '15' }, true));
+  testing.fireEvent.click(testing.screen.getByText('Tìm địa điểm'));
+  assert.equal(searches.length, 0);
+  view.rerender(tree({ id: '15' }));
+  assert.equal(searches.length, 0);
+  testing.fireEvent.click(testing.screen.getByText('Tìm tất cả'));
+  assert.equal(searches.length, 0);
+  await testing.act(async () => testing.fireEvent.click(testing.screen.getByText('Tìm địa điểm')));
+  assert.deepEqual(searches, [{ city: 'Đà Lạt', district: undefined, guests: 4, rooms: 2 }]);
+});
+
+test('home quick destination searches record the selected city without default guest preferences', async () => {
+  const searches = [];
+  recommendationsService.recordSearch = async (search) => searches.push(search);
+  recommendationsService.get = async () => recommendationResult('Nhà trang chủ', 'POPULAR');
+  customerService.getHomestays = async () => ({ items: [] });
+  render(createElement(AuthContext.Provider, { value: { user: { id: '15' }, initializing: false } },
+    createElement(MemoryRouter, null, createElement(HomePage))));
+  await testing.screen.findByText('Nhà trang chủ');
+  assert.equal(searches.length, 0);
+  await testing.act(async () => testing.fireEvent.click(testing.screen.getByRole('button', { name: 'Đà Lạt' })));
+  assert.equal(searches.length, 1);
+  assert.equal(searches[0].city, 'Đà Lạt');
+  assert.equal(searches[0].guests, undefined);
+});
+
+test('home requests only one page and resets pagination when changing destination', async () => {
+  const calls = [];
+  recommendationsService.get = async () => ({ ...recommendationResult('Gợi ý trang chủ', 'POPULAR'), items: [] });
+  recommendationsService.recordSearch = async () => {};
+  customerService.getHomestays = async (...args) => {
+    calls.push(args);
+    const [city, , offset] = args;
+    const homestay = recommendationResult(`Danh sách ${city ?? 'toàn quốc'} trang ${offset / 12 + 1}`).items[0].homestay;
+    return { items: [homestay], total: 30 };
+  };
+  render(createElement(AuthContext.Provider, { value: { user: null, initializing: false } },
+    createElement(MemoryRouter, null, createElement(HomePage))));
+  await testing.screen.findByText('Danh sách toàn quốc trang 1');
+  assert.deepEqual(calls[0].slice(0, 3), [undefined, 12, 0]);
+  testing.fireEvent.click(testing.screen.getByTitle('2'));
+  await testing.screen.findByText('Danh sách toàn quốc trang 2');
+  assert.deepEqual(calls[1].slice(0, 3), [undefined, 12, 12]);
+  testing.fireEvent.click(testing.screen.getByRole('button', { name: 'Đà Lạt' }));
+  await testing.screen.findByText('Danh sách Đà Lạt trang 1');
+  assert.deepEqual(calls[2].slice(0, 3), ['Đà Lạt', 12, 0]);
+});
+
+test('late catalog responses cannot replace a more recent search', async () => {
+  const pending = [];
+  customerService.getHomestays = () => new Promise((resolve) => pending.push(resolve));
+  function Catalog({ city }) {
+    const result = useHomestayCatalog(city, 1, 12, {}, 0);
+    return createElement('output', { 'data-testid': 'catalog-result' }, result.items[0]?.name ?? 'Đang tải');
+  }
+  const view = testing.render(createElement(Catalog, { city: 'Đà Lạt' }));
+  view.rerender(createElement(Catalog, { city: 'Hà Nội' }));
+  await testing.act(async () => pending[1]({ items: [{ name: 'Kết quả Hà Nội' }], total: 1 }));
+  await testing.act(async () => pending[0]({ items: [{ name: 'Kết quả Đà Lạt cũ' }], total: 1 }));
+  assert.equal(testing.screen.getByTestId('catalog-result').textContent, 'Kết quả Hà Nội');
+});
+
+test('home shows a failed catalog request and retries instead of reporting no results', async () => {
+  let calls = 0;
+  recommendationsService.get = async () => ({ ...recommendationResult('Gợi ý trang chủ', 'POPULAR'), items: [] });
+  customerService.getHomestays = async () => {
+    if (++calls === 1) throw new Error('Chưa kết nối được máy chủ danh sách');
+    return { items: [], total: 0 };
+  };
+  render(createElement(MemoryRouter, null, createElement(HomePage)));
+  await testing.screen.findByText('Chưa kết nối được máy chủ danh sách');
+  testing.fireEvent.click(testing.screen.getByRole('button', { name: 'Thử lại danh sách' }));
+  await testing.waitFor(() => assert.equal(calls, 2));
+  await testing.waitFor(() => assert.equal(testing.screen.queryByText('Chưa kết nối được máy chủ danh sách'), null));
+});
+
+test('public catalog coalesces identical network reads but keeps pages and errors separate', async () => {
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+  const urls = [];
+  try {
+    globalThis.fetch = async (url) => {
+      calls++; urls.push(String(url));
+      return new Response(JSON.stringify({ data: { items: [], total: 30 } }), { headers: { 'content-type': 'application/json' } });
+    };
+    await Promise.all([originalGetHomestays('QA cache A', 12, 0), originalGetHomestays('QA cache A', 12, 0)]);
+    assert.equal(calls, 1);
+    await originalGetHomestays('QA cache A', 12, 0);
+    assert.equal(calls, 1);
+    await originalGetHomestays('QA cache A', 12, 12);
+    assert.equal(calls, 2);
+    assert.match(urls[1], /limit=12&offset=12/);
+    globalThis.fetch = async () => { calls++; return new Response('{}', { status: 503 }); };
+    await assert.rejects(originalGetHomestays('QA cache error', 12, 0));
+    await assert.rejects(originalGetHomestays('QA cache error', 12, 0));
+    assert.equal(calls, 4);
+  } finally { globalThis.fetch = previousFetch; }
 });

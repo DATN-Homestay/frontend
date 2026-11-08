@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState } from 'react';
 import {
+  Alert,
   Button,
   Card,
   Row,
@@ -27,9 +28,9 @@ import {
   HeartFilled,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { customerService } from '../../services/customerService';
+import { useHomestayCatalog } from './useHomestayCatalog';
 import HomestayRecommendations from '../../features/recommendations/HomestayRecommendations';
-import type { HomestayItem } from '../../types/customer';
+import { useTrackHomestaySearch } from '../../features/recommendations/useTrackHomestaySearch';
 import { useFavorites } from '../../contexts/useFavorites';
 import { getHomestayCoverImage } from '../../utils/imageHelper';
 import {
@@ -44,10 +45,7 @@ const { RangePicker } = DatePicker;
 export default function HomePage() {
   const navigate = useNavigate();
   const { isFavorite, toggleFavorite } = useFavorites();
-
-  const [loading, setLoading] = useState(true);
-  const [allHomestays, setAllHomestays] = useState<HomestayItem[]>([]);
-  const [filteredHomestays, setFilteredHomestays] = useState<HomestayItem[]>([]);
+  const trackSearch = useTrackHomestaySearch();
 
   // SEARCH FORM STATES (HOÀN TOÀN TỰ DO - KHÔNG BẮT BUỘC CHỌN BẤT KỲ BỘ LỌC NÀO ĐỂ HIỆN TOÀN BỘ HOMESTAY)
   const [searchCity, setSearchCity] = useState<string | undefined>(undefined);
@@ -67,155 +65,28 @@ export default function HomePage() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(12);
 
-  const paginatedHomestays = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredHomestays.slice(start, start + pageSize);
-  }, [filteredHomestays, currentPage, pageSize]);
+  const [criteria, setCriteria] = useState<{ city?: string; district?: string; guests?: number; rooms?: number }>({});
+  const [revision, setRevision] = useState(0);
+  const { items: homestays, total, allTotal, loading, error } = useHomestayCatalog(criteria.city, currentPage, pageSize, criteria, revision);
 
   const handlePageChange = (page: number, size?: number) => {
-    setCurrentPage(page);
-    if (size && size !== pageSize) {
-      setPageSize(size);
-    }
-    const target = document.getElementById('all-homestays-section');
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    setCurrentPage(size && size !== pageSize ? 1 : page);
+    if (size) setPageSize(size);
+    document.getElementById('all-homestays-section')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
   };
 
-  const fetchHomestays = useCallback(() => {
-    return customerService
-      .getHomestays()
-      .then((res: any) => {
-        const items = res?.items || res?.data?.items || (Array.isArray(res) ? res : []);
-        setAllHomestays(items);
-        // Hiển thị ngay 100% dữ liệu cào về không ràng buộc bất kỳ điều kiện lọc nào
-        setFilteredHomestays(items);
-      })
-      .catch((err) => {
-        console.warn('Lỗi khi tải dữ liệu homestays:', err);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, []);
-
-  useEffect(() => {
-    fetchHomestays();
-  }, [fetchHomestays]);
-
-  const applyFilter = (
-    list: HomestayItem[],
-    city?: string,
-    district?: string,
-    useGuestFilter: boolean = false,
-    totalGuests: number = 0,
-    rooms: number = 1,
-  ) => {
-    let result = [...list];
-
-    // Filter by city (CHỈ LỌC KHI NGƯỜI DÙNG CHỦ ĐỘNG CHỌN 1 TỈNH/THÀNH CỤ THỂ KHÁC TẤT CẢ)
-    if (city && city !== 'Tất cả điểm đến' && city !== 'Tất cả' && city.trim() !== '') {
-      const cityLower = city.toLowerCase();
-      const aliases: Record<string, string[]> = {
-        'lâm đồng': ['đà lạt', 'lâm đồng', 'bảo lộc', 'tuyền lâm'],
-        'đà lạt': ['đà lạt', 'lâm đồng', 'tuyền lâm'],
-        'khánh hòa': ['nha trang', 'cam ranh', 'khánh hòa'],
-        'nha trang': ['nha trang', 'khánh hòa'],
-        'kiên giang': ['phú quốc', 'rạch giá', 'kiên giang'],
-        'phú quốc': ['phú quốc', 'kiên giang'],
-        'lào cai': ['sa pa', 'sapa', 'lào cai'],
-        'sa pa': ['sa pa', 'sapa', 'lào cai'],
-        'quảng ninh': ['hạ long', 'bãi cháy', 'quảng ninh'],
-        'hạ long': ['hạ long', 'bãi cháy', 'quảng ninh'],
-        'bình thuận': ['phan thiết', 'mũi né', 'bình thuận'],
-        'phan thiết': ['phan thiết', 'mũi né', 'bình thuận'],
-        'bình định': ['quy nhơn', 'bình định'],
-        'quy nhơn': ['quy nhơn', 'bình định'],
-        'bà rịa - vũng tàu': ['vũng tàu', 'hồ tràm', 'bà rịa', 'xuyên mộc', 'long hải'],
-        'vũng tàu': ['vũng tàu', 'hồ tràm', 'bà rịa', 'bà rịa - vũng tàu'],
-        'quảng nam': ['hội an', 'quảng nam'],
-        'hội an': ['hội an', 'quảng nam'],
-        'đà nẵng': ['đà nẵng', 'da nang'],
-        'hà nội': ['hà nội', 'ha noi', 'hoàn kiếm', 'tây hồ', 'hà đông', 'ba đình', 'cầu giấy', 'đống đa', 'hai bà trưng', 'nam từ liêm', 'bắc từ liêm', 'thanh xuân', 'long biên'],
-        'hồ chí minh': ['hồ chí minh', 'sài gòn', 'saigon', 'tp.hcm', 'tp hcm'],
-      };
-      const validNames = aliases[cityLower] || [cityLower];
-
-      result = result.filter((h) => {
-        const hCity = (h.city || '').toLowerCase();
-        const hAddr = (h.address || '').toLowerCase();
-        const hName = (h.name || '').toLowerCase();
-        return validNames.some((v) => hCity.includes(v) || v.includes(hCity) || hAddr.includes(v) || hName.includes(v));
-      });
-    }
-
-    // Filter by district (CHỈ LỌC KHI NGƯỜI DÙNG CHỦ ĐỘNG CHỌN 1 QUẬN/HUYỆN CỤ THỂ KHÁC TẤT CẢ)
-    if (district && district !== 'Tất cả quận/huyện' && district !== 'Tất cả' && district.trim() !== '') {
-      const matchKw = district.replace(/quận|huyện|thành phố|thị xã|phường|xã/gi, '').trim().toLowerCase();
-      if (matchKw) {
-        result = result.filter(
-          (h) =>
-            (h.district && (h.district.toLowerCase().includes(matchKw) || matchKw.includes(h.district.toLowerCase()))) ||
-            (h.address && h.address.toLowerCase().includes(matchKw)),
-        );
-      }
-    }
-
-    // Filter by capacity & rooms (CHỈ LỌC KHI NGƯỜI DÙNG BẬT useGuestFilter = true)
-    if (useGuestFilter && totalGuests > 0) {
-      const guestCount = totalGuests;
-      const requiredRooms = rooms > 0 ? rooms : 1;
-
-      result = result.filter((h) => {
-        if (!h.rooms || h.rooms.length === 0) return true;
-        if (h.rooms.length < requiredRooms) return false;
-        if (requiredRooms === 1) {
-          return h.rooms.some((r) => Number(r.capacity) >= guestCount);
-        }
-        const sortedCapacities = [...h.rooms]
-          .map((r) => Number(r.capacity) || 2)
-          .sort((a, b) => b - a);
-        const topRoomsCapacity = sortedCapacities
-          .slice(0, requiredRooms)
-          .reduce((sum, cap) => sum + cap, 0);
-        return topRoomsCapacity >= guestCount;
-      });
-    }
-
-    setFilteredHomestays(result);
+  const applyFilter = (city?: string, district?: string, useGuestFilter = false, totalGuests = 0, rooms = 1) => {
+    const clean = (value?: string) => value && !value.startsWith('Tất cả') ? value : undefined;
+    setCriteria({ city: clean(city), district: clean(district), guests: useGuestFilter ? totalGuests : undefined, rooms: useGuestFilter ? rooms : undefined });
     setCurrentPage(1);
+    setRevision((value) => value + 1);
   };
 
-  const handleSearchSubmit = async () => {
-    setLoading(true);
-    try {
-      const cityParam = searchCity && searchCity !== 'Tất cả điểm đến' && searchCity !== 'Tất cả' ? searchCity : undefined;
-      const res: any = await customerService.getHomestays(cityParam);
-      const items = res?.items || res?.data?.items || (Array.isArray(res) ? res : allHomestays);
-      if (!cityParam) {
-        setAllHomestays(items);
-      }
-      applyFilter(
-        items,
-        searchCity,
-        searchDistrict,
-        filterByGuests,
-        filterByGuests ? guestConfig.adults + guestConfig.children : 0,
-        filterByGuests ? guestConfig.rooms : 1,
-      );
-    } catch {
-      applyFilter(
-        allHomestays,
-        searchCity,
-        searchDistrict,
-        filterByGuests,
-        filterByGuests ? guestConfig.adults + guestConfig.children : 0,
-        filterByGuests ? guestConfig.rooms : 1,
-      );
-    } finally {
-      setLoading(false);
-    }
+  const handleSearchSubmit = () => {
+    void trackSearch({ city: searchCity, district: searchDistrict,
+      guests: filterByGuests ? guestConfig.adults + guestConfig.children : undefined,
+      rooms: filterByGuests ? guestConfig.rooms : undefined });
+    applyFilter(searchCity, searchDistrict, filterByGuests, guestConfig.adults + guestConfig.children, guestConfig.rooms);
   };
 
   const handleResetFilters = () => {
@@ -223,7 +94,7 @@ export default function HomePage() {
     setSearchDistrict(undefined);
     setFilterByGuests(false);
     setDateRange(null);
-    applyFilter(allHomestays, undefined, undefined, false, 0, 1);
+    applyFilter(undefined, undefined, false, 0, 1);
   };
 
   // POPOVER CHỌN SỐ LƯỢNG NGƯỜI & PHÒNG
@@ -369,7 +240,6 @@ export default function HomePage() {
             setFilterByGuests(true);
             setGuestPopoverOpen(false);
             applyFilter(
-              allHomestays,
               searchCity,
               searchDistrict,
               true,
@@ -386,7 +256,6 @@ export default function HomePage() {
             setFilterByGuests(false);
             setGuestPopoverOpen(false);
             applyFilter(
-              allHomestays,
               searchCity,
               searchDistrict,
               false,
@@ -423,7 +292,7 @@ export default function HomePage() {
             Tìm homestay hoàn hảo cho kỳ nghỉ của bạn
           </Title>
           <Paragraph style={{ color: '#cbd5e1', fontSize: 16, marginBottom: 32 }}>
-            Khám phá toàn bộ {allHomestays.length > 0 ? `${allHomestays.length.toLocaleString('vi-VN')}+` : '1.300+'} chỗ nghỉ đã xác thực eKYC chính chủ và bảo vệ thanh toán Escrow 24 giờ
+            Khám phá toàn bộ {allTotal.toLocaleString('vi-VN')} chỗ nghỉ đã xác thực eKYC chính chủ và bảo vệ thanh toán Escrow 24 giờ
           </Paragraph>
 
           {/* ======================================================== */}
@@ -456,8 +325,7 @@ export default function HomePage() {
                   setSearchCity(cityVal);
                   setSearchDistrict(undefined);
                   applyFilter(
-                    allHomestays,
-                    cityVal,
+                          cityVal,
                     undefined,
                     filterByGuests,
                     filterByGuests ? guestConfig.adults + guestConfig.children : 0,
@@ -515,8 +383,7 @@ export default function HomePage() {
                   const distVal = val && val !== 'Tất cả quận/huyện' ? val : undefined;
                   setSearchDistrict(distVal);
                   applyFilter(
-                    allHomestays,
-                    searchCity,
+                          searchCity,
                     distVal,
                     filterByGuests,
                     filterByGuests ? guestConfig.adults + guestConfig.children : 0,
@@ -636,7 +503,7 @@ export default function HomePage() {
                   flexShrink: 0,
                 }}
               >
-                Xem tất cả ({allHomestays.length})
+                Xem tất cả ({allTotal})
               </Button>
             </Space>
           </div>
@@ -655,7 +522,6 @@ export default function HomePage() {
             setSearchCity(undefined);
             setSearchDistrict(undefined);
             applyFilter(
-              allHomestays,
               undefined,
               undefined,
               filterByGuests,
@@ -669,7 +535,7 @@ export default function HomePage() {
             fontWeight: 600,
           }}
         >
-          🌟 Tất cả ({allHomestays.length})
+          🌟 Tất cả ({allTotal})
         </Button>
         {POPULAR_DESTINATIONS.map((c) => (
           <Button
@@ -678,11 +544,13 @@ export default function HomePage() {
             shape="round"
             onClick={() => {
               const nextCity = searchCity === c ? undefined : c;
+              if (nextCity) void trackSearch({ city: nextCity,
+                guests: filterByGuests ? guestConfig.adults + guestConfig.children : undefined,
+                rooms: filterByGuests ? guestConfig.rooms : undefined });
               setSearchCity(nextCity);
               setSearchDistrict(undefined);
               applyFilter(
-                allHomestays,
-                nextCity,
+                  nextCity,
                 undefined,
                 filterByGuests,
                 filterByGuests ? guestConfig.adults + guestConfig.children : 0,
@@ -710,7 +578,7 @@ export default function HomePage() {
               : `Tất cả chỗ nghỉ tại ${searchCity} ${searchDistrict && searchDistrict !== 'Tất cả quận/huyện' ? `• ${searchDistrict}` : ''}`}
           </Title>
           <Text type="secondary" style={{ fontSize: 14 }}>
-            Tìm thấy <strong>{filteredHomestays.length}</strong> chỗ nghỉ
+            Tìm thấy <strong>{total}</strong> chỗ nghỉ
             {filterByGuests
               ? ` phù hợp cho ${guestConfig.adults + guestConfig.children} khách (${guestConfig.rooms} phòng)`
               : ''}
@@ -724,19 +592,22 @@ export default function HomePage() {
               onClick={handleResetFilters}
               style={{ color: '#6366f1', fontWeight: 600, padding: 0 }}
             >
-              Hiển thị tất cả ({allHomestays.length} căn)
+              Hiển thị tất cả ({allTotal} căn)
             </Button>
           )}
         </Space>
       </div>
 
       {/* HOMESTAYS GRID */}
-      {loading ? (
+      {error ? (
+        <Alert type="error" showIcon title="Chưa tải được danh sách" description={error}
+          action={<Button onClick={() => setRevision((value) => value + 1)}>Thử lại danh sách</Button>} />
+      ) : loading ? (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
           <Spin size="large" />
           <div style={{ marginTop: 12, color: '#64748b' }}>Đang tải danh sách homestay...</div>
         </div>
-      ) : filteredHomestays.length === 0 ? (
+      ) : total === 0 ? (
         <div
           style={{
             textAlign: 'center',
@@ -757,13 +628,13 @@ export default function HomePage() {
             onClick={handleResetFilters}
             style={{ borderRadius: 8, background: '#6366f1' }}
           >
-            Hiển thị tất cả ({allHomestays.length} căn)
+            Hiển thị tất cả ({allTotal} căn)
           </Button>
         </div>
       ) : (
         <>
           <Row gutter={[24, 24]}>
-            {paginatedHomestays.map((h) => {
+            {homestays.map((h, index) => {
               const firstRoom = h.rooms?.[0];
               const coverImage = getHomestayCoverImage(h);
               const price = Number(firstRoom?.base_price) || 600000;
@@ -808,8 +679,9 @@ export default function HomePage() {
                         </button>
                         <img
                           alt={h.name}
+                          loading={index < 4 ? 'eager' : 'lazy'}
+                          decoding="async"
                           src={coverImage}
-                          loading="lazy"
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         />
                       {h.is_claimed === 1 ? (
@@ -925,7 +797,7 @@ export default function HomePage() {
           </Row>
 
           {/* THANH PHÂN TRANG CHỐNG LAG */}
-          {filteredHomestays.length > pageSize && (
+          {total > pageSize && (
             <div
               style={{
                 display: 'flex',
@@ -942,7 +814,7 @@ export default function HomePage() {
               <Pagination
                 current={currentPage}
                 pageSize={pageSize}
-                total={filteredHomestays.length}
+                total={total}
                 pageSizeOptions={['12', '24', '48']}
                 showSizeChanger
                 showQuickJumper

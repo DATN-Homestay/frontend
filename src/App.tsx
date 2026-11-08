@@ -1,9 +1,11 @@
+import { lazy, Suspense } from 'react';
+import PageLoading from './components/PageLoading';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { App as AntApp, ConfigProvider } from 'antd';
 import { AuthProvider } from './contexts/AuthContext';
 import { FavoritesProvider } from './contexts/FavoritesContext';
 import ChatProvider from './features/chat/ChatProvider';
-import ChatPage from './features/chat/ChatPage';
+const ChatPage = lazy(() => import('./features/chat/ChatPage'));
 
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import SessionRevokedModal from './components/auth/SessionRevokedModal';
@@ -11,47 +13,47 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 // Layouts
 import CustomerLayout from './layouts/CustomerLayout';
-import HostLayout from './layouts/HostLayout';
-import AdminLayout from './layouts/AdminLayout';
+const HostLayout = lazy(() => import('./layouts/HostLayout'));
+const AdminLayout = lazy(() => import('./layouts/AdminLayout'));
 import AuthLayout from './layouts/AuthLayout';
 
 // Auth Pages
-import LoginPage from './pages/auth/Login';
-import RegisterPage from './pages/auth/Register';
+const LoginPage = lazy(() => import('./pages/auth/Login'));
+const RegisterPage = lazy(() => import('./pages/auth/Register'));
 
 // Customer Pages (Member 1)
 import HomePage from './pages/customer/Home';
-import HomestayDetailPage from './pages/customer/HomestayDetail';
-import CheckoutPage from './pages/customer/Checkout';
-import MyTripsPage from './pages/customer/MyTrips';
-import ProfilePage from './pages/account/Profile';
-import PaymentResultPage from './pages/customer/PaymentResult';
-import FavoritesPage from './pages/customer/Favorites';
+const HomestayDetailPage = lazy(() => import('./pages/customer/HomestayDetail'));
+const CheckoutPage = lazy(() => import('./pages/customer/Checkout'));
+const MyTripsPage = lazy(() => import('./pages/customer/MyTrips'));
+const ProfilePage = lazy(() => import('./pages/account/Profile'));
+const PaymentResultPage = lazy(() => import('./pages/customer/PaymentResult'));
+const FavoritesPage = lazy(() => import('./pages/customer/Favorites'));
 import RequireAuth from './components/RequireAuth';
 
 // Host Pages (Member 2)
-import HostDashboardPage from './pages/host/Dashboard';
-import MyListingsPage from './pages/host/MyListings';
-import PriceCalendarPage from './pages/host/PriceCalendar';
-import VerificationPage from './pages/host/Verification';
-import HostBookingsPage from './pages/host/Bookings';
-import AdminBookingsPage from './pages/admin/Bookings';
-import HostPayoutsPage from './pages/host/Payouts';
-import HostCouponsPage from './pages/host/Coupons';
+const HostDashboardPage = lazy(() => import('./pages/host/Dashboard'));
+const MyListingsPage = lazy(() => import('./pages/host/MyListings'));
+const PriceCalendarPage = lazy(() => import('./pages/host/PriceCalendar'));
+const VerificationPage = lazy(() => import('./pages/host/Verification'));
+const HostBookingsPage = lazy(() => import('./pages/host/Bookings'));
+const AdminBookingsPage = lazy(() => import('./pages/admin/Bookings'));
+const HostPayoutsPage = lazy(() => import('./pages/host/Payouts'));
+const HostCouponsPage = lazy(() => import('./pages/host/Coupons'));
 
 // Admin Pages (Member 3 - Intact)
-import DashboardPage from './pages/admin/Dashboard';
-import UsersPage from './pages/admin/Users';
-import HostsPage from './pages/admin/Hosts';
-import HostVerificationsPage from './pages/admin/HostVerifications';
-import HomestaysPage from './pages/admin/Homestays';
-import RevenuesPage from './pages/admin/Revenues';
-import PayoutsPage from './pages/admin/Payouts';
-import RefundsPage from './pages/admin/Refunds';
-import ConfigsPage from './pages/admin/Configs';
-import AuditLogsPage from './pages/admin/AuditLogs';
-import DropshipOrdersPage from './pages/admin/DropshipOrders';
-import SyncMarketDataPage from './pages/admin/SyncMarketData';
+const DashboardPage = lazy(() => import('./pages/admin/Dashboard'));
+const UsersPage = lazy(() => import('./pages/admin/Users'));
+const HostsPage = lazy(() => import('./pages/admin/Hosts'));
+const HostVerificationsPage = lazy(() => import('./pages/admin/HostVerifications'));
+const HomestaysPage = lazy(() => import('./pages/admin/Homestays'));
+const RevenuesPage = lazy(() => import('./pages/admin/Revenues'));
+const PayoutsPage = lazy(() => import('./pages/admin/Payouts'));
+const RefundsPage = lazy(() => import('./pages/admin/Refunds'));
+const ConfigsPage = lazy(() => import('./pages/admin/Configs'));
+const AuditLogsPage = lazy(() => import('./pages/admin/AuditLogs'));
+const DropshipOrdersPage = lazy(() => import('./pages/admin/DropshipOrders'));
+const SyncMarketDataPage = lazy(() => import('./pages/admin/SyncMarketData'));
 
 
 export default function App() {
@@ -98,6 +100,7 @@ export default function App() {
               <ChatProvider>
               <BrowserRouter>
                 <SessionRevokedModal />
+                <Suspense fallback={<PageLoading />}>
                 <Routes>
                   {/* PHÂN HỆ 1: KHÁCH HÀNG (CUSTOMER PORTAL) */}
                   <Route path="/" element={<CustomerLayout />}>
@@ -155,6 +158,7 @@ export default function App() {
                   {/* MẶC ĐỊNH CHUYỂN HƯỚNG VỀ TRANG CHỦ KHÁCH HÀNG */}
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
+                </Suspense>
               </BrowserRouter>
             </ChatProvider>
             </FavoritesProvider>

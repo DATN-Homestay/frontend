@@ -1,3 +1,5 @@
+import { Suspense } from 'react';
+import PageLoading from '../components/PageLoading';
 import { Layout, Menu, Button, Space, Typography, Dropdown, Avatar, Badge } from 'antd';
 import {
   HomeOutlined,
@@ -186,7 +188,7 @@ export default function CustomerLayout() {
       </Header>
 
       <Content style={{ padding: '24px 32px', maxWidth: 1280, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
-        <Outlet />
+        <Suspense fallback={<PageLoading />}><Outlet /></Suspense>
       </Content>
 
       <Footer style={{ textAlign: 'center', background: '#ffffff', borderTop: '1px solid #e2e8f0', color: '#64748b' }}>
