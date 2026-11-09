@@ -106,7 +106,15 @@ function HomestayDetailContent() {
   const [homestay, setHomestay] = useState<HomestayItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedRoom, setSelectedRoom] = useState<RoomItem | null>(null);
-  const [dateRange, setDateRange] = useState<[string, string] | null>(null);
+  // Ngày mang sang từ trang kết quả tìm kiếm (?checkin=&checkout=), bỏ qua nếu sai hoặc đã qua
+  const [dateRange, setDateRange] = useState<[string, string] | null>(() => {
+    const qs = new URLSearchParams(location.search);
+    const ci = qs.get('checkin');
+    const co = qs.get('checkout');
+    const ok = (d: string | null): d is string => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d) && dayjs(d).isValid();
+    if (!ok(ci) || !ok(co) || co <= ci || dayjs(ci).isBefore(dayjs().startOf('day'))) return null;
+    return [ci, co];
+  });
   const [activeImage, setActiveImage] = useState<string | null>(initialCoverFromState || null);
 
   // Availability & Quoting state
@@ -1410,6 +1418,7 @@ function HomestayDetailContent() {
                   const startOfToday = new Date().setHours(0, 0, 0, 0);
                   return current.valueOf() < startOfToday || current.valueOf() > startOfToday + 365 * 86_400_000;
                 }}
+                value={dateRange ? [dayjs(dateRange[0]), dayjs(dateRange[1])] : null}
                 onChange={(_, dateStrings) =>
                   setDateRange(dateStrings[0] && dateStrings[1] ? [dateStrings[0], dateStrings[1]] : null)
                 }
@@ -1513,6 +1522,7 @@ function HomestayDetailContent() {
                       const startOfToday = dayjs().startOf('day');
                       return current && current < startOfToday;
                     }}
+                    value={dateRange ? [dayjs(dateRange[0]), dayjs(dateRange[1])] : null}
                     onChange={(_, dateStrings) =>
                       setDateRange(dateStrings[0] && dateStrings[1] ? [dateStrings[0], dateStrings[1]] : null)
                     }
