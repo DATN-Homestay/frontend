@@ -8,38 +8,28 @@ import {
   Tag,
   Space,
   Spin,
-  DatePicker,
-  Popover,
-  Select,
   Pagination,
 } from 'antd';
 import {
-  SearchOutlined,
   StarFilled,
   EnvironmentOutlined,
   CheckCircleOutlined,
   ThunderboltOutlined,
-  UserOutlined,
-  CalendarOutlined,
-  MinusOutlined,
-  PlusOutlined,
-  HomeOutlined,
   HeartOutlined,
   HeartFilled,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { customerService } from '../../services/customerService';
+import { loadAllHomestays } from '../../services/homestayCache';
+import SearchBar, { type SearchBarValue } from '../../components/search/SearchBar';
+import { toSearchParams } from '../../utils/homestaySearch';
 import type { HomestayItem } from '../../types/customer';
 import { useFavorites } from '../../contexts/useFavorites';
 import { getHomestayCoverImage } from '../../utils/imageHelper';
 import {
-  ALL_LOCATIONS_LIST,
-  VIETNAM_LOCATIONS,
   POPULAR_DESTINATIONS,
 } from '../../data/vietnamLocations';
 
 const { Title, Text, Paragraph } = Typography;
-const { RangePicker } = DatePicker;
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -47,21 +37,6 @@ export default function HomePage() {
 
   const [loading, setLoading] = useState(true);
   const [allHomestays, setAllHomestays] = useState<HomestayItem[]>([]);
-  const [filteredHomestays, setFilteredHomestays] = useState<HomestayItem[]>([]);
-
-  // SEARCH FORM STATES (HOÀN TOÀN TỰ DO - KHÔNG BẮT BUỘC CHỌN BẤT KỲ BỘ LỌC NÀO ĐỂ HIỆN TOÀN BỘ HOMESTAY)
-  const [searchCity, setSearchCity] = useState<string | undefined>(undefined);
-  const [searchDistrict, setSearchDistrict] = useState<string | undefined>(undefined);
-  const [dateRange, setDateRange] = useState<[string, string] | null>(null);
-
-  // GUESTS & ROOMS SELECTOR STATE (MẶC ĐỊNH KHÔNG LỌC SỨC CHỨA ĐỂ HIỂN THỊ ĐỦ 100% DỮ LIỆU CÀO VỀ)
-  const [filterByGuests, setFilterByGuests] = useState<boolean>(false);
-  const [guestPopoverOpen, setGuestPopoverOpen] = useState(false);
-  const [guestConfig, setGuestConfig] = useState({
-    adults: 2,
-    children: 0,
-    rooms: 1,
-  });
 
   // PHÂN TRANG (PAGINATION) CHỐNG LAG KHI RENDER DANH SÁCH HOMESTAY LỚN
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -69,8 +44,8 @@ export default function HomePage() {
 
   const paginatedHomestays = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
-    return filteredHomestays.slice(start, start + pageSize);
-  }, [filteredHomestays, currentPage, pageSize]);
+    return allHomestays.slice(start, start + pageSize);
+  }, [allHomestays, currentPage, pageSize]);
 
   const handlePageChange = (page: number, size?: number) => {
     setCurrentPage(page);
@@ -84,13 +59,9 @@ export default function HomePage() {
   };
 
   const fetchHomestays = useCallback(() => {
-    return customerService
-      .getHomestays()
-      .then((res: any) => {
-        const items = res?.items || res?.data?.items || (Array.isArray(res) ? res : []);
+    return loadAllHomestays()
+      .then((items) => {
         setAllHomestays(items);
-        // Hiển thị ngay 100% dữ liệu cào về không ràng buộc bất kỳ điều kiện lọc nào
-        setFilteredHomestays(items);
       })
       .catch((err) => {
         console.warn('Lỗi khi tải dữ liệu homestays:', err);
@@ -104,310 +75,19 @@ export default function HomePage() {
     fetchHomestays();
   }, [fetchHomestays]);
 
-  const applyFilter = (
-    list: HomestayItem[],
-    city?: string,
-    district?: string,
-    useGuestFilter: boolean = false,
-    totalGuests: number = 0,
-    rooms: number = 1,
-  ) => {
-    let result = [...list];
-
-    // Filter by city (CHỈ LỌC KHI NGƯỜI DÙNG CHỦ ĐỘNG CHỌN 1 TỈNH/THÀNH CỤ THỂ KHÁC TẤT CẢ)
-    if (city && city !== 'Tất cả điểm đến' && city !== 'Tất cả' && city.trim() !== '') {
-      const cityLower = city.toLowerCase();
-      const aliases: Record<string, string[]> = {
-        'lâm đồng': ['đà lạt', 'lâm đồng', 'bảo lộc', 'tuyền lâm'],
-        'đà lạt': ['đà lạt', 'lâm đồng', 'tuyền lâm'],
-        'khánh hòa': ['nha trang', 'cam ranh', 'khánh hòa'],
-        'nha trang': ['nha trang', 'khánh hòa'],
-        'kiên giang': ['phú quốc', 'rạch giá', 'kiên giang'],
-        'phú quốc': ['phú quốc', 'kiên giang'],
-        'lào cai': ['sa pa', 'sapa', 'lào cai'],
-        'sa pa': ['sa pa', 'sapa', 'lào cai'],
-        'quảng ninh': ['hạ long', 'bãi cháy', 'quảng ninh'],
-        'hạ long': ['hạ long', 'bãi cháy', 'quảng ninh'],
-        'bình thuận': ['phan thiết', 'mũi né', 'bình thuận'],
-        'phan thiết': ['phan thiết', 'mũi né', 'bình thuận'],
-        'bình định': ['quy nhơn', 'bình định'],
-        'quy nhơn': ['quy nhơn', 'bình định'],
-        'bà rịa - vũng tàu': ['vũng tàu', 'hồ tràm', 'bà rịa', 'xuyên mộc', 'long hải'],
-        'vũng tàu': ['vũng tàu', 'hồ tràm', 'bà rịa', 'bà rịa - vũng tàu'],
-        'quảng nam': ['hội an', 'quảng nam'],
-        'hội an': ['hội an', 'quảng nam'],
-        'đà nẵng': ['đà nẵng', 'da nang'],
-        'hà nội': ['hà nội', 'ha noi', 'hoàn kiếm', 'tây hồ', 'hà đông', 'ba đình', 'cầu giấy', 'đống đa', 'hai bà trưng', 'nam từ liêm', 'bắc từ liêm', 'thanh xuân', 'long biên'],
-        'hồ chí minh': ['hồ chí minh', 'sài gòn', 'saigon', 'tp.hcm', 'tp hcm'],
-      };
-      const validNames = aliases[cityLower] || [cityLower];
-
-      result = result.filter((h) => {
-        const hCity = (h.city || '').toLowerCase();
-        const hAddr = (h.address || '').toLowerCase();
-        const hName = (h.name || '').toLowerCase();
-        return validNames.some((v) => hCity.includes(v) || v.includes(hCity) || hAddr.includes(v) || hName.includes(v));
-      });
-    }
-
-    // Filter by district (CHỈ LỌC KHI NGƯỜI DÙNG CHỦ ĐỘNG CHỌN 1 QUẬN/HUYỆN CỤ THỂ KHÁC TẤT CẢ)
-    if (district && district !== 'Tất cả quận/huyện' && district !== 'Tất cả' && district.trim() !== '') {
-      const matchKw = district.replace(/quận|huyện|thành phố|thị xã|phường|xã/gi, '').trim().toLowerCase();
-      if (matchKw) {
-        result = result.filter(
-          (h) =>
-            (h.district && (h.district.toLowerCase().includes(matchKw) || matchKw.includes(h.district.toLowerCase()))) ||
-            (h.address && h.address.toLowerCase().includes(matchKw)),
-        );
-      }
-    }
-
-    // Filter by capacity & rooms (CHỈ LỌC KHI NGƯỜI DÙNG BẬT useGuestFilter = true)
-    if (useGuestFilter && totalGuests > 0) {
-      const guestCount = totalGuests;
-      const requiredRooms = rooms > 0 ? rooms : 1;
-
-      result = result.filter((h) => {
-        if (!h.rooms || h.rooms.length === 0) return true;
-        if (h.rooms.length < requiredRooms) return false;
-        if (requiredRooms === 1) {
-          return h.rooms.some((r) => Number(r.capacity) >= guestCount);
-        }
-        const sortedCapacities = [...h.rooms]
-          .map((r) => Number(r.capacity) || 2)
-          .sort((a, b) => b - a);
-        const topRoomsCapacity = sortedCapacities
-          .slice(0, requiredRooms)
-          .reduce((sum, cap) => sum + cap, 0);
-        return topRoomsCapacity >= guestCount;
-      });
-    }
-
-    setFilteredHomestays(result);
-    setCurrentPage(1);
-  };
-
-  const handleSearchSubmit = async () => {
-    setLoading(true);
-    try {
-      const cityParam = searchCity && searchCity !== 'Tất cả điểm đến' && searchCity !== 'Tất cả' ? searchCity : undefined;
-      const res: any = await customerService.getHomestays(cityParam);
-      const items = res?.items || res?.data?.items || (Array.isArray(res) ? res : allHomestays);
-      if (!cityParam) {
-        setAllHomestays(items);
-      }
-      applyFilter(
-        items,
-        searchCity,
-        searchDistrict,
-        filterByGuests,
-        filterByGuests ? guestConfig.adults + guestConfig.children : 0,
-        filterByGuests ? guestConfig.rooms : 1,
-      );
-    } catch {
-      applyFilter(
-        allHomestays,
-        searchCity,
-        searchDistrict,
-        filterByGuests,
-        filterByGuests ? guestConfig.adults + guestConfig.children : 0,
-        filterByGuests ? guestConfig.rooms : 1,
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResetFilters = () => {
-    setSearchCity(undefined);
-    setSearchDistrict(undefined);
-    setFilterByGuests(false);
-    setDateRange(null);
-    applyFilter(allHomestays, undefined, undefined, false, 0, 1);
+  /** Tìm kiếm chuyển sang trang kết quả riêng, tiêu chí nằm trên URL */
+  const goSearch = (value: SearchBarValue) => {
+    const qs = toSearchParams(value).toString();
+    navigate(qs ? `/search?${qs}` : '/search');
   };
 
   // INVISIBLE RAG RECOMMENDATION: TỰ ĐỘNG PHÂN TÍCH HÀNH VI ĐẨY HOMESTAY PHÙ HỢP NHẤT LÊN TOP
   // Tiêu chí: rating cao >= 4.5, tiện nghi BBQ/View/Không gian yên tĩnh
   const aiRecommendedHomestays = (
-    filteredHomestays.filter((h) => Number(h.average_rating) >= 4.5).length > 0
-      ? filteredHomestays.filter((h) => Number(h.average_rating) >= 4.5)
-      : filteredHomestays
+    allHomestays.filter((h) => Number(h.average_rating) >= 4.5).length > 0
+      ? allHomestays.filter((h) => Number(h.average_rating) >= 4.5)
+      : allHomestays
   ).slice(0, 4);
-
-  // POPOVER CHỌN SỐ LƯỢNG NGƯỜI & PHÒNG
-  const guestPopoverContent = (
-    <div style={{ width: 280, padding: '8px 4px' }}>
-      {/* Người lớn */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 16,
-        }}
-      >
-        <Text strong style={{ fontSize: 15, color: '#1e293b' }}>
-          Người lớn
-        </Text>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            border: '1px solid #cbd5e1',
-            borderRadius: 8,
-            overflow: 'hidden',
-            height: 38,
-          }}
-        >
-          <Button
-            type="text"
-            icon={<MinusOutlined />}
-            disabled={guestConfig.adults <= 1}
-            onClick={() =>
-              setGuestConfig((prev) => ({ ...prev, adults: Math.max(1, prev.adults - 1) }))
-            }
-            style={{ width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          />
-          <Text strong style={{ width: 32, textAlign: 'center', fontSize: 15 }}>
-            {guestConfig.adults}
-          </Text>
-          <Button
-            type="text"
-            icon={<PlusOutlined />}
-            disabled={guestConfig.adults >= 16}
-            onClick={() => setGuestConfig((prev) => ({ ...prev, adults: prev.adults + 1 }))}
-            style={{ width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          />
-        </div>
-      </div>
-
-      {/* Trẻ em */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 16,
-        }}
-      >
-        <Text strong style={{ fontSize: 15, color: '#1e293b' }}>
-          Trẻ em
-        </Text>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            border: '1px solid #cbd5e1',
-            borderRadius: 8,
-            overflow: 'hidden',
-            height: 38,
-          }}
-        >
-          <Button
-            type="text"
-            icon={<MinusOutlined />}
-            disabled={guestConfig.children <= 0}
-            onClick={() =>
-              setGuestConfig((prev) => ({ ...prev, children: Math.max(0, prev.children - 1) }))
-            }
-            style={{ width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          />
-          <Text strong style={{ width: 32, textAlign: 'center', fontSize: 15 }}>
-            {guestConfig.children}
-          </Text>
-          <Button
-            type="text"
-            icon={<PlusOutlined />}
-            disabled={guestConfig.children >= 10}
-            onClick={() => setGuestConfig((prev) => ({ ...prev, children: prev.children + 1 }))}
-            style={{ width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          />
-        </div>
-      </div>
-
-      {/* Phòng */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 20,
-        }}
-      >
-        <Text strong style={{ fontSize: 15, color: '#1e293b' }}>
-          Phòng
-        </Text>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            border: '1px solid #cbd5e1',
-            borderRadius: 8,
-            overflow: 'hidden',
-            height: 38,
-          }}
-        >
-          <Button
-            type="text"
-            icon={<MinusOutlined />}
-            disabled={guestConfig.rooms <= 1}
-            onClick={() =>
-              setGuestConfig((prev) => ({ ...prev, rooms: Math.max(1, prev.rooms - 1) }))
-            }
-            style={{ width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          />
-          <Text strong style={{ width: 32, textAlign: 'center', fontSize: 15 }}>
-            {guestConfig.rooms}
-          </Text>
-          <Button
-            type="text"
-            icon={<PlusOutlined />}
-            disabled={guestConfig.rooms >= 10}
-            onClick={() => setGuestConfig((prev) => ({ ...prev, rooms: prev.rooms + 1 }))}
-            style={{ width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          />
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <Button
-          type="primary"
-          style={{ flex: 1, background: '#6366f1', borderRadius: 8, height: 38, fontWeight: 600 }}
-          onClick={() => {
-            setFilterByGuests(true);
-            setGuestPopoverOpen(false);
-            applyFilter(
-              allHomestays,
-              searchCity,
-              searchDistrict,
-              true,
-              guestConfig.adults + guestConfig.children,
-              guestConfig.rooms,
-            );
-          }}
-        >
-          Áp dụng lọc
-        </Button>
-        <Button
-          style={{ flex: 1, borderRadius: 8, height: 38 }}
-          onClick={() => {
-            setFilterByGuests(false);
-            setGuestPopoverOpen(false);
-            applyFilter(
-              allHomestays,
-              searchCity,
-              searchDistrict,
-              false,
-              0,
-              1,
-            );
-          }}
-        >
-          Xem tất cả
-        </Button>
-      </div>
-    </div>
-  );
 
   return (
     <div>
@@ -434,220 +114,20 @@ export default function HomePage() {
             Khám phá toàn bộ {allHomestays.length > 0 ? `${allHomestays.length.toLocaleString('vi-VN')}+` : '1.300+'} chỗ nghỉ đã xác thực eKYC chính chủ và bảo vệ thanh toán Escrow 24 giờ
           </Paragraph>
 
-          {/* ======================================================== */}
-          {/* SEARCH BAR CHÍNH (ĐỊA ĐIỂM + NGÀY ĐI/VỀ + SỐ KHÁCH/PHÒNG) */}
-          {/* ======================================================== */}
-          <div
-            style={{
-              background: '#ffffff',
-              padding: '12px 14px',
-              borderRadius: 18,
-              boxShadow: '0 20px 30px rgba(0,0,0,0.25)',
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 10,
-              alignItems: 'center',
-            }}
-          >
-            {/* CỘT 1: TỈNH / THÀNH PHỐ (ĐẦY ĐỦ 63 TỈNH THÀNH + TẤT CẢ) */}
-            <div style={{ flex: '1 1 180px', textAlign: 'left', minWidth: 160 }}>
-              <Text type="secondary" style={{ fontSize: 11, display: 'block', paddingLeft: 4, fontWeight: 600 }}>
-                TỈNH / THÀNH PHỐ
-              </Text>
-              <Select
-                showSearch
-                allowClear
-                placeholder="Tất cả điểm đến (Toàn quốc)"
-                value={searchCity || undefined}
-                onChange={(val) => {
-                  const cityVal = val && val !== 'Tất cả điểm đến' ? val : undefined;
-                  setSearchCity(cityVal);
-                  setSearchDistrict(undefined);
-                  applyFilter(
-                    allHomestays,
-                    cityVal,
-                    undefined,
-                    filterByGuests,
-                    filterByGuests ? guestConfig.adults + guestConfig.children : 0,
-                    filterByGuests ? guestConfig.rooms : 1,
-                  );
-                }}
-                filterOption={(input, option) =>
-                  ((option?.value as string) || '').toLowerCase().includes(input.toLowerCase())
-                }
-                suffixIcon={<EnvironmentOutlined style={{ color: '#6366f1' }} />}
-                style={{ width: '100%' }}
-                variant="borderless"
-                options={[
-                  {
-                    value: 'Tất cả điểm đến',
-                    label: (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 700, color: '#4f46e5' }}>🌟 Tất cả điểm đến (Toàn quốc)</span>
-                        <Tag color="blue" style={{ fontSize: 10, margin: 0, padding: '0 4px', border: 'none' }}>
-                          ALL
-                        </Tag>
-                      </div>
-                    ),
-                  },
-                  ...ALL_LOCATIONS_LIST.map((city) => ({
-                    value: city,
-                    label: (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: POPULAR_DESTINATIONS.includes(city) ? 600 : 400 }}>{city}</span>
-                        {POPULAR_DESTINATIONS.includes(city) && (
-                          <Tag color="purple" style={{ fontSize: 10, margin: 0, padding: '0 4px', border: 'none' }}>
-                            HOT
-                          </Tag>
-                        )}
-                      </div>
-                    ),
-                  })),
-                ]}
-              />
-            </div>
-
-            <div style={{ width: 1, height: 36, background: '#e2e8f0' }} />
-
-            {/* CỘT 2: QUẬN / HUYỆN */}
-            <div style={{ flex: '1 1 180px', textAlign: 'left', minWidth: 160 }}>
-              <Text type="secondary" style={{ fontSize: 11, display: 'block', paddingLeft: 4, fontWeight: 600 }}>
-                QUẬN / HUYỆN / KHU VỰC
-              </Text>
-              <Select
-                showSearch
-                allowClear
-                placeholder="Tất cả quận/huyện"
-                value={searchDistrict || undefined}
-                onChange={(val) => {
-                  const distVal = val && val !== 'Tất cả quận/huyện' ? val : undefined;
-                  setSearchDistrict(distVal);
-                  applyFilter(
-                    allHomestays,
-                    searchCity,
-                    distVal,
-                    filterByGuests,
-                    filterByGuests ? guestConfig.adults + guestConfig.children : 0,
-                    filterByGuests ? guestConfig.rooms : 1,
-                  );
-                }}
-                filterOption={(input, option) =>
-                  ((option?.value as string) || '').toLowerCase().includes(input.toLowerCase())
-                }
-                suffixIcon={<HomeOutlined style={{ color: '#6366f1' }} />}
-                style={{ width: '100%' }}
-                variant="borderless"
-                options={[
-                  { value: 'Tất cả quận/huyện', label: 'Tất cả quận/huyện' },
-                  ...((searchCity && searchCity !== 'Tất cả điểm đến' && VIETNAM_LOCATIONS[searchCity]) || [])
-                    .filter((w) => w !== 'Tất cả quận/huyện')
-                    .map((district) => ({
-                      value: district,
-                      label: <span>{district}</span>,
-                    })),
-                ]}
-              />
-            </div>
-
-            <div style={{ width: 1, height: 36, background: '#e2e8f0' }} />
-
-            {/* CỘT 3: NGÀY ĐI - NGÀY VỀ */}
-            <div style={{ flex: '1.4 1 230px', textAlign: 'left', minWidth: 220 }}>
-              <Text type="secondary" style={{ fontSize: 11, display: 'block', paddingLeft: 4, fontWeight: 600 }}>
-                NGÀY NHẬN - TRẢ PHÒNG
-              </Text>
-              <RangePicker
-                allowClear
-                placeholder={['Ngày đi', 'Ngày về']}
-                format="DD/MM/YYYY"
-                style={{ width: '100%', border: 'none' }}
-                suffixIcon={<CalendarOutlined style={{ color: '#6366f1' }} />}
-                onChange={(_, dateStrings) => {
-                  if (dateStrings && dateStrings[0] && dateStrings[1]) {
-                    setDateRange([dateStrings[0], dateStrings[1]]);
-                  } else {
-                    setDateRange(null);
-                  }
-                }}
-              />
-            </div>
-
-            <div style={{ width: 1, height: 36, background: '#e2e8f0' }} />
-
-            {/* CỘT 4: SỐ LƯỢNG NGƯỜI & PHÒNG */}
-            <div style={{ flex: '1.4 1 220px', textAlign: 'left', minWidth: 200 }}>
-              <Text type="secondary" style={{ fontSize: 11, display: 'block', paddingLeft: 4, fontWeight: 600 }}>
-                KHÁCH & PHÒNG
-              </Text>
-              <Popover
-                content={guestPopoverContent}
-                trigger="click"
-                open={guestPopoverOpen}
-                onOpenChange={setGuestPopoverOpen}
-                placement="bottomRight"
-              >
-                <div
-                  style={{
-                    cursor: 'pointer',
-                    padding: '4px 6px',
-                    borderRadius: 6,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    height: 32,
-                  }}
-                >
-                  <UserOutlined style={{ color: '#6366f1' }} />
-                  <Text strong style={{ color: '#1e293b', fontSize: 13, whiteSpace: 'nowrap' }}>
-                    {filterByGuests
-                      ? `${guestConfig.adults} người lớn · ${guestConfig.children} trẻ em · ${guestConfig.rooms} phòng`
-                      : 'Tất cả khách & phòng (Bất kỳ)'}
-                  </Text>
-                  {!filterByGuests && (
-                    <Tag color="default" style={{ fontSize: 10, margin: 0, padding: '0 4px', border: 'none', background: '#f1f5f9' }}>
-                      Toàn bộ
-                    </Tag>
-                  )}
-                </div>
-              </Popover>
-            </div>
-
-            {/* CÁC NÚT HÀNH ĐỘNG */}
-            <Space size={8}>
-              <Button
-                type="primary"
-                size="large"
-                icon={<SearchOutlined />}
-                onClick={handleSearchSubmit}
-                style={{
-                  height: 48,
-                  borderRadius: 12,
-                  background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                  padding: '0 24px',
-                  fontWeight: 600,
-                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.35)',
-                  flexShrink: 0,
-                }}
-              >
-                Tìm kiếm
-              </Button>
+          <SearchBar
+            variant="hero"
+            value={{}}
+            onSubmit={goSearch}
+            extra={
               <Button
                 size="large"
-                onClick={handleResetFilters}
-                style={{
-                  height: 48,
-                  borderRadius: 12,
-                  padding: '0 16px',
-                  fontWeight: 600,
-                  borderColor: '#cbd5e1',
-                  color: '#475569',
-                  flexShrink: 0,
-                }}
+                onClick={() => navigate('/search')}
+                style={{ height: 48, borderRadius: 12, padding: '0 16px', fontWeight: 600, borderColor: '#cbd5e1', color: '#475569' }}
               >
                 Xem tất cả ({allHomestays.length})
               </Button>
-            </Space>
-          </div>
+            }
+          />
         </div>
       </div>
 
@@ -656,52 +136,15 @@ export default function HomePage() {
         <Text strong style={{ color: '#64748b', marginRight: 4 }}>
           Điểm đến nổi bật:
         </Text>
-        <Button
-          type={!searchCity || searchCity === 'Tất cả điểm đến' ? 'primary' : 'default'}
-          shape="round"
-          onClick={() => {
-            setSearchCity(undefined);
-            setSearchDistrict(undefined);
-            applyFilter(
-              allHomestays,
-              undefined,
-              undefined,
-              filterByGuests,
-              filterByGuests ? guestConfig.adults + guestConfig.children : 0,
-              filterByGuests ? guestConfig.rooms : 1,
-            );
-          }}
-          style={{
-            background: !searchCity || searchCity === 'Tất cả điểm đến' ? '#6366f1' : '#ffffff',
-            borderColor: !searchCity || searchCity === 'Tất cả điểm đến' ? '#6366f1' : '#cbd5e1',
-            fontWeight: 600,
-          }}
-        >
+        <Button shape="round" onClick={() => navigate('/search')} style={{ fontWeight: 600, borderColor: '#cbd5e1' }}>
           🌟 Tất cả ({allHomestays.length})
         </Button>
         {POPULAR_DESTINATIONS.map((c) => (
           <Button
             key={c}
-            type={searchCity === c ? 'primary' : 'default'}
             shape="round"
-            onClick={() => {
-              const nextCity = searchCity === c ? undefined : c;
-              setSearchCity(nextCity);
-              setSearchDistrict(undefined);
-              applyFilter(
-                allHomestays,
-                nextCity,
-                undefined,
-                filterByGuests,
-                filterByGuests ? guestConfig.adults + guestConfig.children : 0,
-                filterByGuests ? guestConfig.rooms : 1,
-              );
-            }}
-            style={{
-              background: searchCity === c ? '#6366f1' : '#ffffff',
-              borderColor: searchCity === c ? '#6366f1' : '#cbd5e1',
-              fontWeight: 500,
-            }}
+            onClick={() => goSearch({ city: c })}
+            style={{ borderColor: '#cbd5e1', fontWeight: 500 }}
           >
             {c}
           </Button>
@@ -933,29 +376,15 @@ export default function HomePage() {
       <div id="all-homestays-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <Title level={3} style={{ margin: 0, color: '#0f172a' }}>
-            {!searchCity || searchCity === 'Tất cả điểm đến'
-              ? 'Tất cả chỗ nghỉ trên toàn quốc'
-              : `Tất cả chỗ nghỉ tại ${searchCity} ${searchDistrict && searchDistrict !== 'Tất cả quận/huyện' ? `• ${searchDistrict}` : ''}`}
+            Tất cả chỗ nghỉ trên toàn quốc
           </Title>
           <Text type="secondary" style={{ fontSize: 14 }}>
-            Tìm thấy <strong>{filteredHomestays.length}</strong> chỗ nghỉ
-            {filterByGuests
-              ? ` phù hợp cho ${guestConfig.adults + guestConfig.children} khách (${guestConfig.rooms} phòng)`
-              : ''}
-            {dateRange ? ` • ${dateRange[0]} đến ${dateRange[1]}` : ''}
+            <strong>{allHomestays.length.toLocaleString('vi-VN')}</strong> chỗ nghỉ · chọn điểm đến và bộ lọc ở trang tìm kiếm
           </Text>
         </div>
-        <Space>
-          {(searchCity || searchDistrict || filterByGuests || dateRange) && (
-            <Button
-              type="link"
-              onClick={handleResetFilters}
-              style={{ color: '#6366f1', fontWeight: 600, padding: 0 }}
-            >
-              Hiển thị tất cả ({allHomestays.length} căn)
-            </Button>
-          )}
-        </Space>
+        <Button type="link" onClick={() => navigate('/search')} style={{ color: '#6366f1', fontWeight: 600, padding: 0 }}>
+          Tìm kiếm & lọc nâng cao →
+        </Button>
       </div>
 
       {/* HOMESTAYS GRID */}
@@ -964,7 +393,7 @@ export default function HomePage() {
           <Spin size="large" />
           <div style={{ marginTop: 12, color: '#64748b' }}>Đang tải danh sách homestay...</div>
         </div>
-      ) : filteredHomestays.length === 0 ? (
+      ) : allHomestays.length === 0 ? (
         <div
           style={{
             textAlign: 'center',
@@ -977,16 +406,7 @@ export default function HomePage() {
           <Title level={4} style={{ color: '#64748b' }}>
             Không tìm thấy homestay phù hợp với tiêu chí của bạn
           </Title>
-          <Paragraph type="secondary">
-            Thử thay đổi khu vực quận/huyện hoặc bấm nút bên dưới để xem toàn bộ homestays.
-          </Paragraph>
-          <Button
-            type="primary"
-            onClick={handleResetFilters}
-            style={{ borderRadius: 8, background: '#6366f1' }}
-          >
-            Hiển thị tất cả ({allHomestays.length} căn)
-          </Button>
+          <Paragraph type="secondary">Không tải được danh sách. Vui lòng tải lại trang.</Paragraph>
         </div>
       ) : (
         <>
@@ -1153,7 +573,7 @@ export default function HomePage() {
           </Row>
 
           {/* THANH PHÂN TRANG CHỐNG LAG */}
-          {filteredHomestays.length > pageSize && (
+          {allHomestays.length > pageSize && (
             <div
               style={{
                 display: 'flex',
@@ -1170,7 +590,7 @@ export default function HomePage() {
               <Pagination
                 current={currentPage}
                 pageSize={pageSize}
-                total={filteredHomestays.length}
+                total={allHomestays.length}
                 pageSizeOptions={['12', '24', '48']}
                 showSizeChanger
                 showQuickJumper

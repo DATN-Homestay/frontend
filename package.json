@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "test:pricing": "node --test test/pricing.utils.test.ts test/pricing-panel.test.mjs",
     "test:chat": "node --test test/chat.utils.test.ts test/chat.integration.test.mjs",
+    "test:search": "node --test --test-force-exit test/homestaySearch.utils.test.ts test/search-results.test.mjs",
     "test:regressions": "node --test --test-force-exit test/frontend-regressions.test.mjs",
     "preview": "vite preview"
   },

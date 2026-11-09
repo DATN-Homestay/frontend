@@ -45,6 +45,7 @@ import {
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { customerService } from '../../services/customerService';
+import type { PublicReview } from '../../types/customer';
 import type { HomestayItem, RoomItem } from '../../types/customer';
 import { getHomestayCoverImage, getAllHomestayImages } from '../../utils/imageHelper';
 import { useFavorites } from '../../contexts/useFavorites';
@@ -105,7 +106,15 @@ function HomestayDetailContent() {
   const [homestay, setHomestay] = useState<HomestayItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedRoom, setSelectedRoom] = useState<RoomItem | null>(null);
-  const [dateRange, setDateRange] = useState<[string, string] | null>(null);
+  // Ngày mang sang từ trang kết quả tìm kiếm (?checkin=&checkout=), bỏ qua nếu sai hoặc đã qua
+  const [dateRange, setDateRange] = useState<[string, string] | null>(() => {
+    const qs = new URLSearchParams(location.search);
+    const ci = qs.get('checkin');
+    const co = qs.get('checkout');
+    const ok = (d: string | null): d is string => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d) && dayjs(d).isValid();
+    if (!ok(ci) || !ok(co) || co <= ci || dayjs(ci).isBefore(dayjs().startOf('day'))) return null;
+    return [ci, co];
+  });
   const [activeImage, setActiveImage] = useState<string | null>(initialCoverFromState || null);
 
   // Availability & Quoting state
@@ -177,6 +186,29 @@ function HomestayDetailContent() {
       fetchDetail(id);
     }
   }, [id, fetchDetail]);
+
+  // Đánh giá thật của khách đã lưu trú (đã duyệt, tên được che bớt)
+  const [publicReviews, setPublicReviews] = useState<PublicReview[]>([]);
+  const [reviewMeta, setReviewMeta] = useState<{ page: number; total_pages: number } | null>(null);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+
+  const loadReviews = async (homestayId: string, page: number) => {
+    setLoadingReviews(true);
+    try {
+      const res = await customerService.getHomestayReviews(homestayId, page, 5);
+      setPublicReviews((prev) => (page === 1 ? res.items : [...prev, ...res.items]));
+      setReviewMeta({ page: res.meta.page, total_pages: res.meta.total_pages });
+    } catch {
+      // Lỗi tải đánh giá không được làm hỏng cả trang chi tiết
+      if (page === 1) setPublicReviews([]);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  useEffect(() => {
+    if (id) loadReviews(id, 1);
+  }, [id]);
 
   const isBookingComHomestay =
     homestay?.is_claimed === 0 ||
@@ -1275,25 +1307,30 @@ function HomestayDetailContent() {
 
             {/* REVIEWS LIST */}
             <div id="user-comments-list" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              {homestay.reviews && homestay.reviews.length > 0 ? (
-                homestay.reviews.map((rev: any) => (
+              {publicReviews.length > 0 ? (
+                publicReviews.map((rev) => (
                   <div key={rev.id} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 20 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                       <Space size="middle">
                         <Avatar style={{ backgroundColor: '#003b95' }} icon={<UserOutlined />} size={44} />
                         <div>
                           <Text strong style={{ fontSize: 15, display: 'block' }}>
-                            {rev.customer?.name || 'Khách lưu trú'}
+                            {rev.customer_name}
                           </Text>
                           <Space size={6}>
                             <Tag color="cyan" style={{ fontSize: 11, border: 'none' }}>
                               <CheckOutlined /> Khách đã lưu trú
                             </Tag>
+                            {rev.stay_date && (
+                              <Text type="secondary" style={{ fontSize: 12 }}>
+                                Lưu trú đến {rev.stay_date}
+                              </Text>
+                            )}
                           </Space>
                         </div>
                       </Space>
 
-                      <Rate disabled defaultValue={rev.rating_overall || 5} style={{ fontSize: 14, color: '#f59e0b' }} />
+                      <Rate disabled value={rev.rating_overall} style={{ fontSize: 14, color: '#f59e0b' }} />
                     </div>
 
                     <Paragraph style={{ color: '#334155', fontSize: 14, lineHeight: 1.6, margin: '8px 0 12px' }}>
@@ -1301,6 +1338,8 @@ function HomestayDetailContent() {
                     </Paragraph>
                   </div>
                 ))
+              ) : loadingReviews ? (
+                <Spin />
               ) : (
                 <div
                   style={{
@@ -1315,6 +1354,11 @@ function HomestayDetailContent() {
                     Chưa có nhận xét nào cho chỗ nghỉ này. Hãy là người đầu tiên trải nghiệm và chia sẻ đánh giá!
                   </Text>
                 </div>
+              )}
+              {reviewMeta && reviewMeta.page < reviewMeta.total_pages && id && (
+                <Button loading={loadingReviews} onClick={() => loadReviews(id, reviewMeta.page + 1)}>
+                  Xem thêm đánh giá
+                </Button>
               )}
             </div>
           </Card>
@@ -1374,6 +1418,7 @@ function HomestayDetailContent() {
                   const startOfToday = new Date().setHours(0, 0, 0, 0);
                   return current.valueOf() < startOfToday || current.valueOf() > startOfToday + 365 * 86_400_000;
                 }}
+                value={dateRange ? [dayjs(dateRange[0]), dayjs(dateRange[1])] : null}
                 onChange={(_, dateStrings) =>
                   setDateRange(dateStrings[0] && dateStrings[1] ? [dateStrings[0], dateStrings[1]] : null)
                 }
@@ -1477,6 +1522,7 @@ function HomestayDetailContent() {
                       const startOfToday = dayjs().startOf('day');
                       return current && current < startOfToday;
                     }}
+                    value={dateRange ? [dayjs(dateRange[0]), dayjs(dateRange[1])] : null}
                     onChange={(_, dateStrings) =>
                       setDateRange(dateStrings[0] && dateStrings[1] ? [dateStrings[0], dateStrings[1]] : null)
                     }

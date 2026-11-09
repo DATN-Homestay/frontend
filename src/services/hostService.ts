@@ -350,9 +350,13 @@ export const hostService = {
 
   async createCoupon(data: {
     code: string;
+    name?: string;
     discount_type: 'PERCENT' | 'PERCENTAGE' | 'FIXED_AMOUNT';
     discount_value: number;
     min_order_value?: number;
+    max_discount?: number;
+    usage_limit?: number;
+    per_user_limit?: number;
     start_date: string;
     end_date: string;
   }) {
@@ -362,7 +366,15 @@ export const hostService = {
     });
   },
 
-  async deleteCoupon(id: string) {
+  /** Mã đã có lượt dùng thì server chỉ tắt (deactivated=true) thay vì xóa */
+  async deleteCoupon(id: string): Promise<{ data?: { data?: { deactivated?: boolean; message?: string } } }> {
     return await apiClient(`/host/coupons/${id}`, { method: 'DELETE' });
+  },
+
+  async setCouponActive(id: string, isActive: boolean) {
+    return await apiClient(`/host/coupons/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_active: isActive ? 1 : 0 }),
+    });
   },
 };

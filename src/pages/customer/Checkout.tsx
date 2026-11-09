@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Alert, App, Button, Card, Col, Divider, Input, Result, Row, Skeleton, Space, Typography } from 'antd';
-import { CheckCircleFilled, SafetyCertificateOutlined } from '@ant-design/icons';
+import { Alert, App, Button, Card, Col, Divider, Input, Result, Row, Skeleton, Space, Tag, Typography } from 'antd';
+import { CheckCircleFilled, SafetyCertificateOutlined, TagOutlined } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { customerService } from '../../services/customerService';
 import { ApiError } from '../../services/apiClient';
-import type { BookingQuote, CreatedBooking } from '../../types/customer';
+import type { BookingQuote, CouponCheck, CreatedBooking } from '../../types/customer';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -32,6 +32,12 @@ export default function CheckoutPage() {
   // Sau khi tạo đơn, nếu bước lấy URL VNPay lỗi thì thử lại KHÔNG tạo đơn mới
   const [booking, setBooking] = useState<CreatedBooking | null>(null);
 
+  // Mã giảm giá: ô nhập, kết quả kiểm tra gần nhất và mã đang được áp dụng
+  const [couponInput, setCouponInput] = useState('');
+  const [couponChecking, setCouponChecking] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<Extract<CouponCheck, { valid: true }> | null>(null);
+
   // Báo giá thật từ server: tiền phòng, số đêm, còn phòng hay không
   useEffect(() => {
     if (!roomId || !checkIn || !checkOut) return;
@@ -52,6 +58,38 @@ export default function CheckoutPage() {
     };
   }, [roomId, checkIn, checkOut, guests]);
 
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim();
+    if (!code || !roomId || !checkIn || !checkOut) return;
+    setCouponChecking(true);
+    setCouponError(null);
+    try {
+      const result = await customerService.validateCoupon({
+        room_id: roomId,
+        check_in_date: checkIn,
+        check_out_date: checkOut,
+        num_guests: guests,
+        coupon_code: code,
+      });
+      if (result.valid) {
+        setAppliedCoupon(result);
+      } else {
+        setAppliedCoupon(null);
+        setCouponError(result.message);
+      }
+    } catch (err) {
+      setCouponError(err instanceof Error ? err.message : 'Không thể kiểm tra mã giảm giá');
+    } finally {
+      setCouponChecking(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError(null);
+    setCouponInput('');
+  };
+
   const handlePay = async () => {
     if (!roomId || !checkIn || !checkOut) return;
     setPaying(true);
@@ -65,6 +103,7 @@ export default function CheckoutPage() {
           check_out_date: checkOut,
           num_guests: guests,
           customer_note: note.trim() || undefined,
+          coupon_code: appliedCoupon?.code,
         });
         setBooking(current);
       }
@@ -77,6 +116,11 @@ export default function CheckoutPage() {
       // Đơn đã hết hạn giữ chỗ hoặc không còn chờ thanh toán: lần bấm sau phải tạo đơn mới
       if (err instanceof ApiError && (err.status === 410 || err.status === 409)) {
         setBooking(null);
+      }
+      // Mã không còn dùng được lúc tạo đơn (hết lượt, hết hạn...): bỏ mã để khách xem lại giá
+      if (err instanceof ApiError && err.status === 422 && appliedCoupon) {
+        setAppliedCoupon(null);
+        setCouponError(text);
       }
     } finally {
       setPaying(false);
@@ -105,7 +149,9 @@ export default function CheckoutPage() {
     );
   }
 
-  const total = quote?.total_amount ?? 0;
+  // Đã tạo đơn thì lấy số server đã chốt; chưa tạo thì dùng kết quả kiểm tra mã
+  const discount = booking?.discount_amount ?? appliedCoupon?.discount_amount ?? 0;
+  const total = booking ? booking.total_amount : (quote ? quote.total_amount - discount : 0);
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
@@ -152,6 +198,38 @@ export default function CheckoutPage() {
             />
           </Card>
 
+          <Card title={<span><TagOutlined /> Mã giảm giá</span>} style={{ borderRadius: 14, marginBottom: 20 }}>
+            {appliedCoupon ? (
+              <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                <div>
+                  <Tag color="green">{appliedCoupon.code}</Tag>
+                  <Text type="secondary">{appliedCoupon.name ?? 'Đã áp dụng mã giảm giá'}</Text>
+                </div>
+                {!booking && <Button type="link" onClick={handleRemoveCoupon}>Bỏ mã</Button>}
+              </Space>
+            ) : (
+              <Space.Compact style={{ width: '100%' }}>
+                <Input
+                  placeholder="Nhập mã giảm giá"
+                  value={couponInput}
+                  maxLength={50}
+                  disabled={!!booking}
+                  onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                  onPressEnter={handleApplyCoupon}
+                />
+                <Button
+                  type="primary"
+                  loading={couponChecking}
+                  disabled={!couponInput.trim() || !!booking || loading || !quote?.available}
+                  onClick={handleApplyCoupon}
+                >
+                  Áp dụng
+                </Button>
+              </Space.Compact>
+            )}
+            {couponError && <Alert type="warning" showIcon style={{ marginTop: 12 }} title={couponError} />}
+          </Card>
+
           <Card style={{ borderRadius: 14, marginBottom: 20 }}>
             <Text strong>Phương thức thanh toán: </Text>
             <Text>Cổng VNPay (QR Pay / Thẻ ATM / Visa / Mastercard)</Text>
@@ -192,6 +270,14 @@ export default function CheckoutPage() {
                     <Text>{money(n.price)}</Text>
                   </div>
                 ))}
+                {discount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', margin: '10px 0' }}>
+                    <Text type="secondary">
+                      Mã giảm giá <Tag color="green" style={{ marginInlineStart: 4 }}>{booking?.coupon_code ?? appliedCoupon?.code}</Tag>
+                    </Text>
+                    <Text style={{ color: '#10b981' }} data-testid="discount-line">-{money(discount)}</Text>
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', margin: '10px 0' }}>
                   <Text type="secondary">Phí dịch vụ sàn</Text>
                   <Text style={{ color: '#10b981' }}>Miễn phí</Text>

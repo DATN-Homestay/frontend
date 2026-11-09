@@ -87,9 +87,14 @@ export default function HostCouponsPage() {
       const normalizedType = values.discount_type === 'PERCENT' ? 'PERCENTAGE' : values.discount_type;
       await hostService.createCoupon({
         code: values.code.trim().toUpperCase(),
+        name: values.name?.trim() || undefined,
         discount_type: normalizedType,
         discount_value: Number(values.discount_value),
         min_order_value: values.min_order_value ? Number(values.min_order_value) : undefined,
+        max_discount:
+          values.discount_type === 'PERCENTAGE' && values.max_discount ? Number(values.max_discount) : undefined,
+        usage_limit: values.usage_limit ? Number(values.usage_limit) : undefined,
+        per_user_limit: values.per_user_limit ? Number(values.per_user_limit) : undefined,
         start_date: start.format('YYYY-MM-DD'),
         end_date: end.format('YYYY-MM-DD'),
       });
@@ -106,8 +111,9 @@ export default function HostCouponsPage() {
 
   const handleDeleteCoupon = async (id: string) => {
     try {
-      await hostService.deleteCoupon(id);
-      message.success('Đã xóa mã voucher!');
+      const res = await hostService.deleteCoupon(id);
+      const info = res?.data?.data ?? (res?.data as { deactivated?: boolean; message?: string } | undefined);
+      message.success(info?.deactivated ? 'Mã đã có lượt dùng nên được tắt thay vì xóa' : 'Đã xóa mã voucher!');
       loadCoupons();
     } catch (err: any) {
       message.error(err.message || 'Xóa coupon thất bại');
@@ -149,6 +155,16 @@ export default function HostCouponsPage() {
         val ? `${Number(val).toLocaleString('vi-VN')}đ` : <Text type="secondary">Không giới hạn</Text>,
     },
     {
+      title: 'Đã Dùng',
+      key: 'usage',
+      render: (_: any, r: HostCoupon) => (
+        <span>
+          {r.used_count ?? 0}
+          {r.usage_limit ? ` / ${r.usage_limit}` : ' / không giới hạn'}
+        </span>
+      ),
+    },
+    {
       title: 'Thời Gian Áp Dụng',
       key: 'dates',
       render: (_: any, r: HostCoupon) => (
@@ -162,7 +178,9 @@ export default function HostCouponsPage() {
       key: 'status',
       render: (_: any, r: HostCoupon) => {
         const isExpired = dayjs().isAfter(dayjs(r.end_date), 'day');
+        if (r.is_active === 0) return <Tag color="default">Đã tắt</Tag>;
         if (isExpired) return <Tag color="default">Đã hết hạn</Tag>;
+        if (r.usage_limit && (r.used_count ?? 0) >= r.usage_limit) return <Tag color="warning">Hết lượt</Tag>;
         return <Tag color="success">Đang hoạt động</Tag>;
       },
     },
@@ -271,6 +289,16 @@ export default function HostCouponsPage() {
             />
           </Form.Item>
 
+          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.discount_type !== cur.discount_type}>
+            {({ getFieldValue }) =>
+              getFieldValue('discount_type') === 'PERCENTAGE' ? (
+                <Form.Item label="Giảm Tối Đa (VNĐ, không bắt buộc)" name="max_discount">
+                  <InputNumber min={1000} step={10000} style={{ width: '100%' }} size="large" placeholder="Ví dụ: 200000 để giảm không quá 200k" />
+                </Form.Item>
+              ) : null
+            }
+          </Form.Item>
+
           <Form.Item label="Giá Trị Đơn Hàng Tối Thiểu (VNĐ)" name="min_order_value">
             <InputNumber
               min={0}
@@ -281,6 +309,15 @@ export default function HostCouponsPage() {
               formatter={(val) => `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
             />
           </Form.Item>
+
+          <Space style={{ width: '100%' }} size={12} align="start">
+            <Form.Item label="Tổng Số Lượt Dùng" name="usage_limit" style={{ flex: 1 }}>
+              <InputNumber min={1} style={{ width: '100%' }} size="large" placeholder="Để trống = không giới hạn" />
+            </Form.Item>
+            <Form.Item label="Số Lượt Mỗi Khách" name="per_user_limit" style={{ flex: 1 }}>
+              <InputNumber min={1} max={1000} style={{ width: '100%' }} size="large" />
+            </Form.Item>
+          </Space>
 
           <Form.Item
             label="Thời Hạn Áp Dụng (Từ ngày ➔ Đến ngày)"
