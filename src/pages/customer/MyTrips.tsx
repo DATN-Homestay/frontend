@@ -405,7 +405,7 @@ export default function MyTripsPage() {
                       {
                         key: 'cancel',
                         label: 'Đã hủy',
-                        children: `${new Date(detail.cancelled_at).toLocaleString('vi-VN')} bởi ${
+                        children: `${new Date(detail.cancelled_at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false })} bởi ${
                           { CUSTOMER: 'khách hàng', HOST: 'chủ nhà', ADMIN: 'quản trị viên', SYSTEM: 'hệ thống' }[detail.cancelled_by ?? 'SYSTEM']
                         }${detail.cancel_reason ? ` — ${detail.cancel_reason}` : ''}`,
                       },
@@ -418,7 +418,7 @@ export default function MyTripsPage() {
                     <span>
                       <strong>{money(r.amount)}</strong>{' '}
                       <Tag color={REFUND_TAG[r.status].color}>{REFUND_TAG[r.status].text}</Tag>
-                      {r.processed_at && <Text type="secondary">({new Date(r.processed_at).toLocaleString('vi-VN')})</Text>}
+                      {r.processed_at && <Text type="secondary">({new Date(r.processed_at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false })})</Text>}
                     </span>
                   ),
                 })),

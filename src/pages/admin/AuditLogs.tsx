@@ -27,7 +27,7 @@ export default function AuditLogsPage() {
         {
             title: 'Thời gian',
             dataIndex: 'createdAt',
-            render: (v: string) => new Date(v).toLocaleString('vi-VN'),
+            render: (v: string) => new Date(v).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }),
         },
     ];
 

@@ -110,7 +110,7 @@ const money = (value: number | null | undefined): string =>
   `${Number(value ?? 0).toLocaleString('vi-VN')} ₫`;
 
 const formatDate = (value?: string | null): string =>
-  value ? new Date(value).toLocaleDateString('vi-VN') : '—';
+  value ? new Date(value).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : '—';
 
 const getErrorMessage = (err: unknown, fallback: string): string =>
   err instanceof Error ? err.message : fallback;
@@ -331,7 +331,7 @@ export default function DropshipOrdersPage() {
         </Tooltip>
       ) : '—' },
     { title: 'Lần thử cuối', dataIndex: 'b2b_last_attempt_at',
-      render: (value: string | null) => value ? new Date(value).toLocaleString('vi-VN') : '—' },
+      render: (value: string | null) => value ? new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }) : '—' },
     { title: 'Hành động',
       render: (_: unknown, order: DropshipOrder) => order.b2b_status === 'FAILED' ? (
         <Button size="small" type="primary" icon={<SyncOutlined />}
@@ -385,7 +385,7 @@ export default function DropshipOrdersPage() {
 
   const affiliateColumns = [
     { title: 'Thời gian chuyển tiếp', dataIndex: 'timestamp',
-      render: (value: string) => new Date(value).toLocaleString('vi-VN') },
+      render: (value: string) => new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }) },
     { title: 'Homestay & Hạng phòng', render: (_: unknown, click: AffiliateClick) => (
       <div><Text strong>{click.homestay_name}</Text><div>{click.room_name}</div>
         <Text type="secondary">{formatDate(click.check_in)} → {formatDate(click.check_out)}</Text>
@@ -525,7 +525,7 @@ export default function DropshipOrdersPage() {
               </Descriptions.Item>
               <Descriptions.Item label="Thời điểm đặt" span={2}>
                 {selectedOrder.ota_fulfillment.fulfilled_at
-                  ? new Date(selectedOrder.ota_fulfillment.fulfilled_at).toLocaleString('vi-VN') : '—'}
+                  ? new Date(selectedOrder.ota_fulfillment.fulfilled_at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }) : '—'}
               </Descriptions.Item>
               <Descriptions.Item label="Ghi chú" span={2}>{selectedOrder.ota_fulfillment.notes}</Descriptions.Item>
             </Descriptions>

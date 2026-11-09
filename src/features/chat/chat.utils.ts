@@ -61,19 +61,37 @@ export function chatError(error: unknown): string {
 }
 
 export function timeLabel(value: string): string {
-  return new Date(value).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  return new Date(value).toLocaleTimeString('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
 }
 
 export function dayLabel(value: string): string {
-  const date = new Date(value);
-  const today = new Date();
-  if (date.toDateString() === today.toDateString()) return 'Hôm nay';
-  today.setDate(today.getDate() - 1);
-  if (date.toDateString() === today.toDateString()) return 'Hôm qua';
-  return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const dateStr = new Date(value).toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+  if (dateStr === todayStr) return 'Hôm nay';
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const yesterdayStr = yesterday.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+  if (dateStr === yesterdayStr) return 'Hôm qua';
+  return new Date(value).toLocaleDateString('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 export function inboxTime(value: string): string {
-  return new Date(value).toDateString() === new Date().toDateString() ? timeLabel(value)
-    : new Date(value).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+  const dateStr = new Date(value).toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+  return dateStr === todayStr
+    ? timeLabel(value)
+    : new Date(value).toLocaleDateString('vi-VN', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        day: '2-digit',
+        month: '2-digit',
+      });
 }

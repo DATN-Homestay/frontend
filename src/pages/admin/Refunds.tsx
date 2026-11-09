@@ -123,7 +123,7 @@ export default function RefundsPage() {
       width: 220,
       render: (v: string | null) => (v ? <Tooltip title={v}><Text type="danger">{v}</Text></Tooltip> : '—'),
     },
-    { title: 'Ngày tạo', dataIndex: 'created_at', render: (v: string) => new Date(v).toLocaleString('vi-VN') },
+    { title: 'Ngày tạo', dataIndex: 'created_at', render: (v: string) => new Date(v).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }) },
     {
       title: 'Hành động',
       render: (_: unknown, r: AdminRefund) => {

@@ -4,6 +4,7 @@ import type { UserProfile, LoginDto, RegisterDto, UserRole } from '../types/auth
 interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
+  isSessionRevoked: boolean;
   /** Đang kiểm tra phiên đăng nhập khi tải trang */
   initializing: boolean;
   role: UserRole | null;

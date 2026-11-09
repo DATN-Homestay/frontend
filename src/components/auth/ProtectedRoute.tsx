@@ -10,7 +10,7 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ allowedRoles, requireAuthOnly = false }: ProtectedRouteProps) {
-  const { user, isAuthenticated, initializing, isHost } = useAuth();
+  const { user, isAuthenticated, initializing, isHost, isSessionRevoked } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -27,13 +27,15 @@ export default function ProtectedRoute({ allowedRoles, requireAuthOnly = false }
   }
 
   // Chưa đăng nhập -> Chuyển hướng tới trang Đăng nhập
-  if (!isAuthenticated || !user) {
+  if ((!isAuthenticated || !user) && !isSessionRevoked) {
     return <Navigate to="/auth/login" state={{ from: location.pathname }} replace />;
   }
 
   if (requireAuthOnly) {
     return <Outlet />;
   }
+
+  if (!user) return <div style={{ minHeight: "100vh", background: "#f8fafc" }} />;
 
   // Kiểm tra vai trò của người dùng
   const hasPermission = user.roles && user.roles.some((r) => allowedRoles.includes(r));

@@ -10,7 +10,7 @@ const { Title, Text, Paragraph } = Typography;
 
 const money = (value: number) => `${value.toLocaleString('vi-VN')}đ`;
 const formatTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  new Date(iso).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false });
 
 export default function CheckoutPage() {
   const [searchParams] = useSearchParams();

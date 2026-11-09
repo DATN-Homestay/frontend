@@ -39,6 +39,8 @@ import {
   RightOutlined,
   EyeOutlined,
   PictureOutlined,
+  HeartOutlined,
+  HeartFilled,
 } from '@ant-design/icons';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -46,6 +48,7 @@ import { customerService } from '../../services/customerService';
 import type { PublicReview } from '../../types/customer';
 import type { HomestayItem, RoomItem } from '../../types/customer';
 import { getHomestayCoverImage, getAllHomestayImages } from '../../utils/imageHelper';
+import { useFavorites } from '../../contexts/useFavorites';
 
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -97,6 +100,7 @@ function HomestayDetailContent() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const { isFavorite, toggleFavorite } = useFavorites();
   const initialCoverFromState = (location.state as any)?.coverImage;
 
   const [homestay, setHomestay] = useState<HomestayItem | null>(null);
@@ -483,9 +487,20 @@ function HomestayDetailContent() {
             </a>
           )}
         </Space>
-        <Title level={2} style={{ margin: 0 }}>
-          {homestay.name}
-        </Title>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 4 }}>
+          <Title level={2} style={{ margin: 0 }}>
+            {homestay.name}
+          </Title>
+          <Button
+            type={isFavorite(homestay.id) ? 'primary' : 'default'}
+            danger={isFavorite(homestay.id)}
+            icon={isFavorite(homestay.id) ? <HeartFilled /> : <HeartOutlined />}
+            onClick={() => void toggleFavorite(homestay.id)}
+            style={{ borderRadius: 8, fontWeight: 600 }}
+          >
+            {isFavorite(homestay.id) ? 'Đã lưu yêu thích' : 'Lưu vào yêu thích'}
+          </Button>
+        </div>
         <Text type="secondary">
           <EnvironmentOutlined /> {homestay.address} •{' '}
           {hasReviews ? (

@@ -213,7 +213,7 @@ export default function HostVerificationsPage() {
     {
       title: 'Nộp lúc',
       dataIndex: 'submitted_at',
-      render: (v: string) => new Date(v).toLocaleString('vi-VN'),
+      render: (v: string) => new Date(v).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }),
     },
     {
       title: 'Hành động',

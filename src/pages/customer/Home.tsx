@@ -24,10 +24,13 @@ import {
   MinusOutlined,
   PlusOutlined,
   HomeOutlined,
+  HeartOutlined,
+  HeartFilled,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { customerService } from '../../services/customerService';
 import type { HomestayItem } from '../../types/customer';
+import { useFavorites } from '../../contexts/useFavorites';
 import { getHomestayCoverImage } from '../../utils/imageHelper';
 import {
   ALL_LOCATIONS_LIST,
@@ -40,6 +43,8 @@ const { RangePicker } = DatePicker;
 
 export default function HomePage() {
   const navigate = useNavigate();
+  const { isFavorite, toggleFavorite } = useFavorites();
+
   const [loading, setLoading] = useState(true);
   const [allHomestays, setAllHomestays] = useState<HomestayItem[]>([]);
   const [filteredHomestays, setFilteredHomestays] = useState<HomestayItem[]>([]);
@@ -767,6 +772,37 @@ export default function HomePage() {
                     onClick={() => navigate(`/homestay/${h.id}`, { state: { coverImage } })}
                     cover={
                       <div style={{ position: 'relative', height: 200, overflow: 'hidden' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void toggleFavorite(h.id);
+                          }}
+                          style={{
+                            position: 'absolute',
+                            top: 10,
+                            right: 12,
+                            zIndex: 2,
+                            width: 34,
+                            height: 34,
+                            borderRadius: '50%',
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                            border: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
+                            transition: 'all 0.15s ease-in-out',
+                          }}
+                          title={isFavorite(h.id) ? 'Bỏ lưu yêu thích' : 'Lưu vào yêu thích'}
+                        >
+                          {isFavorite(h.id) ? (
+                            <HeartFilled style={{ color: '#ef4444', fontSize: 18 }} />
+                          ) : (
+                            <HeartOutlined style={{ color: '#64748b', fontSize: 18 }} />
+                          )}
+                        </button>
                         <img
                           alt={h.name}
                           src={coverImage}
@@ -967,6 +1003,37 @@ export default function HomePage() {
                     onClick={() => navigate(`/homestay/${h.id}`, { state: { coverImage } })}
                     cover={
                       <div style={{ position: 'relative', height: 210, overflow: 'hidden' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void toggleFavorite(h.id);
+                          }}
+                          style={{
+                            position: 'absolute',
+                            top: 10,
+                            right: 12,
+                            zIndex: 2,
+                            width: 34,
+                            height: 34,
+                            borderRadius: '50%',
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                            border: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
+                            transition: 'all 0.15s ease-in-out',
+                          }}
+                          title={isFavorite(h.id) ? 'Bỏ lưu yêu thích' : 'Lưu vào yêu thích'}
+                        >
+                          {isFavorite(h.id) ? (
+                            <HeartFilled style={{ color: '#ef4444', fontSize: 18 }} />
+                          ) : (
+                            <HeartOutlined style={{ color: '#64748b', fontSize: 18 }} />
+                          )}
+                        </button>
                         <img
                           alt={h.name}
                           src={coverImage}

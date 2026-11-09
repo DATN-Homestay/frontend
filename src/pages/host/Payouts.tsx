@@ -148,6 +148,7 @@ export default function HostPayoutsPage() {
       render: (v: string) =>
         v
           ? new Date(v).toLocaleDateString('vi-VN', {
+            timeZone: 'Asia/Ho_Chi_Minh',
               year: 'numeric',
               month: '2-digit',
               day: '2-digit',
