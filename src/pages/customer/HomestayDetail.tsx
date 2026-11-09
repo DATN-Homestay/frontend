@@ -41,12 +41,13 @@ import {
   PictureOutlined,
   HeartOutlined,
   HeartFilled,
+  GiftOutlined,
 } from '@ant-design/icons';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { customerService } from '../../services/customerService';
 import type { PublicReview } from '../../types/customer';
-import type { HomestayItem, RoomItem } from '../../types/customer';
+import type { HomestayItem, RoomItem, AvailableCoupon } from '../../types/customer';
 import { getHomestayCoverImage, getAllHomestayImages } from '../../utils/imageHelper';
 import { useFavorites } from '../../contexts/useFavorites';
 
@@ -128,6 +129,10 @@ function HomestayDetailContent() {
   const [activeDetailRoom, setActiveDetailRoom] = useState<RoomItem | null>(null);
   const [modalActiveImgIndex, setModalActiveImgIndex] = useState(0);
 
+  // MÃ GIẢM GIÁ KHẢ DỤNG CHO HOMESTAY
+  const [availableCoupons, setAvailableCoupons] = useState<AvailableCoupon[]>([]);
+  const [selectedCouponCode, setSelectedCouponCode] = useState<string | null>(null);
+
   const handleOpenRoomDetail = (room: RoomItem, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setActiveDetailRoom(room);
@@ -184,6 +189,9 @@ function HomestayDetailContent() {
   useEffect(() => {
     if (id) {
       fetchDetail(id);
+      customerService.getHomestayCoupons(id).then((coupons) => {
+        setAvailableCoupons(coupons);
+      });
     }
   }, [id, fetchDetail]);
 
@@ -308,8 +316,9 @@ function HomestayDetailContent() {
     const checkIn = dateRange[0];
     const checkOut = dateRange[1];
 
+    const couponParam = selectedCouponCode ? `&coupon=${encodeURIComponent(selectedCouponCode)}` : '';
     navigate(
-      `/checkout?roomId=${selectedRoom.id}&homestayId=${homestay?.id}&checkIn=${checkIn}&checkOut=${checkOut}`,
+      `/checkout?roomId=${selectedRoom.id}&homestayId=${homestay?.id}&checkIn=${checkIn}&checkOut=${checkOut}${couponParam}`,
     );
   };
 
@@ -600,6 +609,111 @@ function HomestayDetailContent() {
       {/* DETAILS & BOOKING CARD */}
       <Row gutter={[32, 32]}>
         <Col xs={24} md={16}>
+          {/* MÃ GIẢM GIÁ & ƯU ĐÃI KHẢ DỤNG */}
+          {!isBookingComHomestay && availableCoupons.length > 0 && (
+            <Card
+              style={{
+                borderRadius: 16,
+                marginBottom: 24,
+                background: 'linear-gradient(135deg, #fffbeb 0%, #ffffff 100%)',
+                border: '1px solid #fde68a',
+                boxShadow: '0 2px 10px rgba(245, 158, 11, 0.08)',
+              }}
+              title={
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                  <Space>
+                    <GiftOutlined style={{ color: '#d97706', fontSize: 18 }} />
+                    <span style={{ fontWeight: 700, fontSize: 15, color: '#92400e' }}>
+                      Ưu đãi & Mã giảm giá áp dụng ({availableCoupons.length} mã)
+                    </span>
+                  </Space>
+                  <Tag color="gold" style={{ borderRadius: 6, fontWeight: 600 }}>Tiết kiệm ngay khi đặt phòng</Tag>
+                </div>
+              }
+            >
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+                {availableCoupons.map((c) => {
+                  const isSelected = selectedCouponCode === c.code;
+                  return (
+                    <div
+                      key={c.id}
+                      style={{
+                        border: isSelected ? '2px solid #ea580c' : '1px dashed #f59e0b',
+                        background: isSelected ? '#fff7ed' : '#ffffff',
+                        borderRadius: 12,
+                        padding: '12px 14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        gap: 8,
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                          <Tag color="orange" style={{ fontWeight: 800, fontSize: 13, padding: '2px 8px' }}>
+                            {c.code}
+                          </Tag>
+                          {c.sponsor_by === 'PLATFORM' ? (
+                            <Tag color="blue" style={{ fontSize: 11 }}>Sàn StayAI</Tag>
+                          ) : (
+                            <Tag color="purple" style={{ fontSize: 11 }}>Chủ nhà</Tag>
+                          )}
+                        </div>
+                        <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>
+                          {c.discount_type === 'PERCENTAGE'
+                            ? `Giảm ${c.discount_value}%${c.max_discount ? ` (Tối đa ${(c.max_discount / 1000).toLocaleString('vi-VN')}k)` : ''}`
+                            : `Giảm ${(c.discount_value).toLocaleString('vi-VN')}đ`}
+                        </div>
+                        {c.name && (
+                          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{c.name}</div>
+                        )}
+                        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+                          • Đơn tối thiểu: {Number(c.min_order_value) > 0 ? `${Number(c.min_order_value).toLocaleString('vi-VN')}đ` : 'Không giới hạn'}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            navigator.clipboard.writeText(c.code);
+                            message.success(`Đã sao chép mã ${c.code}`);
+                          }}
+                          style={{ borderRadius: 6, fontSize: 12 }}
+                        >
+                          Sao chép mã
+                        </Button>
+                        <Button
+                          type={isSelected ? 'primary' : 'default'}
+                          size="small"
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedCouponCode(null);
+                              message.info('Đã bỏ chọn mã');
+                            } else {
+                              setSelectedCouponCode(c.code);
+                              message.success(`Đã chọn mã ${c.code}. Mã sẽ tự áp dụng khi bạn đặt phòng!`);
+                            }
+                          }}
+                          style={{
+                            borderRadius: 6,
+                            fontSize: 12,
+                            background: isSelected ? '#ea580c' : undefined,
+                            borderColor: '#ea580c',
+                            color: isSelected ? '#ffffff' : '#ea580c',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {isSelected ? '✓ Đang dùng' : 'Dùng mã này'}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+
           {/* ROOM SELECTION LIST */}
           <Card
             id="rooms-section"
@@ -1555,6 +1669,12 @@ function HomestayDetailContent() {
                         <div style={{ fontSize: 12, marginTop: 4, color: '#166534' }}>
                           Tổng tiền: <strong>{Number(roomAvailabilityQuote.total_amount).toLocaleString('vi-VN')}đ</strong> ({roomAvailabilityQuote.nightly_prices?.length || 0} đêm)
                         </div>
+                        {selectedCouponCode && (
+                          <div style={{ marginTop: 8, padding: '6px 10px', background: '#fff7ed', border: '1px dashed #f97316', borderRadius: 8, fontSize: 12, color: '#c2410c', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>🏷️ Đã chọn ưu đãi: <strong>{selectedCouponCode}</strong></span>
+                            <Button type="link" size="small" onClick={() => setSelectedCouponCode(null)} style={{ padding: 0, height: 'auto', fontSize: 11, color: '#ea580c' }}>Bỏ chọn</Button>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div

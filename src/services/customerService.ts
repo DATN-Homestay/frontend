@@ -16,6 +16,7 @@ import type {
   CancellationQuote,
   CancelResult,
   CouponCheck,
+  AvailableCoupon,
 } from '../types/customer';
 
 export const customerService = {
@@ -77,6 +78,16 @@ export const customerService = {
       }),
     });
     return res?.data ?? res;
+  },
+
+  /** Lấy danh sách mã giảm giá công khai áp dụng cho homestay */
+  async getHomestayCoupons(homestayId: string): Promise<AvailableCoupon[]> {
+    try {
+      const res = await apiClient<ApiResponse<AvailableCoupon[]>>(`/homestays/${homestayId}/coupons`);
+      return res.data ?? [];
+    } catch {
+      return [];
+    }
   },
 
   /** Xem trước mã giảm giá (không giữ lượt dùng). Mã sai vẫn trả 200 với valid=false. */

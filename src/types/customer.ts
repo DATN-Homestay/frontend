@@ -182,6 +182,19 @@ export type CouponCheck =
       total_amount: number;
     };
 
+export interface AvailableCoupon {
+  id: string;
+  code: string;
+  name: string | null;
+  discount_type: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  discount_value: number;
+  min_order_value: number;
+  max_discount: number | null;
+  sponsor_by: 'PLATFORM' | 'HOST';
+  start_date: string;
+  end_date: string;
+}
+
 /** data của POST /bookings/:id/payment-url */
 export interface PaymentLink {
   payment_id: string;
