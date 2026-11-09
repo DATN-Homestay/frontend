@@ -184,7 +184,17 @@ export interface MyBookingItem {
   is_dropship?: boolean;
   ota_fulfillment?: OtaFulfillmentInfo | null;
   homestay: { id: string; name: string; city: string };
-  room: { id: string; room_name: string };
+  room: {
+    id: string;
+    room_name: string;
+    capacity?: number;
+    base_price?: number;
+    area_sqm?: number | null;
+    bed_info?: string | null;
+    description?: string | null;
+    room_details_json?: RoomDetailsJson | null;
+    images?: RoomImageItem[];
+  };
   check_in_date: string;
   check_out_date: string;
   total_amount: number;
@@ -206,7 +216,17 @@ export interface BookingDetail {
   is_dropship: boolean;
   ota_fulfillment?: OtaFulfillmentInfo | null;
   homestay: { id: string; name: string; address: string; city: string; cancellation_policy: string };
-  room: { id: string; room_name: string };
+  room: {
+    id: string;
+    room_name: string;
+    capacity?: number;
+    base_price?: number;
+    area_sqm?: number | null;
+    bed_info?: string | null;
+    description?: string | null;
+    room_details_json?: RoomDetailsJson | null;
+    images?: RoomImageItem[];
+  };
   check_in_date: string;
   check_out_date: string;
   nights: number;

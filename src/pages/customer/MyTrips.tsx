@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { App, Button, Card, Descriptions, Input, Modal, Rate, Select, Table, Tag, Typography } from 'antd';
-import { CheckCircleOutlined, StarOutlined } from '@ant-design/icons';
+import { Link } from 'react-router-dom';
+import { App, Button, Card, Descriptions, Input, Modal, Rate, Select, Table, Tag, Typography, Tooltip } from 'antd';
+import { CheckCircleOutlined, StarOutlined, EyeOutlined, HomeOutlined } from '@ant-design/icons';
 import { customerService } from '../../services/customerService';
 import CancelBookingModal from '../../components/CancelBookingModal';
+import RoomDetailModal from '../../components/RoomDetailModal';
 import type { BookingDetail, BookingStatus, MyBookingItem, RefundStatus } from '../../types/customer';
 
 const { Title, Text } = Typography;
@@ -71,6 +73,19 @@ export default function MyTripsPage() {
   const [cancelTarget, setCancelTarget] = useState<MyBookingItem | null>(null);
   const [detail, setDetail] = useState<BookingDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [selectedRoomTarget, setSelectedRoomTarget] = useState<{
+    homestayId: string;
+    homestayName: string;
+    room: MyBookingItem['room'];
+  } | null>(null);
+
+  const handleOpenRoomDetail = (
+    homestayId: string,
+    homestayName: string,
+    room: MyBookingItem['room'],
+  ) => {
+    setSelectedRoomTarget({ homestayId, homestayName, room });
+  };
 
   // Dùng chung cho các thao tác đổi bộ lọc / trang / tải lại: bật loading ở handler, không phải trong effect
   const reload = (next: { page?: number; pageSize?: number; status?: BookingStatus | undefined } = {}) => {
@@ -156,8 +171,35 @@ export default function MyTripsPage() {
       title: 'Homestay & Phòng',
       render: (_: unknown, r: MyBookingItem) => (
         <div>
-          <Text strong>{r.homestay.name}</Text>
-          <Text type="secondary" style={{ display: 'block', fontSize: 13 }}>{r.room.room_name}</Text>
+          <div style={{ marginBottom: 3 }}>
+            <Link
+              to={`/homestay/${r.homestay.id}`}
+              style={{ fontWeight: 600, color: '#0f172a', textDecoration: 'none' }}
+              title="Xem trang homestay"
+            >
+              {r.homestay.name}
+            </Link>
+          </div>
+          <Tooltip title="Bấm để xem ảnh và tiện nghi chi tiết của phòng này">
+            <Button
+              type="link"
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => handleOpenRoomDetail(r.homestay.id, r.homestay.name, r.room)}
+              style={{
+                padding: 0,
+                height: 'auto',
+                fontSize: 13,
+                fontWeight: 500,
+                color: '#4f46e5',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              {r.room.room_name}
+            </Button>
+          </Tooltip>
         </div>
       ),
     },
@@ -316,8 +358,37 @@ export default function MyTripsPage() {
               items={[
                 { key: 'code', label: 'Mã đơn', children: <strong>{detail.booking_code}</strong> },
                 { key: 'status', label: 'Trạng thái', children: <Tag color={STATUS_TAG[detail.status].color}>{STATUS_TAG[detail.status].text}</Tag> },
-                { key: 'homestay', label: 'Homestay', children: `${detail.homestay.name} — ${detail.homestay.address}, ${detail.homestay.city}` },
-                { key: 'room', label: 'Phòng', children: detail.room.room_name },
+                {
+                  key: 'homestay',
+                  label: 'Homestay',
+                  children: (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                      <span>{detail.homestay.name} — {detail.homestay.address}, {detail.homestay.city}</span>
+                      <Link to={`/homestay/${detail.homestay.id}`} style={{ fontWeight: 600, color: '#4f46e5', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <HomeOutlined /> Trang Homestay ↗
+                      </Link>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'room',
+                  label: 'Phòng',
+                  children: (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 600 }}>{detail.room.room_name}</span>
+                      <Button
+                        type="primary"
+                        ghost
+                        size="small"
+                        icon={<EyeOutlined />}
+                        onClick={() => handleOpenRoomDetail(detail.homestay.id, detail.homestay.name, detail.room)}
+                        style={{ borderRadius: 6, fontSize: 12, fontWeight: 600 }}
+                      >
+                        Xem chi tiết phòng
+                      </Button>
+                    </div>
+                  ),
+                },
                 { key: 'dates', label: 'Lưu trú', children: `${detail.check_in_date} ➔ ${detail.check_out_date} (${detail.nights} đêm, ${detail.num_guests} khách)` },
                 { key: 'total', label: 'Tổng tiền', children: <strong>{money(detail.total_amount)}</strong> },
                 { key: 'policy', label: 'Chính sách hủy', children: POLICY_LABEL[detail.homestay.cancellation_policy] ?? detail.homestay.cancellation_policy },
@@ -377,6 +448,14 @@ export default function MyTripsPage() {
           />
         </div>
       </Modal>
+
+      <RoomDetailModal
+        open={!!selectedRoomTarget}
+        onClose={() => setSelectedRoomTarget(null)}
+        homestayId={selectedRoomTarget?.homestayId}
+        homestayName={selectedRoomTarget?.homestayName}
+        room={selectedRoomTarget?.room}
+      />
     </div>
   );
 }

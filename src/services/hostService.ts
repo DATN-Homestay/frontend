@@ -350,7 +350,7 @@ export const hostService = {
 
   async createCoupon(data: {
     code: string;
-    discount_type: 'PERCENT' | 'FIXED_AMOUNT';
+    discount_type: 'PERCENT' | 'PERCENTAGE' | 'FIXED_AMOUNT';
     discount_value: number;
     min_order_value?: number;
     start_date: string;

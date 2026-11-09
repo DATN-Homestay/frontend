@@ -128,7 +128,7 @@ export interface HostDashboardStats {
 export interface HostCoupon {
   id: string;
   code: string;
-  discount_type: 'PERCENT' | 'FIXED_AMOUNT';
+  discount_type: 'PERCENT' | 'PERCENTAGE' | 'FIXED_AMOUNT';
   discount_value: number;
   min_order_value?: number;
   start_date: string;
