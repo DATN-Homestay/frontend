@@ -357,6 +357,10 @@ export const hostService = {
     max_discount?: number;
     usage_limit?: number;
     per_user_limit?: number;
+    target_audience?: 'ALL' | 'LOYALTY';
+    loyalty_condition_type?: 'OR' | 'AND';
+    min_completed_bookings?: number;
+    min_total_spent?: number;
     start_date: string;
     end_date: string;
   }) {

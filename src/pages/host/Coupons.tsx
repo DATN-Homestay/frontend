@@ -13,6 +13,7 @@ import {
   Select,
   DatePicker,
   Popconfirm,
+  Radio,
   message,
 } from 'antd';
 import { PlusOutlined, TagOutlined, DeleteOutlined, GiftOutlined } from '@ant-design/icons';
@@ -95,6 +96,10 @@ export default function HostCouponsPage() {
           values.discount_type === 'PERCENTAGE' && values.max_discount ? Number(values.max_discount) : undefined,
         usage_limit: values.usage_limit ? Number(values.usage_limit) : undefined,
         per_user_limit: values.per_user_limit ? Number(values.per_user_limit) : undefined,
+        target_audience: values.target_audience || 'ALL',
+        loyalty_condition_type: values.target_audience === 'LOYALTY' ? (values.loyalty_condition_type || 'OR') : undefined,
+        min_completed_bookings: values.target_audience === 'LOYALTY' && values.min_completed_bookings ? Number(values.min_completed_bookings) : undefined,
+        min_total_spent: values.target_audience === 'LOYALTY' && values.min_total_spent ? Number(values.min_total_spent) : undefined,
         start_date: start.format('YYYY-MM-DD'),
         end_date: end.format('YYYY-MM-DD'),
       });
@@ -145,6 +150,29 @@ export default function HostCouponsPage() {
               : `Giảm ${Number(r.discount_value).toLocaleString('vi-VN')}đ`}
           </strong>
         );
+      },
+    },
+    {
+      title: 'Đối Tượng Áp Dụng',
+      key: 'target_audience',
+      render: (_: any, r: HostCoupon) => {
+        if (r.target_audience === 'LOYALTY') {
+          const parts: string[] = [];
+          if (r.min_completed_bookings) parts.push(`≥ ${r.min_completed_bookings} đơn`);
+          if (r.min_total_spent) parts.push(`≥ ${(Number(r.min_total_spent) / 1000000).toFixed(1).replace('.0', '')}tr`);
+          const op = r.loyalty_condition_type === 'AND' ? ' VÀ ' : ' HOẶC ';
+          return (
+            <div>
+              <Tag color="purple" style={{ fontWeight: 600 }}>👑 Khách thân thiết</Tag>
+              {parts.length > 0 && (
+                <div style={{ fontSize: 11, color: '#6b21a8', marginTop: 2, fontWeight: 500 }}>
+                  ({parts.join(op)})
+                </div>
+              )}
+            </div>
+          );
+        }
+        return <Tag color="blue">Tất cả khách</Tag>;
       },
     },
     {
@@ -254,7 +282,7 @@ export default function HostCouponsPage() {
           form={form}
           layout="vertical"
           onFinish={handleCreateCoupon}
-          initialValues={{ discount_type: 'PERCENTAGE', discount_value: 10 }}
+          initialValues={{ discount_type: 'PERCENTAGE', discount_value: 10, target_audience: 'ALL', loyalty_condition_type: 'OR' }}
         >
           <Form.Item
             label="Mã Khuyến Mãi (Viết hoa, không dấu, liền nhau)"
@@ -308,6 +336,88 @@ export default function HostCouponsPage() {
               placeholder="Để trống nếu không yêu cầu giá trị tối thiểu"
               formatter={(val) => `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
             />
+          </Form.Item>
+
+          {/* ĐỐI TƯỢNG ÁP DỤNG: TẤT CẢ VS KHÁCH HÀNG THÂN THIẾT */}
+          <Form.Item label="Đối Tượng Khách Hàng Áp Dụng" name="target_audience" rules={[{ required: true }]}>
+            <Radio.Group size="large" buttonStyle="solid" style={{ width: '100%', display: 'flex' }}>
+              <Radio.Button value="ALL" style={{ flex: 1, textAlign: 'center' }}>
+                Tất cả khách hàng (Đại trà)
+              </Radio.Button>
+              <Radio.Button value="LOYALTY" style={{ flex: 1, textAlign: 'center' }}>
+                👑 Khách hàng thân thiết / VIP
+              </Radio.Button>
+            </Radio.Group>
+          </Form.Item>
+
+          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.target_audience !== cur.target_audience}>
+            {({ getFieldValue }) =>
+              getFieldValue('target_audience') === 'LOYALTY' ? (
+                <div
+                  style={{
+                    background: '#f5f3ff',
+                    border: '1px solid #c7d2fe',
+                    borderRadius: 10,
+                    padding: '16px',
+                    marginBottom: 20,
+                  }}
+                >
+                  <div style={{ fontWeight: 700, color: '#4338ca', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>👑</span> Thiết lập điều kiện Khách Thân Thiết (Tại các homestay của bạn)
+                  </div>
+                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 14 }}>
+                    Hệ thống sẽ tự động đối soát dựa trên lịch sử các đơn đặt phòng thành công của khách tại các homestay thuộc sở hữu của bạn.
+                  </Text>
+
+                  <Form.Item
+                    label="Quy tắc kết hợp điều kiện"
+                    name="loyalty_condition_type"
+                    rules={[{ required: true }]}
+                    style={{ marginBottom: 12 }}
+                  >
+                    <Radio.Group>
+                      <Radio value="OR">
+                        <strong>Thỏa 1 trong 2 điều kiện (HOẶC)</strong> - <em>Dễ tiếp cận</em>
+                      </Radio>
+                      <Radio value="AND">
+                        <strong>Bắt buộc thỏa cả 2 điều kiện (VÀ)</strong> - <em>Đặc quyền VIP cao cấp</em>
+                      </Radio>
+                    </Radio.Group>
+                  </Form.Item>
+
+                  <Space style={{ width: '100%' }} size={12} align="start">
+                    <Form.Item
+                      label="Số lần đặt phòng tối thiểu (Lần)"
+                      name="min_completed_bookings"
+                      style={{ flex: 1 }}
+                    >
+                      <InputNumber
+                        min={1}
+                        max={100}
+                        style={{ width: '100%' }}
+                        size="large"
+                        placeholder="Ví dụ: 2 (cho khách quay lại)"
+                      />
+                    </Form.Item>
+
+                    <Form.Item
+                      label="Tổng chi tiêu tích lũy tối thiểu (VNĐ)"
+                      name="min_total_spent"
+                      style={{ flex: 1 }}
+                    >
+                      <InputNumber
+                        min={1000}
+                        step={500000}
+                        style={{ width: '100%' }}
+                        size="large"
+                        placeholder="Ví dụ: 2000000"
+                        formatter={(val) => `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                      />
+                    </Form.Item>
+                  </Space>
+                </div>
+              ) : null
+            }
           </Form.Item>
 
           <Space style={{ width: '100%' }} size={12} align="start">

@@ -139,6 +139,10 @@ export interface HostCoupon {
   start_date: string;
   end_date: string;
   is_active: number;
+  target_audience?: 'ALL' | 'LOYALTY';
+  loyalty_condition_type?: 'OR' | 'AND';
+  min_completed_bookings?: number | null;
+  min_total_spent?: number | null;
   created_at: string;
 }
 

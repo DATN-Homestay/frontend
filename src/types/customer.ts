@@ -191,6 +191,10 @@ export interface AvailableCoupon {
   min_order_value: number;
   max_discount: number | null;
   sponsor_by: 'PLATFORM' | 'HOST';
+  target_audience?: 'ALL' | 'LOYALTY';
+  loyalty_condition_type?: 'OR' | 'AND';
+  min_completed_bookings?: number | null;
+  min_total_spent?: number | null;
   start_date: string;
   end_date: string;
 }

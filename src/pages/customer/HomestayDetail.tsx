@@ -671,6 +671,16 @@ function HomestayDetailContent() {
                         <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
                           • Đơn tối thiểu: {Number(c.min_order_value) > 0 ? `${Number(c.min_order_value).toLocaleString('vi-VN')}đ` : 'Không giới hạn'}
                         </div>
+                        {c.target_audience === 'LOYALTY' && (
+                          <div style={{ marginTop: 6 }}>
+                            <Tag color="magenta" style={{ fontSize: 11, fontWeight: 600, borderRadius: 4 }}>
+                              👑 Khách quen ({[
+                                c.min_completed_bookings ? `≥${c.min_completed_bookings} đơn` : null,
+                                c.min_total_spent ? `≥${(Number(c.min_total_spent) / 1000000).toFixed(1).replace('.0', '')}tr` : null,
+                              ].filter(Boolean).join(c.loyalty_condition_type === 'AND' ? ' VÀ ' : ' HOẶC ')})
+                            </Tag>
+                          </div>
+                        )}
                       </div>
                       <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                         <Button

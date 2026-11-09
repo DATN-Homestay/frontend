@@ -496,6 +496,14 @@ export default function CheckoutPage() {
                         <Tag color="purple" style={{ fontSize: 11 }}>Chủ nhà</Tag>
                       )}
                       {isApplied && <Tag color="green">Đang áp dụng</Tag>}
+                      {c.target_audience === 'LOYALTY' && (
+                        <Tag color="magenta" style={{ fontSize: 11, fontWeight: 600 }}>
+                          👑 Khách quen ({[
+                            c.min_completed_bookings ? `≥${c.min_completed_bookings} đơn` : null,
+                            c.min_total_spent ? `≥${(Number(c.min_total_spent) / 1000000).toFixed(1).replace('.0', '')}tr` : null,
+                          ].filter(Boolean).join(c.loyalty_condition_type === 'AND' ? ' VÀ ' : ' HOẶC ')})
+                        </Tag>
+                      )}
                     </div>
 
                     <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>
