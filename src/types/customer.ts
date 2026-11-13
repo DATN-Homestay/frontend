@@ -279,6 +279,8 @@ export interface MyBookingItem {
   /** Đã hoàn tất lưu trú, chưa đánh giá và còn trong thời hạn đánh giá */
   can_review?: boolean;
   has_review?: boolean;
+  /** Trạng thái/ngày cho phép khiếu nại (đơn đang có khiếu nại mở thì server vẫn trả 409) */
+  can_complain?: boolean;
   created_at: string;
 }
 
@@ -316,6 +318,7 @@ export interface BookingDetail {
   coupon_code?: string | null;
   total_amount: number;
   can_review?: boolean;
+  can_complain?: boolean;
   review?: MyReview | null;
   payment_deadline: string | null;
   payments: { id: string; amount: number; method: string; status: string; transaction_code: string | null; created_at: string }[];
@@ -366,4 +369,53 @@ export interface BookingRefund {
   reason: string | null;
   processed_at: string | null;
   created_at: string;
+}
+
+// =========================================================
+// KHIẾU NẠI (khớp API backend /bookings/:id/complaints, /users/me/complaints)
+// =========================================================
+
+export type ComplaintCategory = 'NOT_AS_DESCRIBED' | 'CLEANLINESS' | 'HOST_BEHAVIOR' | 'PAYMENT' | 'SAFETY' | 'OTHER';
+export type ComplaintStatus = 'OPEN' | 'IN_REVIEW' | 'RESOLVED' | 'DISMISSED';
+
+export const COMPLAINT_CATEGORY_LABEL: Record<ComplaintCategory, string> = {
+  NOT_AS_DESCRIBED: 'Không đúng mô tả',
+  CLEANLINESS: 'Vệ sinh',
+  HOST_BEHAVIOR: 'Thái độ chủ nhà',
+  PAYMENT: 'Thanh toán',
+  SAFETY: 'An toàn',
+  OTHER: 'Khác',
+};
+
+export const COMPLAINT_STATUS_TAG: Record<ComplaintStatus, { color: string; text: string }> = {
+  OPEN: { color: 'orange', text: 'Mới gửi' },
+  IN_REVIEW: { color: 'processing', text: 'Đang xem xét' },
+  RESOLVED: { color: 'success', text: 'Đã giải quyết' },
+  DISMISSED: { color: 'default', text: 'Đã bác bỏ' },
+};
+
+export interface ComplaintSubmission {
+  category: ComplaintCategory;
+  title: string;
+  description: string;
+  attachments?: string[];
+}
+
+export interface Complaint {
+  id: string;
+  booking_id: string;
+  booking_code: string | null;
+  check_in_date: string | null;
+  check_out_date: string | null;
+  homestay: { id: string; name: string | null };
+  reporter: { id: string; full_name: string | null };
+  category: ComplaintCategory;
+  title: string;
+  description: string;
+  attachments: string[];
+  status: ComplaintStatus;
+  resolution_note: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
 }

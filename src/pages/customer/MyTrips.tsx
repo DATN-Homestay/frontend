@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { App, Button, Card, Descriptions, Image, Input, Modal, Rate, Select, Table, Tag, Typography, Tooltip } from 'antd';
-import { CheckCircleOutlined, StarOutlined, EyeOutlined, HomeOutlined, DownloadOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, StarOutlined, EyeOutlined, HomeOutlined, DownloadOutlined, WarningOutlined } from '@ant-design/icons';
 import { customerService } from '../../services/customerService';
 import { ApiError } from '../../services/apiClient';
 import CancelBookingModal from '../../components/CancelBookingModal';
 import RoomDetailModal from '../../components/RoomDetailModal';
 import EvidenceUpload from '../../components/EvidenceUpload';
-import type { BookingDetail, BookingStatus, MyBookingItem, RefundStatus } from '../../types/customer';
+import ComplaintModal from '../../components/ComplaintModal';
+import type { BookingDetail, BookingStatus, Complaint, MyBookingItem, RefundStatus } from '../../types/customer';
+import { COMPLAINT_CATEGORY_LABEL, COMPLAINT_STATUS_TAG } from '../../types/customer';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -89,7 +91,9 @@ export default function MyTripsPage() {
   const [payingId, setPayingId] = useState<string | null>(null);
 
   const [cancelTarget, setCancelTarget] = useState<MyBookingItem | null>(null);
+  const [complaintTarget, setComplaintTarget] = useState<MyBookingItem | null>(null);
   const [detail, setDetail] = useState<BookingDetail | null>(null);
+  const [detailComplaints, setDetailComplaints] = useState<Complaint[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [selectedRoomTarget, setSelectedRoomTarget] = useState<{
     homestayId: string;
@@ -149,8 +153,14 @@ export default function MyTripsPage() {
   const openDetail = async (id: string) => {
     setDetailLoading(true);
     setDetail(null);
+    setDetailComplaints([]);
     try {
-      setDetail(await customerService.getBookingDetail(id));
+      const [d, complaints] = await Promise.all([
+        customerService.getBookingDetail(id),
+        customerService.getMyComplaints().catch(() => [] as Complaint[]),
+      ]);
+      setDetail(d);
+      setDetailComplaints(complaints.filter((c) => c.booking_id === id));
     } catch (err) {
       message.error(err instanceof Error ? err.message : 'Không tải được chi tiết đơn');
     } finally {
@@ -328,6 +338,11 @@ export default function MyTripsPage() {
               Hủy đơn
             </Button>
           )}
+          {r.can_complain && (
+            <Button size="small" icon={<WarningOutlined />} onClick={() => setComplaintTarget(r)}>
+              Khiếu nại
+            </Button>
+          )}
         </div>
       ),
     },
@@ -373,6 +388,18 @@ export default function MyTripsPage() {
           booking={cancelTarget}
           onClose={() => setCancelTarget(null)}
           onCancelled={() => reload()}
+        />
+      )}
+
+      {complaintTarget && (
+        <ComplaintModal
+          key={complaintTarget.id}
+          booking={complaintTarget}
+          onClose={() => setComplaintTarget(null)}
+          onSubmitted={() => {
+            setComplaintTarget(null);
+            reload();
+          }}
         />
       )}
 
@@ -547,8 +574,51 @@ export default function MyTripsPage() {
                     </span>
                   ),
                 })),
+                ...detailComplaints.map((c) => ({
+                  key: `complaint-${c.id}`,
+                  label: `Khiếu nại #${c.id}`,
+                  children: (
+                    <div>
+                      <div>
+                        <Tag color={COMPLAINT_STATUS_TAG[c.status].color}>{COMPLAINT_STATUS_TAG[c.status].text}</Tag>
+                        <strong>{c.title}</strong>{' '}
+                        <Text type="secondary">({COMPLAINT_CATEGORY_LABEL[c.category]})</Text>
+                      </div>
+                      <div style={{ whiteSpace: 'pre-line', marginTop: 4 }}>{c.description}</div>
+                      {c.attachments.length > 0 && (
+                        <Image.PreviewGroup>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                            {c.attachments.map((src) => (
+                              <Image key={src} src={src} width={56} height={56} style={{ objectFit: 'cover', borderRadius: 6 }} />
+                            ))}
+                          </div>
+                        </Image.PreviewGroup>
+                      )}
+                      {c.resolution_note && (
+                        <div style={{ marginTop: 8, padding: '6px 10px', background: '#f1f5f9', borderRadius: 6, fontSize: 13 }}>
+                          <strong>Phản hồi từ StayAI:</strong> {c.resolution_note}
+                        </div>
+                      )}
+                    </div>
+                  ),
+                })),
               ]}
             />
+            {detail.can_complain && !detailComplaints.some((c) => c.status === 'OPEN' || c.status === 'IN_REVIEW') && (
+              <Button
+                icon={<WarningOutlined />}
+                style={{ marginTop: 12 }}
+                onClick={() => {
+                  const target = items.find((i) => i.id === detail.id);
+                  if (target) {
+                    setDetail(null);
+                    setComplaintTarget(target);
+                  }
+                }}
+              >
+                Gửi khiếu nại về đơn này
+              </Button>
+            )}
           </div>
         )}
       </Modal>

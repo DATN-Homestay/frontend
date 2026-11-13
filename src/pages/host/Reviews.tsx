@@ -3,6 +3,8 @@ import { App, Button, Card, Empty, Image, Input, Modal, Pagination, Rate, Segmen
 import { MessageOutlined, StarFilled } from '@ant-design/icons';
 import { hostService } from '../../services/hostService';
 import type { HostReviewItem, HostReviewList } from '../../types/host';
+import { complaintService } from '../../services/complaintService';
+import { COMPLAINT_CATEGORY_LABEL, COMPLAINT_STATUS_TAG, type Complaint, type Paginated } from '../../types/customer';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -199,11 +201,87 @@ function ReviewsTab() {
   );
 }
 
+/** Khiếu nại của khách về nhà của chủ nhà (chỉ xem; admin xử lý) */
+function ComplaintsTab() {
+  const { message } = App.useApp();
+  const [page, setPage] = useState(1);
+  const [data, setData] = useState<Paginated<Complaint> | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    complaintService
+      .listForHost({ page, limit: 10 })
+      .then((d) => alive && setData(d))
+      .catch((err: Error) => alive && message.error(err.message || 'Không tải được khiếu nại'))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [page, message]);
+
+  if (loading && !data) return <Skeleton active />;
+  if (!data || data.items.length === 0) return <Empty description="Chưa có khiếu nại nào về chỗ nghỉ của bạn" />;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, opacity: loading ? 0.6 : 1 }}>
+      <Text type="secondary">
+        Khiếu nại đang mở sẽ tạm giữ khoản giải ngân của đơn đó cho tới khi StayAI xử lý xong. Bạn có thể nhắn tin cho khách
+        để giải quyết.
+      </Text>
+      {data.items.map((c) => (
+        <Card key={c.id} size="small" style={{ borderRadius: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <Tag color={COMPLAINT_STATUS_TAG[c.status].color}>{COMPLAINT_STATUS_TAG[c.status].text}</Tag>
+              <Text strong>{c.title}</Text>
+            </div>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {c.homestay.name} · Đơn {c.booking_code} · {fmt(c.created_at)}
+            </Text>
+          </div>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {COMPLAINT_CATEGORY_LABEL[c.category]}
+          </Text>
+          <Paragraph style={{ margin: '6px 0', whiteSpace: 'pre-line' }}>{c.description}</Paragraph>
+          {c.attachments.length > 0 && (
+            <Image.PreviewGroup>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                {c.attachments.map((src) => (
+                  <Image key={src} src={src} width={72} height={72} style={{ objectFit: 'cover', borderRadius: 6 }} />
+                ))}
+              </div>
+            </Image.PreviewGroup>
+          )}
+          {c.resolution_note && (
+            <div style={{ background: '#f8fafc', padding: '6px 10px', borderRadius: 6, fontSize: 13 }}>
+              <strong>Kết quả xử lý:</strong> {c.resolution_note}
+            </div>
+          )}
+        </Card>
+      ))}
+      {data.meta.total > data.meta.limit && (
+        <Pagination
+          style={{ alignSelf: 'center' }}
+          current={page}
+          pageSize={data.meta.limit}
+          total={data.meta.total}
+          onChange={(p) => {
+            setPage(p);
+            setLoading(true);
+          }}
+          showSizeChanger={false}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function HostReviewsPage() {
   return (
     <div>
       <Title level={3} style={{ marginTop: 0 }}>
-        Đánh giá của khách
+        Đánh giá & Khiếu nại
       </Title>
       <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
         Trả lời đánh giá giúp khách sau tin tưởng hơn. Phản hồi hiển thị công khai trên trang homestay.
@@ -214,6 +292,11 @@ export default function HostReviewsPage() {
             key: 'reviews',
             label: 'Đánh giá',
             children: <ReviewsTab />,
+          },
+          {
+            key: 'complaints',
+            label: 'Khiếu nại',
+            children: <ComplaintsTab />,
           },
         ]}
       />

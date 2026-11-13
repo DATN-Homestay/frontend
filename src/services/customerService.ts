@@ -17,6 +17,8 @@ import type {
   CancelResult,
   CouponCheck,
   AvailableCoupon,
+  Complaint,
+  ComplaintSubmission,
 } from '../types/customer';
 
 export type EvidenceKind = 'review' | 'complaint';
@@ -152,6 +154,21 @@ export const customerService = {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    return res.data;
+  },
+
+  /** Gửi khiếu nại cho một đơn (tối đa 1 khiếu nại đang mở mỗi đơn) */
+  async submitComplaint(bookingId: string, data: ComplaintSubmission) {
+    const res = await apiClient<ApiResponse<Complaint>>(`/bookings/${bookingId}/complaints`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return res.data;
+  },
+
+  /** Khiếu nại của tôi, mới nhất trước */
+  async getMyComplaints() {
+    const res = await apiClient<ApiResponse<Complaint[]>>('/users/me/complaints');
     return res.data;
   },
 

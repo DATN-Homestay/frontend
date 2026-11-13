@@ -11,7 +11,8 @@
     "test:chat": "node --test test/chat.utils.test.ts test/chat.integration.test.mjs",
     "test:search": "node --test --test-force-exit test/homestaySearch.utils.test.ts test/search-results.test.mjs",
     "test:regressions": "node --test --test-force-exit test/frontend-regressions.test.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:complaints": "node --test --test-force-exit test/admin-complaints.test.mjs"
   },
   "dependencies": {
     "@ant-design/charts": "^2.6.7",

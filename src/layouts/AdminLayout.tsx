@@ -17,6 +17,7 @@ import {
     SyncOutlined,
     ShoppingOutlined,
     MessageOutlined,
+    WarningOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/useAuth';
@@ -31,6 +32,7 @@ const menuItems = [
     { key: '/admin/hosts', icon: <UserOutlined />, label: 'Quản lý Host' },
     { key: '/admin/host-verifications', icon: <SafetyCertificateOutlined />, label: 'Duyệt KYC Host' },
     { key: '/admin/homestays', icon: <HomeOutlined />, label: 'Quản lý Homestay' },
+    { key: '/admin/complaints', icon: <WarningOutlined />, label: 'Khiếu nại' },
     {
         key: 'finance',
         icon: <DollarOutlined />,

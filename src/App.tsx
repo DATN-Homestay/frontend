@@ -49,6 +49,7 @@ import HomestaysPage from './pages/admin/Homestays';
 import RevenuesPage from './pages/admin/Revenues';
 import PayoutsPage from './pages/admin/Payouts';
 import RefundsPage from './pages/admin/Refunds';
+import ComplaintsPage from './pages/admin/Complaints';
 import ConfigsPage from './pages/admin/Configs';
 import AuditLogsPage from './pages/admin/AuditLogs';
 import DropshipOrdersPage from './pages/admin/DropshipOrders';
@@ -140,6 +141,7 @@ export default function App() {
                       <Route path="revenues" element={<RevenuesPage />} />
                       <Route path="payouts" element={<PayoutsPage />} />
                       <Route path="refunds" element={<RefundsPage />} />
+                      <Route path="complaints" element={<ComplaintsPage />} />
                       <Route path="configs" element={<ConfigsPage />} />
                       <Route path="audit-logs" element={<AuditLogsPage />} />
                       <Route path="dropship-orders" element={<DropshipOrdersPage />} />
