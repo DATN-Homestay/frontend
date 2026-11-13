@@ -124,6 +124,20 @@ function refreshAccessToken(): Promise<boolean> {
 // =========================================================
 
 export async function apiClient<T = any>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+  const response = await authorizedFetch(endpoint, options);
+  return (await response.json()) as T;
+}
+
+/** Tải file (ví dụ PDF biên nhận): trả về nội dung và tên file theo header Content-Disposition */
+export async function apiDownload(endpoint: string, options: RequestOptions = {}): Promise<{ blob: Blob; fileName: string | null }> {
+  const response = await authorizedFetch(endpoint, options);
+  const disposition = response.headers.get('Content-Disposition') ?? '';
+  const fileName = /filename="?([^";]+)"?/i.exec(disposition)?.[1] ?? null;
+  return { blob: await response.blob(), fileName };
+}
+
+/** Gửi request kèm Access Token, tự làm mới token một lần khi gặp 401; lỗi HTTP ném ApiError */
+async function authorizedFetch(endpoint: string, options: RequestOptions): Promise<Response> {
   const { params, headers = {}, skipAuthRefresh = false, ...customConfig } = options;
   const url = buildUrl(endpoint, params);
 
@@ -160,5 +174,5 @@ export async function apiClient<T = any>(endpoint: string, options: RequestOptio
     throw await toApiError(response);
   }
 
-  return (await response.json()) as T;
+  return response;
 }

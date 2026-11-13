@@ -1,4 +1,4 @@
-import { apiClient } from './apiClient';
+import { apiClient, apiDownload } from './apiClient';
 import type { ApiResponse } from './apiClient';
 import type {
   HomestayItem,
@@ -153,6 +153,19 @@ export const customerService = {
       body: JSON.stringify(data),
     });
     return res.data;
+  },
+
+  /** Tải PDF biên nhận của một lần thanh toán thành công về máy */
+  async downloadReceipt(paymentId: string) {
+    const { blob, fileName } = await apiDownload(`/receipts/${paymentId}/pdf`);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName ?? `bien-nhan-${paymentId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   },
 
   /** Tải 1 ảnh kèm đánh giá / khiếu nại vào thư mục riêng của người dùng */

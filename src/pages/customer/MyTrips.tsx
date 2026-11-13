@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { App, Button, Card, Descriptions, Image, Input, Modal, Rate, Select, Table, Tag, Typography, Tooltip } from 'antd';
-import { CheckCircleOutlined, StarOutlined, EyeOutlined, HomeOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, StarOutlined, EyeOutlined, HomeOutlined, DownloadOutlined } from '@ant-design/icons';
 import { customerService } from '../../services/customerService';
 import { ApiError } from '../../services/apiClient';
 import CancelBookingModal from '../../components/CancelBookingModal';
@@ -155,6 +155,19 @@ export default function MyTripsPage() {
       message.error(err instanceof Error ? err.message : 'Không tải được chi tiết đơn');
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  // ----- Biên nhận thanh toán -----
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const handleDownloadReceipt = async (paymentId: string) => {
+    setDownloading(paymentId);
+    try {
+      await customerService.downloadReceipt(paymentId);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Không tải được biên nhận');
+    } finally {
+      setDownloading(null);
     }
   };
 
@@ -517,7 +530,22 @@ export default function MyTripsPage() {
                 ...detail.payments.map((p) => ({
                   key: `pay-${p.id}`,
                   label: `Thanh toán #${p.id}`,
-                  children: `${money(p.amount)} — ${p.method} — ${p.status}${p.transaction_code ? ` (Mã GD ${p.transaction_code})` : ''}`,
+                  children: (
+                    <span>
+                      {`${money(p.amount)} — ${p.method} — ${p.status}${p.transaction_code ? ` (Mã GD ${p.transaction_code})` : ''}`}
+                      {p.status === 'SUCCESS' && (
+                        <Button
+                          type="link"
+                          size="small"
+                          icon={<DownloadOutlined />}
+                          loading={downloading === p.id}
+                          onClick={() => handleDownloadReceipt(p.id)}
+                        >
+                          Tải biên nhận
+                        </Button>
+                      )}
+                    </span>
+                  ),
                 })),
               ]}
             />
