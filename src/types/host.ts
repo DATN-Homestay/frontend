@@ -146,3 +146,29 @@ export interface HostCoupon {
   created_at: string;
 }
 
+
+/** Đánh giá của khách cho homestay của chủ nhà (GET /host/reviews) */
+export interface HostReviewItem {
+  id: string;
+  booking_code: string | null;
+  homestay: { id: string; name: string };
+  customer_name: string;
+  stay_date: string | null;
+  rating_overall: number;
+  cleanliness_rating: number;
+  service_rating: number;
+  location_rating: number;
+  value_rating: number;
+  comment: string | null;
+  photos: string[];
+  status: string;
+  host_reply: string | null;
+  host_replied_at: string | null;
+  created_at: string;
+}
+
+export interface HostReviewList {
+  items: HostReviewItem[];
+  unreplied: number;
+  meta: { page: number; limit: number; total: number; total_pages: number };
+}

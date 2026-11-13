@@ -1460,6 +1460,32 @@ function HomestayDetailContent() {
                     <Paragraph style={{ color: '#334155', fontSize: 14, lineHeight: 1.6, margin: '8px 0 12px' }}>
                       {rev.comment}
                     </Paragraph>
+
+                    {rev.photos.length > 0 && (
+                      <Image.PreviewGroup>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                          {rev.photos.map((src, i) => (
+                            <Image
+                              key={src}
+                              src={src}
+                              alt={`Ảnh thực tế ${i + 1} của ${rev.customer_name}`}
+                              width={88}
+                              height={88}
+                              style={{ objectFit: 'cover', borderRadius: 8 }}
+                            />
+                          ))}
+                        </div>
+                      </Image.PreviewGroup>
+                    )}
+
+                    {rev.host_reply && (
+                      <div style={{ marginLeft: 16, padding: '10px 14px', background: '#f8fafc', borderLeft: '3px solid #003b95', borderRadius: 6 }}>
+                        <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 4 }}>
+                          Phản hồi từ chủ nhà
+                        </Text>
+                        <Text style={{ fontSize: 13, color: '#334155', whiteSpace: 'pre-line' }}>{rev.host_reply}</Text>
+                      </div>
+                    )}
                   </div>
                 ))
               ) : loadingReviews ? (

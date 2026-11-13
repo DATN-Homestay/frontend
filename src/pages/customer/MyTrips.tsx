@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { App, Button, Card, Descriptions, Input, Modal, Rate, Select, Table, Tag, Typography, Tooltip } from 'antd';
+import { App, Button, Card, Descriptions, Image, Input, Modal, Rate, Select, Table, Tag, Typography, Tooltip } from 'antd';
 import { CheckCircleOutlined, StarOutlined, EyeOutlined, HomeOutlined } from '@ant-design/icons';
 import { customerService } from '../../services/customerService';
 import { ApiError } from '../../services/apiClient';
 import CancelBookingModal from '../../components/CancelBookingModal';
 import RoomDetailModal from '../../components/RoomDetailModal';
+import EvidenceUpload from '../../components/EvidenceUpload';
 import type { BookingDetail, BookingStatus, MyBookingItem, RefundStatus } from '../../types/customer';
 
 const { Title, Text } = Typography;
@@ -161,17 +162,22 @@ export default function MyTripsPage() {
   const [reviewTarget, setReviewTarget] = useState<MyBookingItem | null>(null);
   const [scores, setScores] = useState<Record<ReviewAspect, number>>({ ...EMPTY_SCORES });
   const [comment, setComment] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [photosUploading, setPhotosUploading] = useState(false);
   const [reviewing, setReviewing] = useState(false);
 
   const openReview = (r: MyBookingItem) => {
     setScores({ ...EMPTY_SCORES });
     setComment('');
+    setPhotos([]);
+    setPhotosUploading(false);
     setReviewTarget(r);
   };
 
   const reviewProblem = (): string | null => {
     if (Object.values(scores).some((v) => v < 1)) return 'Vui lòng chấm đủ 5 tiêu chí';
     if (comment.trim().length < 10) return 'Nhận xét cần ít nhất 10 ký tự';
+    if (photosUploading) return 'Ảnh đang được tải lên, vui lòng đợi';
     return null;
   };
 
@@ -191,6 +197,7 @@ export default function MyTripsPage() {
         location_rating: scores.location_rating,
         value_rating: scores.value_rating,
         comment: comment.trim(),
+        ...(photos.length ? { photos } : {}),
       });
       message.success('Đã gửi đánh giá thành công! Cảm ơn bạn đã chia sẻ.');
       setReviewTarget(null);
@@ -464,6 +471,20 @@ export default function MyTripsPage() {
                         <div>
                           <Rate disabled value={detail.review.rating_overall} style={{ fontSize: 14, color: '#f59e0b' }} />
                           <div>{detail.review.comment}</div>
+                          {detail.review.photos.length > 0 && (
+                            <Image.PreviewGroup>
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                                {detail.review.photos.map((src) => (
+                                  <Image key={src} src={src} width={56} height={56} style={{ objectFit: 'cover', borderRadius: 6 }} />
+                                ))}
+                              </div>
+                            </Image.PreviewGroup>
+                          )}
+                          {detail.review.host_reply && (
+                            <div style={{ marginTop: 8, padding: '6px 10px', background: '#f1f5f9', borderRadius: 6, fontSize: 13 }}>
+                              <strong>Chủ nhà phản hồi:</strong> {detail.review.host_reply}
+                            </div>
+                          )}
                         </div>
                       ),
                     }]
@@ -535,6 +556,13 @@ export default function MyTripsPage() {
             showCount
             placeholder="Chia sẻ trải nghiệm về độ sạch sẽ, thái độ chủ nhà, không gian và tiện nghi..."
           />
+
+          <Text strong style={{ display: 'block', margin: '16px 0 8px' }}>
+            Ảnh thực tế <Text type="secondary" style={{ fontWeight: 400 }}>(không bắt buộc, tối đa 5 ảnh)</Text>
+          </Text>
+          {reviewTarget && (
+            <EvidenceUpload key={reviewTarget.id} kind="review" onChange={setPhotos} onUploadingChange={setPhotosUploading} />
+          )}
         </div>
       </Modal>
 

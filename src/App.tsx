@@ -38,6 +38,7 @@ import VerificationPage from './pages/host/Verification';
 import HostBookingsPage from './pages/host/Bookings';
 import HostPayoutsPage from './pages/host/Payouts';
 import HostCouponsPage from './pages/host/Coupons';
+import HostReviewsPage from './pages/host/Reviews';
 
 // Admin Pages (Member 3 - Intact)
 import DashboardPage from './pages/admin/Dashboard';
@@ -122,6 +123,7 @@ export default function App() {
                       <Route path="bookings" element={<HostBookingsPage />} />
                       <Route path="payouts" element={<HostPayoutsPage />} />
                       <Route path="coupons" element={<HostCouponsPage />} />
+                      <Route path="reviews" element={<HostReviewsPage />} />
                       <Route path="messages" element={<ChatPage portalRole="HOST" />} />
                     </Route>
                   </Route>

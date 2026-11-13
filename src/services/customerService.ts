@@ -19,6 +19,8 @@ import type {
   AvailableCoupon,
 } from '../types/customer';
 
+export type EvidenceKind = 'review' | 'complaint';
+
 export const customerService = {
   async getHomestays(city?: string, limit?: number, offset?: number): Promise<{ items: HomestayItem[]; total: number }> {
     try {
@@ -149,6 +151,18 @@ export const customerService = {
     const res = await apiClient<ApiResponse<MyReview>>(`/bookings/${bookingId}/reviews`, {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+    return res.data;
+  },
+
+  /** Tải 1 ảnh kèm đánh giá / khiếu nại vào thư mục riêng của người dùng */
+  async uploadEvidence(file: File, kind: EvidenceKind) {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await apiClient<ApiResponse<{ url: string; width?: number; height?: number }>>('/upload/evidence', {
+      method: 'POST',
+      params: { kind },
+      body: form,
     });
     return res.data;
   },

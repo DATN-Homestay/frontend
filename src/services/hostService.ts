@@ -1,5 +1,6 @@
 import { apiClient, type ApiResponse } from './apiClient';
 import type {
+  HostReviewList,
   HostHomestay,
   PriceCalendarDay,
   PricingSuggestion,
@@ -380,5 +381,20 @@ export const hostService = {
       method: 'PATCH',
       body: JSON.stringify({ is_active: isActive ? 1 : 0 }),
     });
+  },
+
+  // Đánh giá của khách
+  async getReviews(params: { status?: 'all' | 'unreplied'; homestay_id?: string; page?: number; limit?: number }) {
+    const res = await apiClient<ApiResponse<HostReviewList>>('/host/reviews', { params });
+    return res.data;
+  },
+
+  /** Trả lời hoặc sửa câu trả lời cho một đánh giá */
+  async replyReview(reviewId: string, reply: string) {
+    const res = await apiClient<ApiResponse<{ id: string; host_reply: string; host_replied_at: string }>>(
+      `/host/reviews/${reviewId}/reply`,
+      { method: 'POST', body: JSON.stringify({ reply }) },
+    );
+    return res.data;
   },
 };

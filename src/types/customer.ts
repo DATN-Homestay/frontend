@@ -79,6 +79,8 @@ export interface ReviewSubmission {
 export interface MyReview extends ReviewSubmission {
   id: string;
   photos: string[];
+  host_reply?: string | null;
+  host_replied_at?: string | null;
   created_at: string;
 }
 
@@ -95,6 +97,8 @@ export interface PublicReview {
   comment: string | null;
   photos: string[];
   is_verified_stay: boolean;
+  host_reply: string | null;
+  host_replied_at: string | null;
   created_at: string;
 }
 

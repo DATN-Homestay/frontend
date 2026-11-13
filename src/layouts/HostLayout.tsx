@@ -13,6 +13,7 @@ import {
   LogoutOutlined,
   GiftOutlined,
   MessageOutlined,
+  StarOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/useAuth';
@@ -67,6 +68,7 @@ export default function HostLayout() {
     { key: '/host/bookings', icon: <CalendarOutlined />, label: 'Đơn đặt phòng & Check-in' },
     { key: '/host/payouts', icon: <WalletOutlined />, label: 'Doanh thu & Rút tiền' },
     { key: '/host/coupons', icon: <GiftOutlined />, label: 'Mã giảm giá & Ưu đãi' },
+    { key: '/host/reviews', icon: <StarOutlined />, label: 'Đánh giá & Khiếu nại' },
   ];
 
   return (
