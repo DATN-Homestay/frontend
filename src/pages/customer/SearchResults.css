@@ -1,0 +1,159 @@
+.search-page { padding-bottom: 8px; }
+.search-breadcrumb { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; font-size: 11px; color: #42614e; }
+.search-breadcrumb a { color: #7b8b7a; }
+.search-breadcrumb .anticon { font-size: 8px; color: #9baa97; }
+.search-intro { padding: 28px 28px 24px; border: 1px solid #e4eadd; border-radius: 20px; background: #eef2e8; margin-bottom: 30px; }
+.search-intro .eyebrow { color: #70866b; font-size: 9px; }
+.search-intro h1 { margin: 14px 0 10px; font: 500 clamp(26px, 3vw, 38px)/1.3 var(--heading); letter-spacing: -1px; }
+.search-intro h1 em { font-weight: 400; color: #6d9172; }
+.search-intro > p { color: #758572; font-size: 12px; line-height: 1.9; margin-bottom: 24px; max-width: 650px; }
+.search-page .stay-search--compact { display: grid !important; grid-template-columns: 1fr 1fr 1.35fr 1.2fr auto; gap: 0 !important; padding: 14px !important; border-radius: 12px; background: #fff; box-shadow: 0 5px 20px #254b3406 !important; }
+.search-page .stay-search-divider { display: none; }
+.search-page .stay-search-field { min-width: 0 !important; padding: 0 12px; border-right: 1px solid #e8ede2; }
+.search-page .stay-search-field:first-child { padding-left: 0; }
+.search-page .stay-search .stay-search-label { color: #7b8f77 !important; font-size: 9px !important; font-weight: 600 !important; letter-spacing: .5px; padding-left: 8px !important; margin-bottom: 4px; }
+.search-page .stay-search .ant-select-selection-item, .search-page .stay-search .ant-select-placeholder, .search-page .stay-search .ant-picker-input input { font-size: 12px !important; color: #355742; }
+.search-page .stay-search-guests { border: 0; }
+.search-page .stay-search-guests button { min-width: 0; }
+.search-page .stay-search-guests button .ant-typography { overflow: hidden; text-overflow: ellipsis; font-size: 11px !important; color: #355742 !important; letter-spacing: 0; }
+.search-page .stay-search-submit .ant-btn { padding-inline: 18px; height: 48px !important; font-size: 12px; }
+.search-page .stay-search-dates .ant-picker { padding-inline: 8px; }
+.search-layout { display: grid; grid-template-columns: 264px minmax(0, 1fr); gap: 28px; align-items: start; }
+.search-sidebar { position: sticky; top: 108px; max-height: calc(100dvh - 128px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #d1dccb transparent; border-radius: 16px; }
+.search-results { min-width: 0; }
+.search-results-heading { padding: 3px 0 20px; }
+.search-results .search-results-title.ant-typography { margin: 0 0 8px; color: #234535; font-size: 22px; line-height: 1.5; font-weight: 600; letter-spacing: -.5px; }
+.search-trip-summary.ant-typography { color: #7f8e7b; font-size: 11px; }
+.search-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; margin-bottom: 16px; border-block: 1px solid #e3e9de; }
+.search-results-range { font-size: 11px; color: #7b8b76; }
+.search-toolbar-actions { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.search-sort { min-width: 235px; font-size: 11px; }
+.search-sort .ant-select-prefix { color: #85927e; font-size: 10px; }
+.search-sort .ant-select-selection-item { color: #375a42; font-size: 11px; }
+.search-active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 0 18px; }
+.search-active-label { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; color: #7b8c77; margin-right: 3px; }
+.search-filter-chip.ant-tag { display: inline-flex; align-items: center; gap: 6px; white-space: normal; max-width: 100%; margin: 0; padding: 5px 10px; font-size: 11px; line-height: 1.6; color: #287155; border-color: #d9e7d9; background: #eaf2e7; border-radius: 7px; }
+.search-filter-chip .ant-tag-close-icon { color: #68866b; flex-shrink: 0; }
+.search-active-filters > .ant-btn { font-size: 10px; padding-inline: 3px; }
+.search-price-note { display: flex; align-items: flex-start; gap: 8px; color: #7d8c77; font-size: 10px; line-height: 1.9; margin: 0 0 16px; }
+.search-price-note > .anticon { margin-top: 4px; flex-shrink: 0; }
+.search-result-list { display: grid; gap: 16px; }
+.search-result-list > .ant-skeleton { width: 100%; }
+.search-result-card { display: grid; grid-template-columns: minmax(180px, 26%) minmax(0, 1fr) 172px; gap: 20px; padding: 12px; border: 1px solid #e1e8dc; border-radius: 16px; background: #fff; transition: border-color .2s, box-shadow .2s; }
+.search-result-card:hover { border-color: #b5cfba; box-shadow: 0 8px 26px #244d3710; }
+.search-card-media { position: relative; min-height: 218px; border-radius: 10px; background: #edf0e7; overflow: hidden; }
+.search-card-photo { display: block; width: 100%; height: 100%; min-height: 218px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.search-card-photo img { display: block; width: 100%; height: 100%; position: absolute; inset: 0; object-fit: cover; transition: transform .4s; }
+.search-card-photo:focus-visible { outline-offset: -4px; }
+.search-result-card:hover .search-card-photo img { transform: scale(1.035); }
+.search-card-type { position: absolute; left: 10px; bottom: 10px; max-width: calc(100% - 20px); padding: 4px 9px; border-radius: 5px; background: #fffffff0; backdrop-filter: blur(8px); font-size: 9px; color: #3e5f49; pointer-events: none; }
+.search-card-save { position: absolute; right: 10px; top: 10px; width: 32px; height: 32px; display: grid; place-items: center; background: #fffffff0; border: 1px solid #ffffffb3; border-radius: 50%; color: #59725d; font-size: 15px; cursor: pointer; }
+.search-card-save.is-saved { color: #d36b5f; }
+.search-card-info { min-width: 0; padding-block: 9px; }
+.search-card-location { display: flex; align-items: center; gap: 5px; color: #7e907b; font-size: 10px; }
+.search-card-location .anticon { color: #83a180; }
+.search-card-info h3 { margin: 8px 0 6px; font-size: 16px; line-height: 1.5; }
+.search-card-info h3 button { border: 0; padding: 0; background: transparent; color: #264b37; font: inherit; text-align: left; cursor: pointer; }
+.search-card-info h3 button:hover { color: #087f70; }
+.search-card-address { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; color: #8c9886; margin-bottom: 10px; }
+.search-card-source.ant-tag { margin: 0; padding: 3px 7px; font-size: 9px; line-height: 1.7; white-space: normal; color: #688288; background: #eff5f4; border: 0; }
+.search-card-source.is-verified.ant-tag { color: #3b7c55; background: #edf5e9; }
+.search-card-facilities { list-style: none; padding: 0; margin: 13px 0 0; display: grid; gap: 4px; }
+.search-card-facilities li { display: flex; align-items: baseline; gap: 6px; font-size: 10px; color: #778771; }
+.search-card-facilities .anticon { flex-shrink: 0; font-size: 8px; color: #6e9c71; }
+.search-card-offer { display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 22px; padding: 9px 4px 4px 14px; border-left: 1px solid #edf0e8; text-align: right; }
+.search-card-rating { display: flex; align-items: center; gap: 9px; }
+.search-card-rating > div { display: grid; gap: 3px; }
+.search-card-rating strong { font-size: 11px; font-weight: 600; color: #355a42; }
+.search-card-rating > div > span { font-size: 9px; color: #8a9784; }
+.search-card-score { display: grid; place-items: center; flex-shrink: 0; height: 35px; min-width: 35px; padding-inline: 5px; border-radius: 8px 8px 8px 2px; background: #edf4e7; color: #396a40; font-size: 13px; font-weight: 600; }
+.search-card-booking { width: 100%; }
+.search-card-price { display: grid; gap: 2px; }
+.search-card-price > span, .search-card-price-unavailable { font-size: 9px; color: #899580; }
+.search-card-price strong { font-size: 21px; line-height: 1.5; color: #254936; font-weight: 600; letter-spacing: -.6px; }
+.search-card-booking > .ant-btn { width: 100%; margin-top: 11px; height: 36px; border-radius: 8px; font-size: 11px; box-shadow: none; }
+.search-card-booking .anticon { font-size: 9px; }
+.search-pagination { display: flex; justify-content: center; margin-top: 30px; }
+.search-empty-state.ant-empty, .search-empty-state.ant-result { margin: 0; padding: 56px 22px; border: 1px solid #e2e8df; border-radius: 16px; background: #fff; }
+.search-empty-hint { margin: 0 auto 20px; max-width: 370px; color: #81907b; font-size: 12px; }
+.search-filter-drawer .ant-drawer-footer { padding: 16px 20px; }
+.search-filter-drawer .ant-drawer-footer .ant-btn { height: 44px; }
+@media (max-width: 1250px) {
+  .search-page .stay-search--compact { grid-template-columns: 1fr 1fr 1.45fr; row-gap: 14px !important; }
+  .search-page .stay-search-dates { border-right: 0; }
+  .search-page .stay-search-guests { grid-column: 1 / 3; border-top: 1px solid #edf0e8; padding: 14px 0 0; }
+  .search-page .stay-search-submit { justify-content: flex-end; }
+  .search-layout { gap: 22px; grid-template-columns: 252px minmax(0, 1fr); }
+  .search-result-card { grid-template-columns: 180px minmax(0, 1fr); gap: 0 18px; }
+  .search-card-media { grid-row: 1 / 3; }
+  .search-card-offer { flex-direction: row; align-items: flex-end; border-left: 0; border-top: 1px solid #edf0e8; padding: 12px 0 2px; margin-top: 8px; gap: 12px; }
+  .search-card-booking { width: auto; }
+  .search-card-price strong { font-size: 19px; }
+  .search-card-booking > .ant-btn { width: auto; }
+  .search-card-rating { align-self: flex-start; }
+  .search-card-rating > div { display: none; }
+}
+@media (max-width: 991px) {
+  .search-layout { grid-template-columns: minmax(0, 1fr); }
+  .search-intro { padding: 24px; }
+  .search-result-card { grid-template-columns: 220px minmax(0, 1fr) 172px; gap: 18px; }
+  .search-card-media { grid-row: auto; }
+  .search-card-offer { flex-direction: column; border-top: 0; border-left: 1px solid #edf0e8; margin-top: 0; padding: 9px 2px 4px 14px; }
+  .search-card-rating { align-self: flex-end; }
+  .search-card-rating > div { display: grid; }
+  .search-card-booking { width: 100%; }
+  .search-card-booking > .ant-btn { width: 100%; }
+}
+@media (max-width: 760px) {
+  .search-breadcrumb { margin-bottom: 18px; font-size: 10px; }
+  .search-intro { padding: 22px 16px 16px; border-radius: 16px; margin-bottom: 24px; }
+  .search-intro h1 { font-size: 28px; max-width: 320px; }
+  .search-intro > p { font-size: 11px; margin-bottom: 18px; }
+  .search-page .stay-search--compact { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px !important; gap: 14px 0 !important; }
+  .search-page .stay-search-field { padding-inline: 8px; }
+  .search-page .stay-search-field:nth-child(3) { border-right: 0; }
+  .search-page .stay-search-dates { grid-column: 1 / -1; border-block: 1px solid #edf0e8; padding: 12px 0 !important; }
+  .search-page .stay-search-guests { grid-column: 1 / -1; padding: 0; border-top: 0; }
+  .search-page .stay-search-submit { grid-column: 1 / -1; }
+  .search-page .stay-search-submit .ant-btn { width: 100%; }
+  .search-page .stay-search .stay-search-label { font-size: 8px !important; letter-spacing: .2px; }
+  .search-page .stay-search .ant-select-selection-item, .search-page .stay-search .ant-select-placeholder { font-size: 11px !important; }
+  .search-results .search-results-title.ant-typography { font-size: 19px; }
+  .search-toolbar { flex-direction: column; align-items: stretch; padding-block: 12px; gap: 12px; }
+  .search-toolbar-actions { width: 100%; }
+  .search-sort { flex: 1; min-width: 0; }
+  .search-mobile-filter.ant-btn { font-size: 11px; }
+  .search-result-card { grid-template-columns: 150px minmax(0, 1fr); gap: 0 14px; }
+  .search-card-media { grid-row: 1 / 3; }
+  .search-card-info { padding-block: 3px; }
+  .search-card-info h3 { font-size: 14px; }
+  .search-card-facilities { margin-top: 10px; }
+  .search-card-offer { flex-direction: row; border-left: 0; border-top: 1px solid #edf0e8; margin-top: 12px; padding: 12px 0 0; gap: 8px; }
+  .search-card-rating { align-self: flex-start; }
+  .search-card-rating > div { display: none; }
+  .search-card-booking { width: auto; }
+  .search-card-booking > .ant-btn { width: auto; font-size: 10px; padding-inline: 10px; }
+  .search-card-price strong { font-size: 18px; }
+}
+@media (max-width: 440px) {
+  .search-result-card { grid-template-columns: 112px minmax(0, 1fr); gap: 0 12px; padding: 10px; border-radius: 12px; }
+  .search-card-media { min-height: 170px; grid-row: auto; }
+  .search-card-photo { min-height: 170px; }
+  .search-card-info h3 { font-size: 13px; margin-block: 6px; }
+  .search-card-source.ant-tag { font-size: 8px; }
+  .search-card-facilities li { font-size: 9px; }
+  .search-card-save { width: 28px; height: 28px; top: 7px; right: 7px; font-size: 13px; }
+  .search-card-type { left: 7px; bottom: 7px; font-size: 8px; padding-inline: 6px; }
+  .search-card-offer { grid-column: 1 / -1; align-items: center; }
+  .search-card-rating { align-self: center; }
+  .search-card-rating > div { display: grid; }
+  .search-card-rating strong { font-size: 10px; }
+  .search-card-rating > div > span { font-size: 8px; }
+  .search-card-score { height: 30px; min-width: 30px; font-size: 12px; }
+  .search-card-booking { display: flex; gap: 10px; align-items: center; }
+  .search-card-booking > .ant-btn { margin-top: 0; width: 32px; padding: 0; }
+  .search-card-booking > .ant-btn > span:not(.anticon) { display: none; }
+  .search-card-booking > .ant-btn .anticon { font-size: 12px; }
+  .search-card-price > span { font-size: 8px; }
+  .search-card-price strong { font-size: 17px; }
+}

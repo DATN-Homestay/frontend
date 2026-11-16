@@ -1,107 +1,33 @@
-import { Suspense } from 'react';
-import PageLoading from '../components/PageLoading';
-import { ConfigProvider, Spin, Typography, theme } from 'antd';
-import { CompassOutlined } from '@ant-design/icons';
-import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
+﻿import { Suspense } from 'react';
+import { Spin } from 'antd';
+import { ArrowLeftOutlined, CheckCircleOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/useAuth';
 import { postLoginPath } from '../services/authService';
-
-const { Text } = Typography;
+import Brand from '../components/Brand';
+import PageLoading from '../components/PageLoading';
+import './AuthLayout.css';
 
 export default function AuthLayout() {
-  const navigate = useNavigate();
   const location = useLocation();
   const { user, initializing } = useAuth();
-
-  // Đã đăng nhập thì không ở lại trang đăng nhập / đăng ký.
-  // Cùng đích với trang Login/Register (postLoginPath) nên không xung đột khi vừa đăng nhập xong.
   if (!initializing && user) {
     const from = (location.state as { from?: string } | null)?.from;
     return <Navigate to={postLoginPath(user.roles, from)} replace />;
   }
-
-  return (
-    <ConfigProvider
-      theme={{
-        algorithm: theme.darkAlgorithm,
-        token: {
-          colorPrimary: '#6366f1',
-          colorBgContainer: 'rgba(15, 23, 42, 0.55)',
-          colorBorder: 'rgba(148, 163, 184, 0.28)',
-          borderRadius: 10,
-        },
-        components: {
-          Segmented: {
-            trackBg: 'rgba(15, 23, 42, 0.85)',
-            itemSelectedBg: '#6366f1',
-            itemSelectedColor: '#ffffff',
-            itemColor: '#94a3b8',
-            itemHoverColor: '#f8fafc',
-          },
-        },
-      }}
-    >
-      <div
-        style={{
-          minHeight: '100vh',
-          padding: '24px 16px',
-          background:
-            'radial-gradient(circle at 15% 70%, rgba(124, 58, 237, 0.35), transparent 45%),' +
-            'radial-gradient(circle at 85% 30%, rgba(20, 184, 166, 0.25), transparent 40%),' +
-            'linear-gradient(135deg, #0b1020 0%, #111836 50%, #1e1b4b 100%)',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        <div
-          style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', alignSelf: 'flex-start' }}
-          onClick={() => navigate('/')}
-        >
-          <div
-            style={{
-              width: 42,
-              height: 42,
-              borderRadius: 12,
-              background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontSize: 22,
-              boxShadow: '0 8px 16px -4px rgba(99, 102, 241, 0.5)',
-            }}
-          >
-            <CompassOutlined />
-          </div>
-          <Text style={{ color: '#fff', fontSize: 20, fontWeight: 700 }}>
-            StayAI <span style={{ fontWeight: 400, color: '#cbd5e1' }}>- Homestay &amp; Escrow Platform</span>
-          </Text>
-        </div>
-
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 0' }}>
-          <div
-            style={{
-              width: '100%',
-              maxWidth: 460,
-              padding: '32px 32px 24px',
-              borderRadius: 18,
-              background: 'rgba(30, 41, 59, 0.45)',
-              border: '1px solid rgba(255, 255, 255, 0.14)',
-              backdropFilter: 'blur(18px)',
-              WebkitBackdropFilter: 'blur(18px)',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6)',
-            }}
-          >
-            {initializing ? (
-              <div style={{ textAlign: 'center', padding: 48 }}>
-                <Spin />
-              </div>
-            ) : (
-              <Suspense fallback={<PageLoading />}><Outlet /></Suspense>
-            )}
-          </div>
-        </div>
-      </div>
-    </ConfigProvider>
-  );
+  return <div className="auth-layout">
+    <aside className="auth-story">
+      <img className="auth-story-photo" src="/images/retreat.jpg" alt="Một không gian nghỉ dưỡng đầy cảm hứng" />
+      <Brand inverse caption="YOUR NEXT CHAPTER STARTS HERE" />
+      <div className="auth-story-copy"><span className="eyebrow">MORE THAN A PLACE TO STAY</span><h1>Đi để khám phá.<br /><em>Ở để yêu thêm.</em></h1><p>Từ một góc nhỏ bình yên đến những hành trình mới. Trải nghiệm tiếp theo đang chờ bạn.</p><div className="auth-story-benefits"><span><CheckCircleOutlined /> Tìm nơi ở phù hợp</span><span><SafetyCertificateOutlined /> Thanh toán được bảo vệ</span></div></div>
+      <span className="auth-story-footer">StayAI · Những chuyến đi mang dấu ấn riêng.</span>
+    </aside>
+    <section className="auth-main">
+      <div className="auth-topbar"><Link to="/" className="auth-back"><ArrowLeftOutlined /> Về trang chủ</Link><span>VI <span>·</span> VND</span></div>
+      <div className="auth-form-wrap"><div className="auth-mobile-brand"><Brand /></div><div className="auth-form">
+        {initializing ? <div className="auth-loading"><Spin /></div> : <Suspense fallback={<PageLoading />}><Outlet /></Suspense>}
+      </div></div>
+      <div className="auth-main-footer"><SafetyCertificateOutlined /> Kết nối an toàn. Trải nghiệm trọn vẹn.</div>
+    </section>
+  </div>;
 }

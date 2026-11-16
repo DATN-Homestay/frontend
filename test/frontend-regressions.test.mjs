@@ -347,6 +347,7 @@ test('shows a claimed room daily price field even when the property retains its 
     })),
   )));
   await testing.screen.findByRole('button', { name: 'Đặt phòng ngay' });
+  assert.equal(testing.screen.queryByRole('button', { name: /Nhắn tin.*[Cc]hủ nhà/ }), null);
   testing.fireEvent.click(testing.screen.getByRole('button', { name: /Lưu vào yêu thích/ }));
   assert.deepEqual(favorites, ['42']);
   testing.fireEvent.click(testing.screen.getByRole('button', { name: /Xem chi tiết$/ }));

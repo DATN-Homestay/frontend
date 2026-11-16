@@ -1,199 +1,81 @@
-import { Suspense } from 'react';
-import PageLoading from '../components/PageLoading';
-import { Layout, Menu, Button, Space, Typography, Dropdown, Avatar, Badge } from 'antd';
-import {
-  HomeOutlined,
-  CompassOutlined,
-  CalendarOutlined,
-  UserOutlined,
-  SwapOutlined,
-  LogoutOutlined,
-  MessageOutlined,
-  HeartOutlined,
-} from '@ant-design/icons';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+﻿import { Suspense, useState } from 'react';
+import { Avatar, Badge, Button, Drawer, Dropdown } from 'antd';
+import { ArrowRightOutlined, CalendarOutlined, DownOutlined, HeartOutlined, HomeOutlined, LogoutOutlined, MenuOutlined, MessageOutlined, SafetyCertificateOutlined, UserOutlined } from '@ant-design/icons';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/useAuth';
-import ChatNavBadge from '../features/chat/ChatNavBadge';
 import { useFavorites } from '../contexts/useFavorites';
-
-const { Header, Content, Footer } = Layout;
-const { Title, Text } = Typography;
+import ChatNavBadge from '../features/chat/ChatNavBadge';
+import Brand from '../components/Brand';
+import PageLoading from '../components/PageLoading';
+import './CustomerLayout.css';
 
 export default function CustomerLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isHost, isAdmin, logout } = useAuth();
   const { favoritesCount } = useFavorites();
-
-  const menuItems = [
-    { key: '/', icon: <HomeOutlined />, label: 'Khám phá Homestay' },
-    {
-      key: '/favorites',
-      icon: <HeartOutlined />,
-      label: (
-        <span>
-          Yêu thích {favoritesCount > 0 && <Badge count={favoritesCount} size="small" style={{ backgroundColor: '#ef4444' }} />}
-        </span>
-      ),
-    },
-    { key: '/trips', icon: <CalendarOutlined />, label: 'Chuyến đi của tôi' },
-    { key: '/messages', icon: <MessageOutlined />, label: <ChatNavBadge role={isAdmin ? 'ADMIN' : 'CUSTOMER'} /> },
+  const [menuOpen, setMenuOpen] = useState(false);
+  const isHome = location.pathname === '/';
+  const links = [
+    { to: '/', label: 'Khám phá', icon: <HomeOutlined /> },
+    { to: '/search', label: 'Chỗ nghỉ', icon: <CalendarOutlined /> },
+    { to: '/favorites', label: <>Yêu thích {favoritesCount > 0 && <Badge count={favoritesCount} size="small" />}</>, icon: <HeartOutlined /> },
+    { to: '/trips', label: 'Chuyến đi', icon: <CalendarOutlined /> },
+    ...(user ? [{ to: '/messages', label: <ChatNavBadge role={isAdmin ? 'ADMIN' : 'CUSTOMER'} />, icon: <MessageOutlined /> }] : []),
   ];
-
-  // Các mục menu theo vai trò của người dùng
-  const userMenuItems = [
-    { key: 'profile', icon: <UserOutlined />, label: 'Hồ sơ của tôi', onClick: () => navigate('/profile') },
-    { key: 'favorites', icon: <HeartOutlined style={{ color: '#ef4444' }} />, label: 'Homestay yêu thích', onClick: () => navigate('/favorites') },
-    { key: 'trips', icon: <CalendarOutlined />, label: 'Chuyến đi của tôi', onClick: () => navigate('/trips') },
-    ...(isHost
-      ? [
-          { type: 'divider' as const },
-          {
-            key: 'host-portal',
-            icon: <HomeOutlined style={{ color: '#6366f1' }} />,
-            label: <span style={{ color: '#6366f1', fontWeight: 600 }}>Kênh Chủ nhà (Host)</span>,
-            onClick: () => navigate('/host'),
-          },
-        ]
-      : []),
-    ...(isAdmin
-      ? [
-          { type: 'divider' as const },
-          {
-            key: 'admin-portal',
-            icon: <SwapOutlined style={{ color: '#ef4444' }} />,
-            label: <span style={{ color: '#ef4444', fontWeight: 600 }}>Trang Quản trị (Admin)</span>,
-            onClick: () => navigate('/admin'),
-          },
-        ]
-      : []),
+  const accountItems = [
+    { key: 'profile', label: 'Hồ sơ của tôi', icon: <UserOutlined />, onClick: () => navigate('/profile') },
+    { key: 'trips', label: 'Chuyến đi của tôi', icon: <CalendarOutlined />, onClick: () => navigate('/trips') },
+    { key: 'favorites', label: 'Homestay yêu thích', icon: <HeartOutlined />, onClick: () => navigate('/favorites') },
+    ...(isHost ? [{ key: 'host', label: 'Kênh chủ nhà', icon: <HomeOutlined />, onClick: () => navigate('/host') }] : []),
+    ...(isAdmin ? [{ key: 'admin', label: 'Quản trị hệ thống', icon: <SafetyCertificateOutlined />, onClick: () => navigate('/admin') }] : []),
     { type: 'divider' as const },
-    {
-      key: 'logout',
-      icon: <LogoutOutlined />,
-      label: 'Đăng xuất',
-      danger: true,
-      onClick: async () => {
-        await logout();
-        navigate('/');
-      },
-    },
+    { key: 'logout', label: 'Đăng xuất', icon: <LogoutOutlined />, danger: true, onClick: async () => { await logout(); navigate('/'); } },
   ];
+  const nav = (mobile = false) => <nav className={mobile ? 'customer-mobile-links' : 'customer-links'} aria-label={mobile ? 'Điều hướng di động' : 'Điều hướng chính'}>
+    {links.map((link) => <NavLink key={link.to} to={link.to} end={link.to === '/'} onClick={() => setMenuOpen(false)}>
+      {mobile && link.icon}<span>{link.label}</span>
+    </NavLink>)}
+  </nav>;
 
-  return (
-    <Layout className={location.pathname === '/messages' ? 'chat-route-layout' : undefined} style={{ minHeight: '100vh', background: '#f8fafc' }}>
-      <Header
-        style={{
-          background: '#ffffff',
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 24px',
-          boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }} onClick={() => navigate('/')}>
-          <div
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 8,
-              background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontSize: 20,
-            }}
-          >
-            <CompassOutlined />
-          </div>
-          <div>
-            <Title level={4} style={{ margin: 0, color: '#0f172a', fontWeight: 700, letterSpacing: -0.5 }}>
-              StayAI
-            </Title>
-          </div>
+  return <div className={`customer-layout${location.pathname === '/messages' ? ' chat-route-layout' : ''}`}>
+    <a href="#main-content" className="skip-link">Đến nội dung chính</a>
+    <header className="customer-header">
+      <div className="customer-header-inner">
+        <Brand />
+        {nav()}
+        <div className="customer-actions">
+          <Link className="customer-host-link" to={isHost ? '/host' : '/auth/register?role=HOST'}>{isHost ? 'Kênh chủ nhà' : 'Trở thành chủ nhà'} <ArrowRightOutlined /></Link>
+          {user ? <Dropdown trigger={['click']} menu={{ items: accountItems }}>
+            <button className="customer-account" aria-label={`Tài khoản ${user.full_name}`} type="button">
+              <Avatar src={user.avatar_url} icon={<UserOutlined />} size={34} /><span>{user.full_name.split(' ').at(-1)}</span><DownOutlined />
+            </button>
+          </Dropdown> : <>
+            <Link className="customer-register-link" to="/auth/register" state={{ from: location.pathname }}>Đăng ký</Link>
+            <Button type="primary" onClick={() => navigate('/auth/login', { state: { from: location.pathname } })}>Đăng nhập</Button>
+          </>}
+          <Button className="customer-menu-toggle" type="text" icon={<MenuOutlined />} aria-label="Mở menu điều hướng" onClick={() => setMenuOpen(true)} />
         </div>
-
-        <Menu
-          mode="horizontal"
-          selectedKeys={[location.pathname]}
-          items={menuItems}
-          onClick={({ key }) => navigate(key)}
-          style={{ flex: 1, maxWidth: 550, borderBottom: 'none', marginLeft: 32, minWidth: 0 }}
-        />
-
-        <Space size="middle">
-          {/* Nút chuyển đổi vai trò: Chỉ tài khoản đã đăng ký làm Chủ nhà mới thấy nút chuyển Kênh Chủ nhà */}
-          {user ? (
-            isHost ? (
-              <Button
-                type="primary"
-                ghost
-                icon={<HomeOutlined />}
-                onClick={() => navigate('/host')}
-                style={{ fontWeight: 600, borderColor: '#6366f1', color: '#6366f1' }}
-              >
-                Chuyển sang Kênh Chủ nhà
-              </Button>
-            ) : (
-              <Button
-                type="default"
-                style={{ borderColor: '#6366f1', color: '#6366f1', fontWeight: 600 }}
-                onClick={() => navigate('/auth/register?role=HOST')}
-              >
-                Đón khách (Trở thành Host)
-              </Button>
-            )
-          ) : (
-            <Button
-              type="default"
-              style={{ borderColor: '#6366f1', color: '#6366f1', fontWeight: 600 }}
-              onClick={() => navigate('/auth/register?role=HOST')}
-            >
-              Đón khách (Trở thành Host)
-            </Button>
-          )}
-
-          {user ? (
-            <Dropdown menu={{ items: userMenuItems }}>
-              <Space style={{ cursor: 'pointer' }}>
-                <Avatar src={user.avatar_url ?? undefined} icon={<UserOutlined />} style={{ backgroundColor: '#6366f1' }} />
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.2 }}>
-                  <Text strong>{user.full_name}</Text>
-                  {isHost && (
-                    <Text type="secondary" style={{ fontSize: 11, color: '#6366f1' }}>
-                      Chủ nhà (Host)
-                    </Text>
-                  )}
-                </div>
-              </Space>
-            </Dropdown>
-          ) : (
-            <Space>
-              <Button onClick={() => navigate('/auth/register', { state: { from: location.pathname } })}>Đăng ký</Button>
-              <Button
-                type="primary"
-                icon={<UserOutlined />}
-                onClick={() => navigate('/auth/login', { state: { from: location.pathname } })}
-              >
-                Đăng nhập
-              </Button>
-            </Space>
-          )}
-        </Space>
-      </Header>
-
-      <Content style={{ padding: '24px 32px', maxWidth: 1280, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
-        <Suspense fallback={<PageLoading />}><Outlet /></Suspense>
-      </Content>
-
-      <Footer style={{ textAlign: 'center', background: '#ffffff', borderTop: '1px solid #e2e8f0', color: '#64748b' }}>
-        <Text strong style={{ color: '#6366f1' }}>StayAI</Text> - Nền tảng Đặt Homestay Thông minh tích hợp AI & Escrow 24h © 2026
-      </Footer>
-    </Layout>
-  );
+      </div>
+    </header>
+    <Drawer title={<Brand />} placement="right" open={menuOpen} onClose={() => setMenuOpen(false)} size={310}>
+      {nav(true)}
+      <div className="customer-mobile-actions">
+        <Link to={isHost ? '/host' : '/auth/register?role=HOST'} onClick={() => setMenuOpen(false)}><HomeOutlined /> {isHost ? 'Kênh chủ nhà' : 'Trở thành chủ nhà'} <ArrowRightOutlined /></Link>
+        {!user && <Link to="/auth/register" onClick={() => setMenuOpen(false)}>Tạo tài khoản mới</Link>}
+      </div>
+    </Drawer>
+    <main id="main-content" className={`customer-content${isHome ? ' customer-content--home' : ''}`}>
+      <Suspense fallback={<PageLoading />}><Outlet /></Suspense>
+    </main>
+    <footer className="customer-footer">
+      <div className="customer-footer-inner">
+        <div className="footer-brand-column"><Brand /><p>Những nơi ở mang dấu ấn riêng.<br />Những chuyến đi thật đáng nhớ.</p><span className="footer-locale">Việt Nam <span>·</span> Tiếng Việt <span>·</span> VND</span></div>
+        <div className="footer-links"><h3>Khám phá StayAI</h3><Link to="/search">Tất cả chỗ nghỉ</Link><Link to="/favorites">Bộ sưu tập yêu thích</Link><Link to="/trips">Chuyến đi của bạn</Link></div>
+        <div className="footer-links"><h3>Dành cho chủ nhà</h3><Link to="/auth/register?role=HOST">Bắt đầu đón khách</Link><Link to="/host">Quản lý chỗ nghỉ</Link><Link to="/host/pricing">Lịch giá & gợi ý AI</Link></div>
+        <div className="footer-promise"><SafetyCertificateOutlined /><h3>An tâm trên mỗi hành trình</h3><p>Thông tin rõ ràng. Thanh toán có bảo vệ. Đội ngũ StayAI luôn sẵn sàng hỗ trợ.</p><Link to="/messages">Liên hệ hỗ trợ <ArrowRightOutlined /></Link></div>
+      </div>
+      <div className="customer-footer-bottom"><span>© {new Date().getFullYear()} StayAI. All rights reserved.</span><span>Made for memorable stays <span className="footer-dot" /></span></div>
+    </footer>
+  </div>;
 }

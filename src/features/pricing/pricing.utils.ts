@@ -51,18 +51,20 @@ export function formatVnd(value: unknown): string {
 /** Round inward to cents so the input bounds always remain inside ±30%. */
 export function priceBounds(
   basePrice: unknown,
+  maxChangePercent = 30,
 ): { min: number; max: number } | null {
   const cents = moneyCents(basePrice);
-  if (cents === null) return null;
+  if (cents === null || !Number.isInteger(maxChangePercent) || maxChangePercent < 1 || maxChangePercent > 30) return null;
   return {
-    min: Math.ceil((cents * 70) / 100) / 100,
-    max: Math.floor((cents * 130) / 100) / 100,
+    min: Math.ceil((cents * (100 - maxChangePercent)) / 100) / 100,
+    max: Math.floor((cents * (100 + maxChangePercent)) / 100) / 100,
   };
 }
 
 export function isPriceWithinBounds(
   value: unknown,
   basePrice: unknown,
+  maxChangePercent = 30,
 ): boolean {
   if (typeof value !== 'number') return false;
   const price = moneyCents(value);
@@ -70,8 +72,9 @@ export function isPriceWithinBounds(
   return (
     price !== null &&
     base !== null &&
-    price * 100 >= base * 70 &&
-    price * 100 <= base * 130
+    Number.isInteger(maxChangePercent) && maxChangePercent >= 1 && maxChangePercent <= 30 &&
+    price * 100 >= base * (100 - maxChangePercent) &&
+    price * 100 <= base * (100 + maxChangePercent)
   );
 }
 

@@ -10,6 +10,7 @@ const ChatPage = lazy(() => import('./features/chat/ChatPage'));
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import SessionRevokedModal from './components/auth/SessionRevokedModal';
 import ErrorBoundary from './components/ErrorBoundary';
+import { appTheme } from './theme';
 
 // Layouts
 import CustomerLayout from './layouts/CustomerLayout';
@@ -23,22 +24,13 @@ const RegisterPage = lazy(() => import('./pages/auth/Register'));
 
 // Customer Pages (Member 1)
 import HomePage from './pages/customer/Home';
-<<<<<<< HEAD
 const HomestayDetailPage = lazy(() => import('./pages/customer/HomestayDetail'));
 const CheckoutPage = lazy(() => import('./pages/customer/Checkout'));
 const MyTripsPage = lazy(() => import('./pages/customer/MyTrips'));
 const ProfilePage = lazy(() => import('./pages/account/Profile'));
 const PaymentResultPage = lazy(() => import('./pages/customer/PaymentResult'));
 const FavoritesPage = lazy(() => import('./pages/customer/Favorites'));
-=======
-import HomestayDetailPage from './pages/customer/HomestayDetail';
-import SearchResultsPage from './pages/customer/SearchResults';
-import CheckoutPage from './pages/customer/Checkout';
-import MyTripsPage from './pages/customer/MyTrips';
-import ProfilePage from './pages/account/Profile';
-import PaymentResultPage from './pages/customer/PaymentResult';
-import FavoritesPage from './pages/customer/Favorites';
->>>>>>> 7537cb9e1d74021f9fff24a3cd9df1c863c59a9a
+const SearchResultsPage = lazy(() => import('./pages/customer/SearchResults'));
 import RequireAuth from './components/RequireAuth';
 
 // Host Pages (Member 2)
@@ -50,6 +42,7 @@ const HostBookingsPage = lazy(() => import('./pages/host/Bookings'));
 const AdminBookingsPage = lazy(() => import('./pages/admin/Bookings'));
 const HostPayoutsPage = lazy(() => import('./pages/host/Payouts'));
 const HostCouponsPage = lazy(() => import('./pages/host/Coupons'));
+const AdminCouponsPage = lazy(() => import('./pages/admin/Coupons'));
 
 // Admin Pages (Member 3 - Intact)
 const DashboardPage = lazy(() => import('./pages/admin/Dashboard'));
@@ -68,41 +61,7 @@ const SyncMarketDataPage = lazy(() => import('./pages/admin/SyncMarketData'));
 
 export default function App() {
   return (
-    <ConfigProvider
-      theme={{
-        token: {
-          colorPrimary: '#6366f1',
-          colorInfo: '#3b82f6',
-          colorSuccess: '#10b981',
-          colorWarning: '#f59e0b',
-          colorError: '#ef4444',
-          borderRadius: 8,
-          wireframe: false,
-          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-          colorBgBase: '#f8fafc',
-          colorBgContainer: '#ffffff',
-          boxShadowSecondary: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-        },
-        components: {
-          Layout: {
-            siderBg: '#0f172a',
-            headerBg: '#ffffff',
-          },
-          Menu: {
-            darkItemBg: '#0f172a',
-            darkItemSelectedBg: '#6366f1',
-          },
-          Table: {
-            headerBg: '#f1f5f9',
-            headerColor: '#475569',
-            rowHoverBg: '#f8fafc',
-          },
-          Card: {
-            boxShadowTertiary: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
-          },
-        },
-      }}
-    >
+    <ConfigProvider theme={appTheme}>
       <AntApp>
         <ErrorBoundary>
           <AuthProvider>
@@ -152,6 +111,7 @@ export default function App() {
                       <Route path="revenues" element={<RevenuesPage />} />
                       <Route path="payouts" element={<PayoutsPage />} />
                       <Route path="refunds" element={<RefundsPage />} />
+                      <Route path="coupons" element={<AdminCouponsPage />} />
                       <Route path="configs" element={<ConfigsPage />} />
                       <Route path="audit-logs" element={<AuditLogsPage />} />
                       <Route path="dropship-orders" element={<DropshipOrdersPage />} />

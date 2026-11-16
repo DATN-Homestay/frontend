@@ -8,6 +8,7 @@ import {
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Suspense } from 'react';
 import PageLoading from '../components/PageLoading';
+import Brand from '../components/Brand';
 import { useAuth } from '../contexts/useAuth';
 import { useChat } from '../features/chat/ChatContext';
 import ChatNavBadge from '../features/chat/ChatNavBadge';
@@ -47,10 +48,7 @@ export default function PortalLayout({ role, groups }: { role: 'HOST' | 'ADMIN';
   ];
 
   const navigation = <div className={`portal-navigation${compact ? ' is-compact' : ''}`}>
-    <Link to={base} className="portal-brand" aria-label={`StayAI · ${portalName}`} onClick={() => setDrawerOpen(false)}>
-      <span className="portal-brand-mark">S<span /></span>
-      {!compact && <span className="portal-brand-copy"><strong>StayAI<span> workspace</span></strong><small>{portalName}</small></span>}
-    </Link>
+    <Brand to={base} className="portal-brand" inverse compact={compact} caption={portalName} onClick={() => setDrawerOpen(false)} />
     <nav className="portal-nav-scroll" aria-label={`Điều hướng ${portalName.toLowerCase()}`}>
       <Menu theme="dark" mode="inline" inlineCollapsed={compact} selectedKeys={[current.path]}
         items={groups.map((group) => ({

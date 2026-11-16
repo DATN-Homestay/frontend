@@ -40,9 +40,8 @@ export interface Conversation {
 }
 
 export interface CreateConversation {
-  type?: ConversationType;
-  recipient_id?: string;
-  homestay_id?: string;
+  type: Exclude<ConversationType, 'CUSTOMER_HOST'>;
+  recipient_id: string;
   as_role?: UserRole;
 }
 

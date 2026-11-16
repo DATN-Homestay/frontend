@@ -8,13 +8,12 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test:pricing": "node --test --test-force-exit test/pricing.utils.test.ts test/pricing-panel.test.mjs test/room-pricing.test.mjs test/host-pricing.test.mjs",
-    "test:chat": "node --test test/chat.utils.test.ts test/chat.integration.test.mjs",
-<<<<<<< HEAD
+    "test:chat": "node --test --test-force-exit test/chat.utils.test.ts test/chat-ui.test.mjs test/chat.integration.test.mjs",
     "test:portals": "node --test --test-force-exit test/portal-layout.test.mjs",
-=======
-    "test:search": "node --test --test-force-exit test/homestaySearch.utils.test.ts test/search-results.test.mjs",
->>>>>>> 7537cb9e1d74021f9fff24a3cd9df1c863c59a9a
+    "test:search": "node --test --test-force-exit test/homestaySearch.utils.test.ts test/homestayCache.test.mjs test/search-results.test.mjs",
+    "test:settings": "node --test --test-force-exit test/system-settings.test.mjs",
     "test:regressions": "node --test --test-force-exit test/frontend-regressions.test.mjs",
+    "test:coupons": "node --test --test-force-exit test/coupons.test.mjs test/coupon-service.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

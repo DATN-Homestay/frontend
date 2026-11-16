@@ -1,6 +1,6 @@
 import {
   AuditOutlined, CalendarOutlined, DashboardOutlined, DollarOutlined, GlobalOutlined,
-  HomeOutlined, MessageOutlined, SafetyCertificateOutlined, SettingOutlined,
+  GiftOutlined, HomeOutlined, MessageOutlined, SafetyCertificateOutlined, SettingOutlined,
   ShoppingOutlined, SyncOutlined, TeamOutlined, UndoOutlined, UserOutlined, WalletOutlined,
 } from '@ant-design/icons';
 import PortalLayout, { type PortalNavGroup } from './PortalLayout';
@@ -16,6 +16,7 @@ const groups: PortalNavGroup[] = [
     { path: '/admin/host-verifications', icon: <SafetyCertificateOutlined />, label: 'Duyệt xác thực' },
     { path: '/admin/homestays', icon: <HomeOutlined />, label: 'Chỗ nghỉ' },
     { path: '/admin/bookings', icon: <CalendarOutlined />, label: 'Quản lý booking' },
+    { path: '/admin/coupons', icon: <GiftOutlined />, label: 'Mã giảm giá & ưu đãi' },
   ] },
   { label: 'TÀI CHÍNH', items: [
     { path: '/admin/revenues', icon: <DollarOutlined />, label: 'Doanh thu & hoa hồng' },

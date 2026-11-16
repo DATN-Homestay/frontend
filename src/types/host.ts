@@ -27,6 +27,8 @@ export interface PricingSuggestion {
   current_price: number;
   suggested_price: number;
   change_percentage: number;
+  max_change_percent?: number;
+  suggestion_ttl_seconds?: number;
   comp_set_stats: {
     compset_size: number;
     market_avg_price: number;

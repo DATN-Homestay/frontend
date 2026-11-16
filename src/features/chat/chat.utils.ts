@@ -1,17 +1,21 @@
 import type { UserRole } from '../../types/auth';
-import type { ChatMessage, Conversation, ConversationType, ReadReceipt } from '../../types/chat';
+import type { ChatMessage, Conversation, CreateConversation, ReadReceipt } from '../../types/chat';
 
 export const ROLE_LABEL: Record<UserRole, string> = { CUSTOMER: 'Khách hàng', HOST: 'Chủ nhà', ADMIN: 'Hỗ trợ StayAI' };
 
 export function recipientRoles(role: UserRole): UserRole[] {
-  return role === 'ADMIN' ? ['CUSTOMER', 'HOST'] : role === 'HOST' ? ['CUSTOMER', 'ADMIN'] : ['HOST', 'ADMIN'];
+  return role === 'ADMIN' ? ['CUSTOMER', 'HOST'] : ['ADMIN'];
 }
 
-export function conversationType(actor: UserRole, recipient: UserRole): ConversationType {
+export function conversationType(actor: UserRole, recipient: UserRole): CreateConversation['type'] {
   if (actor === recipient) throw new Error('Hai bên phải có vai trò khác nhau');
   const roles = [actor, recipient];
-  if (!roles.includes('ADMIN')) return 'CUSTOMER_HOST';
+  if (!roles.includes('ADMIN')) throw new Error('Chức năng nhắn tin giữa chủ nhà và khách hàng đã được gỡ bỏ');
   return roles.includes('HOST') ? 'HOST_ADMIN' : 'CUSTOMER_ADMIN';
+}
+
+export function isSupportConversation(conversation: Pick<Conversation, 'type' | 'admin_id'>): boolean {
+  return (conversation.type === 'CUSTOMER_ADMIN' || conversation.type === 'HOST_ADMIN') && !!conversation.admin_id;
 }
 
 export function compareIds(a: string, b: string): number {

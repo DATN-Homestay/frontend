@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
-import { after, before, test } from 'node:test';
+import { after, afterEach, before, test } from 'node:test';
 import { JSDOM } from 'jsdom';
-import { createElement } from 'react';
+import { createElement, useState } from 'react';
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
 
-let dom, vite, testing, SearchResults, ConfigProvider, AntApp, MemoryRouter, Routes, Route, useLocation;
+let dom, vite, testing, SearchResults, FilterSidebar, searchUtils, ConfigProvider, AntApp, MemoryRouter, Routes, Route, useLocation;
 const nativeFetch = globalThis.fetch;
 const requests = [];
+afterEach(() => { testing?.cleanup(); });
 
 const room = (id, price, capacity = 2) => ({ id: `${id}-r`, homestay_id: id, room_name: 'Phòng', capacity, base_price: price });
 const homestays = [
@@ -64,6 +65,8 @@ before(async () => {
     server: { middlewareMode: true, hmr: false, watch: { ignored: ['**/*'] } },
   });
   SearchResults = (await vite.ssrLoadModule('/src/pages/customer/SearchResults.tsx')).default;
+  FilterSidebar = (await vite.ssrLoadModule('/src/components/search/FilterSidebar.tsx')).default;
+  searchUtils = await vite.ssrLoadModule('/src/utils/homestaySearch.ts');
   ({ ConfigProvider, App: AntApp } = await import('antd'));
   ({ MemoryRouter, Routes, Route, useLocation } = await import('react-router-dom'));
   globalThis.fetch = async (url) => {
@@ -74,6 +77,36 @@ before(async () => {
       headers: { 'Content-Type': 'application/json' },
     });
   };
+});
+
+test('tìm tiện nghi không dấu, giữ lựa chọn ngoài phần xem trước và đặt lại bộ lọc', async () => {
+  testing.cleanup();
+  const extras = ['Điều hòa 2 chiều', ...Array.from({ length: 12 }, (_, i) => `Tiện nghi ${i + 1}`)];
+  const properties = [{ ...homestays[0], amenities_json: { items: extras } }];
+  function Filters() {
+    const [criteria, setCriteria] = useState({ ...searchUtils.EMPTY_CRITERIA, amenities: ['Tiện nghi 9'] });
+    return createElement(FilterSidebar, {
+      facets: searchUtils.computeFacets(properties, criteria), criteria,
+      onChange: (patch) => setCriteria((current) => ({ ...current, ...patch })),
+      onReset: () => setCriteria({ ...searchUtils.EMPTY_CRITERIA }),
+    });
+  }
+  testing.render(createElement(ConfigProvider, { theme: { token: { motion: false } } }, createElement(Filters)));
+  const { screen, fireEvent } = testing;
+  assert.equal(screen.getByRole('checkbox', { name: /^Tiện nghi 9/ }).checked, true);
+  assert.equal(screen.queryByRole('checkbox', { name: /^Tiện nghi 8/ }), null);
+  fireEvent.click(screen.getByRole('button', { name: /Xem tất cả 13 tiện nghi/ }));
+  assert.ok(screen.getByRole('checkbox', { name: /^Tiện nghi 8/ }));
+  fireEvent.click(screen.getByRole('button', { name: /Thu gọn/ }));
+  const input = screen.getByRole('textbox', { name: 'Tìm tiện nghi' });
+  fireEvent.change(input, { target: { value: 'dieu hoa' } });
+  fireEvent.click(screen.getByRole('checkbox', { name: /Điều hòa 2 chiều/ }));
+  fireEvent.change(input, { target: { value: '' } });
+  assert.equal(screen.getByRole('checkbox', { name: /Điều hòa 2 chiều/ }).checked, true);
+  assert.equal(screen.getByRole('checkbox', { name: /^Tiện nghi 9/ }).checked, true);
+  fireEvent.click(screen.getByRole('button', { name: 'Đặt lại' }));
+  assert.equal(screen.getByRole('button', { name: 'Đặt lại' }).disabled, true);
+  assert.equal(screen.getAllByRole('checkbox').filter((element) => element.checked).length, 0);
 });
 
 after(async () => {
@@ -143,4 +176,29 @@ test('trang /search: lọc theo tỉnh, số đếm bên trái, tick bộ lọc 
   await screen.findByText('TRANG CHI TIẾT');
   assert.equal(loc(), '/homestay/11?checkin=2026-12-01&checkout=2026-12-03');
   assert.equal(requests.length, 1);
+});
+
+test('màn hình nhỏ: mở bộ lọc, chọn tiện ích phổ biến và xem kết quả', async (t) => {
+  t.mock.method(window, 'matchMedia', (media) => ({
+    matches: media.includes('max-width') || /min-width:\s*(480|576|768)px/.test(media),
+    media, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {},
+  }));
+  testing.render(createElement(ConfigProvider, { theme: { token: { motion: false } } },
+    createElement(AntApp, null,
+      createElement(MemoryRouter, { initialEntries: ['/search?city=Lâm Đồng'] },
+        createElement(Probe), createElement(SearchResults),
+      ),
+    ),
+  ));
+  const { screen, fireEvent, within } = testing;
+  await screen.findByRole('heading', { name: 'Lâm Đồng: 3 chỗ nghỉ' });
+  fireEvent.click(screen.getByRole('button', { name: 'Bộ lọc' }));
+  const drawer = await screen.findByRole('dialog');
+  const popularSection = within(drawer).getByRole('heading', { name: 'Tiện ích phổ biến' }).closest('section');
+  fireEvent.click(within(popularSection).getByRole('checkbox', { name: /^Hồ bơi/ }));
+  assert.match(loc(), /amenity=facility:pool/);
+  assert.ok(within(drawer).getByRole('button', { name: 'Xem 1 chỗ nghỉ' }));
+  fireEvent.click(within(drawer).getByRole('button', { name: 'Xem 1 chỗ nghỉ' }));
+  await screen.findByRole('heading', { name: 'Lâm Đồng: 1 chỗ nghỉ' });
+  assert.ok(screen.getByText('Lâm Viên Villa'));
 });

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Drawer, Empty, Grid, Pagination, Result, Select, Skeleton, Space, Tag, Typography } from 'antd';
-import { FilterOutlined } from '@ant-design/icons';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Button, Drawer, Empty, Grid, Pagination, Result, Select, Skeleton, Tag, Typography } from 'antd';
+import { FilterOutlined, InfoCircleOutlined, RightOutlined } from '@ant-design/icons';
 import SearchBar, { type SearchBarValue } from '../../components/search/SearchBar';
 import FilterSidebar from '../../components/search/FilterSidebar';
 import SearchResultCard from '../../components/search/SearchResultCard';
 import { loadAllHomestays } from '../../services/homestayCache';
 import { useFavorites } from '../../contexts/useFavorites';
 import type { HomestayItem } from '../../types/customer';
+import './SearchResults.css';
 import {
   MEAL_OPTIONS,
   PRICE_BUCKETS,
@@ -16,6 +17,7 @@ import {
   SORT_OPTIONS,
   SOURCE_LABELS,
   applyFilters,
+  amenityLabel,
   computeFacets,
   isAllPlaces,
   nightsBetween,
@@ -97,7 +99,7 @@ export default function SearchResultsPage() {
     })),
     ...criteria.amenities.map((a) => ({
       key: `amenity-${a}`,
-      label: a,
+      label: amenityLabel(a),
       clear: { amenities: criteria.amenities.filter((x) => x !== a) },
     })),
     ...criteria.meals.map((m) => ({
@@ -127,11 +129,18 @@ export default function SearchResultsPage() {
     navigate(`/homestay/${h.id}${q ? `?${q}` : ''}`, { state: { coverImage } });
   };
 
-  const sidebar = facets && <FilterSidebar facets={facets} criteria={criteria} onChange={update} />;
+  const sidebar = facets && <FilterSidebar facets={facets} criteria={criteria} onChange={update} onReset={clearFilters} />;
 
   return (
-    <div>
-      <div style={{ marginBottom: 20 }}>
+    <div className="search-page">
+      <nav className="search-breadcrumb" aria-label="Đường dẫn trang">
+        <Link to="/">Trang chủ</Link><RightOutlined /><span aria-current="page">Tìm chỗ nghỉ</span>
+      </nav>
+
+      <section className="search-intro" aria-labelledby="search-title">
+        <span className="eyebrow">KHÁM PHÁ CHỖ NGHỈ</span>
+        <h1 id="search-title">Tìm một nơi ở, <em>đúng ý bạn.</em></h1>
+        <p>Từ căn phòng nhỏ ấm cúng đến biệt thự cho cả gia đình. Chọn nơi phù hợp cho chuyến đi của bạn.</p>
         {/* key theo URL để ô tìm kiếm nạp lại khi bấm Quay lại/Tiến tới */}
         <SearchBar
           key={`${criteria.city}|${criteria.district}|${criteria.checkIn}|${criteria.checkOut}|${criteria.adults}|${criteria.children}|${criteria.rooms}`}
@@ -139,32 +148,40 @@ export default function SearchResultsPage() {
           value={criteria}
           onSubmit={onSearch}
         />
-      </div>
+      </section>
 
-      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+      <div className="search-layout">
         {wide && (
-          <div style={{ flex: '0 0 280px', position: 'sticky', top: 16, maxHeight: 'calc(100vh - 32px)', overflowY: 'auto' }}>
+          <div className="search-sidebar">
             {sidebar ?? <Skeleton active paragraph={{ rows: 12 }} />}
           </div>
         )}
 
-        <main style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div>
-              <Title level={3} style={{ margin: 0 }}>
+        <section className="search-results" aria-label="Kết quả tìm kiếm" aria-busy={!all && !failed}>
+          <div className="search-results-heading">
+            <div aria-live="polite" aria-atomic="true">
+              <Title level={2} className="search-results-title">
                 {place}: {all ? `${results.length.toLocaleString('vi-VN')} chỗ nghỉ` : 'đang tìm…'}
               </Title>
-              <Text type="secondary">
+              <Text type="secondary" className="search-trip-summary">
                 {criteria.checkIn && criteria.checkOut
                   ? `${fmtDate(criteria.checkIn)} – ${fmtDate(criteria.checkOut)} · ${nights} đêm`
-                  : 'Chưa chọn ngày'}
+                  : 'Chưa chọn ngày · Khám phá mọi lựa chọn'}
                 {criteria.adults !== undefined &&
                   ` · ${criteria.adults + (criteria.children ?? 0)} khách · ${criteria.rooms ?? 1} phòng`}
               </Text>
             </div>
-            <Space wrap>
+          </div>
+          <div className="search-toolbar">
+            <span className="search-results-range">
+              {all && !failed ? results.length > 0
+                ? `Hiển thị ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, results.length)} trong ${results.length.toLocaleString('vi-VN')} chỗ nghỉ`
+                : 'Hãy thử điều chỉnh bộ lọc của bạn'
+                : 'Đang tìm chỗ nghỉ cho bạn...'}
+            </span>
+            <div className="search-toolbar-actions">
               {!wide && (
-                <Button icon={<FilterOutlined />} onClick={() => setDrawerOpen(true)}>
+                <Button className="search-mobile-filter" aria-label={`Bộ lọc${chips.length ? ` (${chips.length})` : ''}`} icon={<FilterOutlined />} onClick={() => setDrawerOpen(true)} disabled={!facets}>
                   Bộ lọc{chips.length ? ` (${chips.length})` : ''}
                 </Button>
               )}
@@ -173,14 +190,15 @@ export default function SearchResultsPage() {
                 value={criteria.sort}
                 onChange={(v: SortKey) => update({ sort: v })}
                 options={SORT_OPTIONS}
-                style={{ minWidth: 210 }}
+                className="search-sort"
                 prefix="Sắp xếp:"
               />
-            </Space>
+            </div>
           </div>
 
           {chips.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12, alignItems: 'center' }}>
+            <div className="search-active-filters" aria-label="Bộ lọc đang áp dụng">
+              <span className="search-active-label"><FilterOutlined /> Đang chọn:</span>
               {chips.map((c) => (
                 <Tag
                   key={c.key}
@@ -189,7 +207,7 @@ export default function SearchResultsPage() {
                     e.preventDefault();
                     update(c.clear);
                   }}
-                  style={{ padding: '2px 8px', fontSize: 13 }}
+                  className="search-filter-chip"
                 >
                   {c.label}
                 </Tag>
@@ -201,19 +219,20 @@ export default function SearchResultsPage() {
           )}
 
           {criteria.checkIn && (
-            <Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 12 }}>
-              Giá hiển thị là giá phòng thấp nhất mỗi đêm; tình trạng còn phòng theo ngày được kiểm tra khi bạn mở chỗ nghỉ.
-            </Text>
+            <p className="search-price-note"><InfoCircleOutlined />
+              <span>Giá hiển thị là giá phòng thấp nhất mỗi đêm; tình trạng còn phòng theo ngày được kiểm tra khi bạn mở chỗ nghỉ.</span>
+            </p>
           )}
 
           {!all && !failed ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="search-result-list">
               {[0, 1, 2].map((i) => (
                 <Skeleton.Node key={i} active style={{ width: '100%', height: 250 }} />
               ))}
             </div>
           ) : failed ? (
             <Result
+              className="search-empty-state"
               status="warning"
               title="Không tải được danh sách chỗ nghỉ"
               subTitle="Kiểm tra kết nối rồi thử lại."
@@ -221,9 +240,10 @@ export default function SearchResultsPage() {
             />
           ) : results.length === 0 ? (
             <Empty
+              className="search-empty-state"
               description="Không có chỗ nghỉ phù hợp với bộ lọc hiện tại"
-              style={{ padding: '48px 0', background: '#fff', borderRadius: 12 }}
             >
+              <p className="search-empty-hint">Thử bớt một vài tiêu chí hoặc chọn điểm đến khác để có thêm lựa chọn.</p>
               {chips.length > 0 && (
                 <Button type="primary" onClick={clearFilters}>
                   Xóa bộ lọc
@@ -232,7 +252,7 @@ export default function SearchResultsPage() {
             </Empty>
           ) : (
             <>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div className="search-result-list">
                 {pageItems.map((h) => (
                   <SearchResultCard
                     key={h.id}
@@ -245,7 +265,7 @@ export default function SearchResultsPage() {
                 ))}
               </div>
               {results.length > PAGE_SIZE && (
-                <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+                <div className="search-pagination">
                   <Pagination
                     current={page}
                     pageSize={PAGE_SIZE}
@@ -257,13 +277,15 @@ export default function SearchResultsPage() {
               )}
             </>
           )}
-        </main>
+        </section>
       </div>
 
       {!wide && (
         <Drawer
           title="Bộ lọc"
-          placement="left"
+          className="search-filter-drawer"
+          placement="right"
+          size="min(390px, 100vw)"
           open={drawerOpen}
           onClose={() => setDrawerOpen(false)}
           styles={{ body: { padding: 0 } }}

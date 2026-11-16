@@ -67,6 +67,12 @@ after(async () => {
 });
 
 describe('PricingSuggestionPanel static output', () => {
+  it('uses the configured narrower band for the input, helper text and apply validation', () => {
+    const markup = render({ suggestion: { ...suggestion, max_change_percent: 10 }, appliedPrice: 840000 });
+    assert.match(markup, /±10% giá gốc/);
+    assert.match(priceInput(markup), /aria-invalid="true"/);
+    assert.match(applyButton(markup), /\bdisabled\b/);
+  });
   it('keeps the AI recommendation immutable when the host edits the applied price', () => {
     const markup = render({ appliedPrice: 810000 });
     const proposal = markup.match(/<div class="pricing-suggestion__proposed-price">([\s\S]*?)<\/div>/)?.[1];

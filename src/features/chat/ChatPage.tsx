@@ -12,7 +12,7 @@ import type { ChatMessage, Conversation } from '../../types/chat';
 import { useChat } from './ChatContext';
 import { useChatThread } from './useChatThread';
 import NewConversationModal from './NewConversationModal';
-import { chatDayKey, chatError, dateLabel, dayLabel, inboxTime, parseChatDate, ROLE_LABEL, searchable, timeLabel, timestampLabel } from './chat.utils';
+import { chatDayKey, chatError, dateLabel, dayLabel, inboxTime, isSupportConversation, parseChatDate, recipientRoles, ROLE_LABEL, searchable, timeLabel, timestampLabel } from './chat.utils';
 import './ChatPage.css';
 
 const FILTER_LABEL: Record<UserRole, string> = { CUSTOMER: 'Khách hàng', HOST: 'Chủ nhà', ADMIN: 'Hỗ trợ' };
@@ -42,10 +42,9 @@ function MessageBubble({ message, mine, onRetry }: { message: ChatMessage; mine:
 
 export default function ChatPage({ portalRole }: { portalRole: UserRole }) {
   const { user } = useAuth();
-  const { conversations, loading, error, connection, refreshInbox, ensureConversation, createConversation, typing, reconnect } = useChat();
+  const { conversations, loading, error, connection, refreshInbox, ensureConversation, typing, reconnect } = useChat();
   const [params, setParams] = useSearchParams();
   const selectedId = params.get('conversation');
-  const homestayId = params.get('homestay');
   const role = user?.roles.includes(portalRole) ? portalRole : user?.roles.includes('ADMIN') ? 'ADMIN'
     : user?.roles.includes('HOST') ? 'HOST' : 'CUSTOMER';
   const [query, setQuery] = useState('');
@@ -67,19 +66,18 @@ export default function ChatPage({ portalRole }: { portalRole: UserRole }) {
   const readBoundary = useRef<string | null>(null);
   const typingThrottle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const stopTypingTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const homestayRequests = useRef(new Map<string, Promise<Conversation>>());
-  const active = conversations.find((c) => c.id === selectedId) ?? null;
+  const inbox = conversations.filter((c) => isSupportConversation(c) && c.participants.some((p) => p.id === user?.id && p.role === role));
+  const active = inbox.find((c) => c.id === selectedId) ?? null;
   const thread = useChatThread(active);
   const { loaded: threadLoaded, loading: messagesLoading, messages, read: markRead } = thread;
-  const inbox = conversations.filter((c) => c.participants.some((p) => p.id === user?.id && p.role === role));
   const unread = inbox.reduce((count, c) => count + c.unread_count, 0);
   const searchTerm = searchable(query.trim());
   const filtered = inbox.filter((c) => (filter === 'ALL' || c.partner?.role === filter) && (!onlyUnread || c.unread_count > 0) &&
     searchable(`${c.partner?.full_name ?? ''} ${c.homestay?.name ?? ''} ${c.last_message?.content ?? ''}`).includes(searchTerm));
-  const targetRoles = role === 'ADMIN' ? ['CUSTOMER', 'HOST'] as const : role === 'HOST' ? ['CUSTOMER', 'ADMIN'] as const : ['HOST', 'ADMIN'] as const;
+  const targetRoles = recipientRoles(role);
   const draft = selectedId ? drafts[selectedId] ?? '' : '';
   const currentError = selectedId && !/^[1-9]\d{0,19}$/.test(selectedId) ? 'Đường dẫn hội thoại không hợp lệ.'
-    : selectionError?.id === (homestayId ?? selectedId) ? selectionError.message : null;
+    : selectionError?.id === selectedId ? selectionError.message : null;
 
   useEffect(() => {
     if (!selectedId || !/^[1-9]\d{0,19}$/.test(selectedId)) return;
@@ -89,21 +87,6 @@ export default function ChatPage({ portalRole }: { portalRole: UserRole }) {
     });
     return () => { cancelled = true; };
   }, [selectedId, ensureConversation, selectionRetry]);
-
-  useEffect(() => {
-    if (!homestayId) return;
-    let cancelled = false;
-    const key = `${role}:${homestayId}:${selectionRetry}`;
-    let request = homestayRequests.current.get(key);
-    if (!request) {
-      request = createConversation({ homestay_id: homestayId, as_role: role });
-      homestayRequests.current.set(key, request);
-    }
-    void request.then((conversation) => {
-      if (!cancelled) setParams({ conversation: conversation.id }, { replace: true });
-    }).catch((err) => { if (!cancelled) setSelectionError({ id: homestayId, message: chatError(err) }); });
-    return () => { cancelled = true; };
-  }, [homestayId, role, createConversation, setParams, selectionRetry]);
 
   useEffect(() => {
     const onVisible = () => setVisible(document.visibilityState === 'visible');
@@ -187,7 +170,7 @@ export default function ChatPage({ portalRole }: { portalRole: UserRole }) {
       </div>
     </div>
 
-    <div className={`chat-workspace ${selectedId || homestayId ? 'has-active' : ''}`}>
+    <div className={`chat-workspace ${selectedId ? 'has-active' : ''}`}>
       <aside className="chat-inbox" aria-label="Danh sách hội thoại">
         <div className="chat-inbox-top"><div className="chat-inbox-title"><h2>Hội thoại</h2><span>{inbox.length}</span>
           <Tooltip title="Làm mới hộp thư"><Button type="text" size="small" icon={<ReloadOutlined spin={loading} />} aria-label="Làm mới hộp thư" onClick={() => void refreshInbox()} /></Tooltip>
@@ -220,10 +203,10 @@ export default function ChatPage({ portalRole }: { portalRole: UserRole }) {
 
       <section className="chat-thread" aria-label="Nội dung cuộc trò chuyện">
         {!active ? <div className="chat-welcome">
-          {selectedId || homestayId ? <>{currentError ? <><span className="chat-empty-art"><InfoCircleOutlined /></span><h2>Chưa thể mở cuộc trò chuyện</h2><p role="alert">{currentError}</p><Button onClick={() => { setSelectionError(null); setSelectionRetry((value) => value + 1); }}>Thử lại</Button></> : <><Spin size="large" /><p>Đang mở cuộc trò chuyện…</p></>}
+          {selectedId ? <>{currentError ? <><span className="chat-empty-art"><InfoCircleOutlined /></span><h2>Chưa thể mở cuộc trò chuyện</h2><p role="alert">{currentError}</p><Button onClick={() => { setSelectionError(null); setSelectionRetry((value) => value + 1); }}>Thử lại</Button></> : <><Spin size="large" /><p>Đang mở cuộc trò chuyện…</p></>}
             <Button className="chat-mobile-return" type="text" icon={<ArrowLeftOutlined />} onClick={() => setParams({})}>Về hộp thư</Button></>
             : <><div className="chat-empty-art"><MessageOutlined /><span><CheckOutlined /></span></div><span className="chat-eyebrow">LUÔN CÓ NGƯỜI LẮNG NGHE</span><h2>Mọi cuộc trò chuyện,<br />ở một nơi.</h2>
-              <p>Kết nối với {role === 'ADMIN' ? 'khách hàng và chủ nhà' : role === 'HOST' ? 'khách hàng và đội ngũ StayAI' : 'chủ nhà và đội ngũ StayAI'} để mọi kế hoạch<br className="chat-desktop-break" /> cho chuyến đi đều rõ ràng hơn.</p>
+              <p>Kết nối với {role === 'ADMIN' ? 'khách hàng và chủ nhà' : 'đội ngũ hỗ trợ StayAI'} để mọi kế hoạch<br className="chat-desktop-break" /> cho chuyến đi đều rõ ràng hơn.</p>
               <Button type="primary" size="large" icon={<PlusOutlined />} onClick={() => setNewChatOpen(true)}>Bắt đầu trò chuyện</Button>
               <div className="chat-welcome-features"><span><HomeOutlined /> Hỏi về chỗ ở</span><span><CustomerServiceOutlined /> Nhận hỗ trợ</span></div></>}
         </div> : <>
@@ -264,7 +247,7 @@ export default function ChatPage({ portalRole }: { portalRole: UserRole }) {
       {active && <aside className={`chat-details ${detailsOpen ? 'is-open' : ''}`} aria-label="Thông tin hội thoại">
         <div className="chat-details-title"><h3>Thông tin hội thoại</h3><Button type="text" size="small" icon={<CloseOutlined />} aria-label="Đóng thông tin hội thoại" onClick={() => setDetailsOpen(false)} /></div>
         <div className="chat-details-person"><PersonAvatar person={active.partner} size={72} /><h3>{active.partner?.full_name}</h3><span className={`chat-role-tag chat-role-tag--${active.partner?.role.toLowerCase()}`}>{active.partner ? ROLE_LABEL[active.partner.role] : 'Người đối thoại'}</span></div>
-        <div className="chat-details-section"><span className="chat-section-label">VỀ CUỘC TRÒ CHUYỆN</span><p><TeamOutlined />{active.type === 'CUSTOMER_HOST' ? 'Khách hàng & Chủ nhà' : active.type === 'HOST_ADMIN' ? 'Chủ nhà & StayAI' : 'Khách hàng & StayAI'}</p><p><MessageOutlined />Bắt đầu {dateLabel(active.created_at)}</p></div>
+        <div className="chat-details-section"><span className="chat-section-label">VỀ CUỘC TRÒ CHUYỆN</span><p><TeamOutlined />{active.type === 'HOST_ADMIN' ? 'Chủ nhà & StayAI' : 'Khách hàng & StayAI'}</p><p><MessageOutlined />Bắt đầu {dateLabel(active.created_at)}</p></div>
         {active.homestay && <div className="chat-details-section"><span className="chat-section-label">CHỖ Ở ĐANG TRAO ĐỔI</span><Link className="chat-property-card" to={`/homestay/${active.homestay.id}`}><HomeOutlined /><strong>{active.homestay.name}</strong><ArrowRightOutlined /></Link></div>}
         <div className="chat-details-note"><CustomerServiceOutlined /><strong>Cùng trao đổi rõ ràng</strong><p>Giữ mọi thông tin về chuyến đi trong cuộc trò chuyện để dễ dàng xem lại khi cần.</p></div>
       </aside>}

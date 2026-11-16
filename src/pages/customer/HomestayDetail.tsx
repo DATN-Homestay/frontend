@@ -25,7 +25,6 @@ import {
   ArrowLeftOutlined,
   UserOutlined,
   CheckOutlined,
-  MessageOutlined,
   TeamOutlined,
   HomeOutlined,
   WifiOutlined,
@@ -137,10 +136,6 @@ function HomestayDetailContent() {
     setActiveDetailRoom(room);
     setModalActiveImgIndex(0);
     setRoomDetailModalOpen(true);
-  };
-
-  const openHostChat = () => {
-    if (id) navigate(`/messages?homestay=${encodeURIComponent(id)}`);
   };
 
   const fetchDetail = useCallback((homestayId: string) => {
@@ -1147,27 +1142,9 @@ function HomestayDetailContent() {
                         eKYC 4 Lớp
                       </Tag>
                     </div>
-                    <Text type="secondary" style={{ fontSize: 13 }}>
-                      🟢 Đang trực tuyến • Tỉ lệ phản hồi <strong style={{ color: '#10b981' }}>100%</strong> (trong vòng 5 phút)
-                    </Text>
                   </div>
                 </Space>
 
-                <Button
-                  type="primary"
-                  icon={<MessageOutlined />}
-                  size="large"
-                  onClick={openHostChat}
-                  style={{
-                    height: 44,
-                    borderRadius: 10,
-                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                    fontWeight: 600,
-                    boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
-                  }}
-                >
-                  Nhắn tin với Chủ nhà
-                </Button>
               </div>
             </Card>
           )}
@@ -1725,26 +1702,6 @@ function HomestayDetailContent() {
                     : roomAvailabilityQuote?.available === false ? '⚠️ Phòng đã kín ngày này'
                     : 'Đặt phòng ngay'}
                 </Button>
-
-                {homestay?.is_claimed === 1 && (
-                  <Button
-                    size="large"
-                    block
-                    icon={<MessageOutlined />}
-                    onClick={openHostChat}
-                    style={{
-                      marginTop: 12,
-                      height: 44,
-                      borderRadius: 10,
-                      borderColor: '#6366f1',
-                      color: '#6366f1',
-                      fontWeight: 600,
-                      background: '#fdfbff',
-                    }}
-                  >
-                    Nhắn tin hỏi chủ nhà
-                  </Button>
-                )}
 
                 <Text
                   type="secondary"

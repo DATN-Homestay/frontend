@@ -6,7 +6,7 @@ import { tokenStorage } from '../../services/tokenStorage';
 import { chatService } from '../../services/chatService';
 import type { ChatConnection, ChatEvent, ChatMessage, Conversation, CreateConversation, ReadReceipt, TypingEvent } from '../../types/chat';
 import { ChatContext } from './ChatContext';
-import { chatError, compareIds, sortConversations } from './chat.utils';
+import { chatError, compareIds, isSupportConversation, sortConversations } from './chat.utils';
 
 export default function ChatProvider({ children }: { children: ReactNode }) {
   const { user, initializing } = useAuth();
@@ -47,7 +47,7 @@ function ChatSession({ userId, children }: { userId: string | null; children: Re
           let hasMore = true;
           while (hasMore && alive.current) {
             const result = await chatService.conversations(page++, controller.signal);
-            rows.push(...result.conversations ?? []);
+            rows.push(...(result.conversations ?? []).filter(isSupportConversation));
             hasMore = result.has_more;
           }
           if (alive.current) { setConversations(sortConversations(rows)); setError(null); }
@@ -66,12 +66,14 @@ function ChatSession({ userId, children }: { userId: string | null; children: Re
 
   const ensureConversation = useCallback(async (id: string) => {
     const conversation = await chatService.conversation(id);
+    if (!isSupportConversation(conversation)) throw new Error('Chức năng nhắn tin giữa chủ nhà và khách hàng đã được gỡ bỏ');
     if (alive.current) setConversations((current) => sortConversations([...current.filter((c) => c.id !== id), conversation]));
     return conversation;
   }, []);
 
   const createConversation = useCallback(async (body: CreateConversation) => {
     const conversation = await chatService.create(body);
+    if (!isSupportConversation(conversation)) throw new Error('Chức năng nhắn tin giữa chủ nhà và khách hàng đã được gỡ bỏ');
     if (alive.current) setConversations((current) => sortConversations([...current.filter((c) => c.id !== conversation.id), conversation]));
     return conversation;
   }, []);

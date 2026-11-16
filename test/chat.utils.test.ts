@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { applyReadReceipt, chatDayKey, compareIds, conversationType, dateLabel, dayLabel, inboxTime, mergeMessages, parseChatDate, recipientRoles, searchable, sortConversations, timeLabel, timestampLabel } from '../src/features/chat/chat.utils.ts';
+import { applyReadReceipt, chatDayKey, compareIds, conversationType, dateLabel, dayLabel, inboxTime, isSupportConversation, mergeMessages, parseChatDate, recipientRoles, searchable, sortConversations, timeLabel, timestampLabel } from '../src/features/chat/chat.utils.ts';
 import type { ChatMessage, Conversation, ReadReceipt } from '../src/types/chat.ts';
 
 const message = (patch: Partial<ChatMessage> = {}): ChatMessage => ({
@@ -76,15 +76,25 @@ describe('Chat message reconciliation', () => {
 });
 
 describe('Chat roles and inbox', () => {
-  it('maps both conversation directions for all three role pairs', () => {
-    for (const [a, b, type] of [['CUSTOMER', 'HOST', 'CUSTOMER_HOST'], ['CUSTOMER', 'ADMIN', 'CUSTOMER_ADMIN'], ['HOST', 'ADMIN', 'HOST_ADMIN']] as const) {
+  it('maps both directions of customer/admin and host/admin conversations', () => {
+    for (const [a, b, type] of [['CUSTOMER', 'ADMIN', 'CUSTOMER_ADMIN'], ['HOST', 'ADMIN', 'HOST_ADMIN']] as const) {
       assert.equal(conversationType(a, b), type); assert.equal(conversationType(b, a), type);
     }
   });
   it('rejects a same-role conversation', () => assert.throws(() => conversationType('HOST', 'HOST')));
+  it('rejects customer/host conversations in both directions', () => {
+    assert.throws(() => conversationType('CUSTOMER', 'HOST'));
+    assert.throws(() => conversationType('HOST', 'CUSTOMER'));
+  });
+  it('only displays conversations with platform support', () => {
+    assert.equal(isSupportConversation({ type: 'CUSTOMER_HOST', admin_id: null }), false);
+    assert.equal(isSupportConversation({ type: 'CUSTOMER_ADMIN', admin_id: null }), false);
+    assert.equal(isSupportConversation({ type: 'CUSTOMER_ADMIN', admin_id: '3' }), true);
+    assert.equal(isSupportConversation({ type: 'HOST_ADMIN', admin_id: '3' }), true);
+  });
   it('offers the correct recipients in each portal', () => {
-    assert.deepEqual(recipientRoles('CUSTOMER'), ['HOST', 'ADMIN']);
-    assert.deepEqual(recipientRoles('HOST'), ['CUSTOMER', 'ADMIN']);
+    assert.deepEqual(recipientRoles('CUSTOMER'), ['ADMIN']);
+    assert.deepEqual(recipientRoles('HOST'), ['ADMIN']);
     assert.deepEqual(recipientRoles('ADMIN'), ['CUSTOMER', 'HOST']);
   });
   it('finds Vietnamese names with or without diacritics', () => assert.equal(searchable('Đà Lạt · Nguyễn Hoàng Nam'), 'da lat · nguyen hoang nam'));

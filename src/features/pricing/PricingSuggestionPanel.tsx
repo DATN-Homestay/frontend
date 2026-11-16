@@ -88,7 +88,8 @@ export default function PricingSuggestionPanel({
   const stats = suggestion.comp_set_stats;
   const insufficient =
     suggestion.data_status === 'INSUFFICIENT_DATA' || stats.compset_size <= 0;
-  const bounds = priceBounds(suggestion.base_price);
+  const maxChangePercent = suggestion.max_change_percent ?? 30;
+  const bounds = priceBounds(suggestion.base_price, maxChangePercent);
   const canEdit =
     !disabled &&
     !locked &&
@@ -96,7 +97,7 @@ export default function PricingSuggestionPanel({
     !insufficient &&
     !applying &&
     bounds !== null;
-  const priceValid = isPriceWithinBounds(appliedPrice, suggestion.base_price);
+  const priceValid = isPriceWithinBounds(appliedPrice, suggestion.base_price, maxChangePercent);
   const invalidPrice = canEdit && appliedPrice !== null && !priceValid;
   const edited =
     appliedPrice !== null && appliedPrice !== suggestion.suggested_price;
@@ -357,7 +358,7 @@ export default function PricingSuggestionPanel({
               {bounds ? (
                 <>
                   Trong khoảng {formatVnd(bounds.min)} – {formatVnd(bounds.max)}{' '}
-                  (±30% giá gốc).
+                  (±{maxChangePercent}% giá gốc).
                 </>
               ) : (
                 'Cần có giá gốc hợp lệ để điều chỉnh giá.'

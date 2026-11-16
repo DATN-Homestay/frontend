@@ -127,6 +127,7 @@ export type BookingStatus =
 
 /** data của POST /bookings/quote */
 export interface BookingQuote {
+  booking_hold_minutes?: number;
   available: boolean;
   unavailable_dates: string[];
   /** Đêm chưa có giá/lịch (homestay chưa mở bán) */

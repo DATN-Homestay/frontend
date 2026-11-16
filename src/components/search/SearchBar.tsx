@@ -107,7 +107,7 @@ export default function SearchBar({ value, onSubmit, variant = 'hero', extra }: 
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
         <Button
           type="primary"
-          style={{ flex: 1, background: '#6366f1', borderRadius: 8, height: 38, fontWeight: 600 }}
+          style={{ flex: 1, background: 'var(--accent, #087f70)', borderRadius: 8, height: 38, fontWeight: 600 }}
           onClick={() => {
             setFilterByGuests(true);
             setGuestOpen(false);
@@ -128,17 +128,17 @@ export default function SearchBar({ value, onSubmit, variant = 'hero', extra }: 
     </div>
   );
 
-  const label = (text: string) =>
-    !compact && (
-      <Text type="secondary" style={{ fontSize: 11, display: 'block', paddingLeft: 4, fontWeight: 600 }}>
+  const label = (text: string) => (
+      <Text className="stay-search-label" type="secondary" style={{ fontSize: 11, display: 'block', paddingLeft: 4, fontWeight: 600 }}>
         {text}
       </Text>
     );
 
-  const divider = <div style={{ width: 1, height: compact ? 28 : 36, background: '#e2e8f0' }} />;
+  const divider = <div className="stay-search-divider" style={{ width: 1, height: compact ? 28 : 36, background: '#e2e8f0' }} />;
 
   return (
     <div
+      className={`stay-search stay-search--${variant}`}
       style={{
         background: '#ffffff',
         padding: compact ? '8px 10px' : '12px 14px',
@@ -151,7 +151,7 @@ export default function SearchBar({ value, onSubmit, variant = 'hero', extra }: 
         alignItems: 'center',
       }}
     >
-      <div style={{ flex: '1 1 180px', textAlign: 'left', minWidth: 160 }}>
+      <div className="stay-search-field" style={{ flex: '1 1 180px', textAlign: 'left', minWidth: 160 }}>
         {label('TỈNH / THÀNH PHỐ')}
         <Select
           showSearch
@@ -164,13 +164,13 @@ export default function SearchBar({ value, onSubmit, variant = 'hero', extra }: 
             setDistrict(undefined);
           }}
           filterOption={(input, option) => ((option?.value as string) || '').toLowerCase().includes(input.toLowerCase())}
-          suffixIcon={<EnvironmentOutlined style={{ color: '#6366f1' }} />}
+          suffixIcon={<EnvironmentOutlined style={{ color: '#6f9275' }} />}
           style={{ width: '100%' }}
           variant="borderless"
           options={[
             {
               value: ALL_CITY,
-              label: <span style={{ fontWeight: 700, color: '#4f46e5' }}>🌟 Tất cả điểm đến (Toàn quốc)</span>,
+              label: <span style={{ fontWeight: 700, color: '#087f70' }}>🌟 Tất cả điểm đến (Toàn quốc)</span>,
             },
             ...ALL_LOCATIONS_LIST.map((c) => ({
               value: c,
@@ -191,7 +191,7 @@ export default function SearchBar({ value, onSubmit, variant = 'hero', extra }: 
 
       {divider}
 
-      <div style={{ flex: '1 1 170px', textAlign: 'left', minWidth: 150 }}>
+      <div className="stay-search-field" style={{ flex: '1 1 170px', textAlign: 'left', minWidth: 150 }}>
         {label('QUẬN / HUYỆN / KHU VỰC')}
         <Select
           showSearch
@@ -201,7 +201,7 @@ export default function SearchBar({ value, onSubmit, variant = 'hero', extra }: 
           value={district || undefined}
           onChange={(val) => setDistrict(val && val !== ALL_DISTRICT ? val : undefined)}
           filterOption={(input, option) => ((option?.value as string) || '').toLowerCase().includes(input.toLowerCase())}
-          suffixIcon={<HomeOutlined style={{ color: '#6366f1' }} />}
+          suffixIcon={<HomeOutlined style={{ color: '#6f9275' }} />}
           style={{ width: '100%' }}
           variant="borderless"
           options={[
@@ -215,7 +215,7 @@ export default function SearchBar({ value, onSubmit, variant = 'hero', extra }: 
 
       {divider}
 
-      <div style={{ flex: '1.4 1 230px', textAlign: 'left', minWidth: 220 }}>
+      <div className="stay-search-field stay-search-dates" style={{ flex: '1.4 1 230px', textAlign: 'left', minWidth: 220 }}>
         {label('NGÀY NHẬN - TRẢ PHÒNG')}
         <RangePicker
           allowClear
@@ -224,7 +224,7 @@ export default function SearchBar({ value, onSubmit, variant = 'hero', extra }: 
           value={dates ? [dayjs(dates[0]), dayjs(dates[1])] : null}
           disabledDate={(d) => d.isBefore(dayjs().startOf('day'))}
           style={{ width: '100%', border: 'none' }}
-          suffixIcon={<CalendarOutlined style={{ color: '#6366f1' }} />}
+          suffixIcon={<CalendarOutlined style={{ color: '#6f9275' }} />}
           onChange={(range) => {
             if (range?.[0] && range?.[1]) {
               setDates([range[0].format('YYYY-MM-DD'), range[1].format('YYYY-MM-DD')]);
@@ -237,25 +237,26 @@ export default function SearchBar({ value, onSubmit, variant = 'hero', extra }: 
 
       {divider}
 
-      <div style={{ flex: '1.4 1 220px', textAlign: 'left', minWidth: 200 }}>
+      <div className="stay-search-field stay-search-guests" style={{ flex: '1.4 1 220px', textAlign: 'left', minWidth: 200 }}>
         {label('KHÁCH & PHÒNG')}
         <Popover content={guestPopover} trigger="click" open={guestOpen} onOpenChange={setGuestOpen} placement="bottomRight">
-          <div
-            role="button"
-            tabIndex={0}
-            style={{ cursor: 'pointer', padding: '4px 6px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8, height: 32 }}
+          <button
+            type="button"
+            aria-label="Khách và phòng"
+            aria-expanded={guestOpen}
+            style={{ cursor: 'pointer', padding: '4px 6px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8, height: 32, background: 'transparent', border: 0, width: '100%', textAlign: 'left' }}
           >
-            <UserOutlined style={{ color: '#6366f1' }} />
+            <UserOutlined style={{ color: '#6f9275' }} />
             <Text strong style={{ color: '#1e293b', fontSize: 13, whiteSpace: 'nowrap' }}>
               {filterByGuests
                 ? `${guests.adults} người lớn · ${guests.children} trẻ em · ${guests.rooms} phòng`
                 : 'Số khách bất kỳ'}
             </Text>
-          </div>
+          </button>
         </Popover>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+      <div className="stay-search-submit" style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
         <Button
           type="primary"
           size="large"
@@ -264,10 +265,10 @@ export default function SearchBar({ value, onSubmit, variant = 'hero', extra }: 
           style={{
             height: compact ? 42 : 48,
             borderRadius: 12,
-            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+            background: 'var(--accent, #087f70)',
             padding: '0 24px',
             fontWeight: 600,
-            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.35)',
+            boxShadow: '0 4px 12px rgba(8, 127, 112, 0.14)',
           }}
         >
           Tìm kiếm

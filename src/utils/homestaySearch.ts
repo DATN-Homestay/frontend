@@ -51,6 +51,37 @@ export const RATING_OPTIONS = [
   { value: 3.5, label: 'Tốt: từ 3.5' },
 ] as const;
 
+export const POPULAR_AMENITIES = [
+  { key: 'facility:wifi', label: 'WiFi / Internet', pattern: /wi[\s-]?fi|internet/i },
+  { key: 'facility:parking', label: 'Chỗ đỗ xe', pattern: /(?:chỗ|bãi).*?(?:đỗ|đậu) xe|parking/i },
+  { key: 'facility:pool', label: 'Hồ bơi', pattern: /hồ bơi|bể bơi|swimming pool/i },
+  { key: 'facility:aircon', label: 'Điều hòa', pattern: /điều h[oò]a|máy lạnh|air.condition/i },
+  { key: 'facility:kitchen', label: 'Nhà bếp', pattern: /bếp(?!\s+nướng)|kitchen/i },
+  { key: 'facility:bbq', label: 'Bếp nướng BBQ', pattern: /bbq|bếp nướng/i },
+  { key: 'facility:washer', label: 'Máy giặt', pattern: /máy giặt|washing machine/i },
+  { key: 'facility:pets', label: 'Cho phép thú cưng', pattern: /cho phép.*(?:thú cưng|vật nuôi)|(?:thú (?:cưng|nuôi)|vật nuôi).*được phép|pets? allowed/i },
+  { key: 'facility:balcony', label: 'Ban công / sân hiên', pattern: /ban công|sân hiên|sân thượng|terrace|balcony/i },
+  { key: 'facility:garden', label: 'Sân vườn', pattern: /sân vườn|khu vườn|garden/i },
+  { key: 'facility:family', label: 'Phòng gia đình', pattern: /phòng gia đình|family rooms?/i },
+  { key: 'facility:nonsmoking', label: 'Phòng không hút thuốc', pattern: /phòng không hút thuốc|non.smoking/i },
+  { key: 'facility:airport', label: 'Đưa đón sân bay', pattern: /đưa đón sân bay|airport shuttle/i },
+  { key: 'facility:gym', label: 'Phòng tập thể dục', pattern: /phòng (?:tập|gym)|trung tâm thể dục|fitness/i },
+  { key: 'facility:spa', label: 'Spa / xông hơi', pattern: /spa|xông hơi|sauna/i },
+  { key: 'facility:beach', label: 'Giáp biển / bãi biển riêng', pattern: /giáp biển|bãi biển riêng|beachfront/i },
+  { key: 'facility:lift', label: 'Thang máy', pattern: /thang máy|elevator|\blift\b/i },
+  { key: 'facility:reception', label: 'Lễ tân 24 giờ', pattern: /lễ tân 24|24.hour front desk/i },
+  { key: 'facility:workspace', label: 'Bàn làm việc', pattern: /bàn làm việc|khu vực làm việc|workspace/i },
+  { key: 'facility:tv', label: 'TV / truyền hình', pattern: /\btv\b|tivi|truyền hình/i },
+] as const;
+
+export const amenityLabel = (key: string) => POPULAR_AMENITIES.find((option) => option.key === key)?.label ?? key;
+
+function matchesAmenity(facilities: string[], key: string): boolean {
+  const option = POPULAR_AMENITIES.find((item) => item.key === key);
+  if (!option) return facilities.includes(key);
+  return facilities.some((facility) => !/không (?:có|được|cho phép)|no parking|pets?.*not allowed/i.test(facility) && option.pattern.test(facility));
+}
+
 export const PROPERTY_TYPE_LABELS: Record<string, string> = {
   HOMESTAY: 'Homestay',
   VILLA: 'Biệt thự (Villa)',
@@ -161,8 +192,18 @@ export function propertyTypeOf(h: HomestayItem): string {
 }
 
 export function facilitiesOf(h: HomestayItem): string[] {
-  const list = h.amenities_json?.popular_facilities;
-  return Array.isArray(list) ? list.filter((f): f is string => typeof f === 'string' && f.trim() !== '') : [];
+  const metadata = h.amenities_json;
+  const strings = (value: unknown): string[] => Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && item.trim() !== '').map((item) => item.trim())
+    : [];
+  const grouped = metadata?.grouped_facilities;
+  return [...new Set([
+    ...strings(metadata?.popular_facilities),
+    ...strings(metadata?.items),
+    ...(grouped && typeof grouped === 'object' && !Array.isArray(grouped)
+      ? Object.values(grouped).flatMap(strings)
+      : []),
+  ])];
 }
 
 /** Cùng tiêu chí với HomestayDetail: chưa có chủ hoặc nguồn Booking.com thì chuyển hướng sang Booking.com */
@@ -205,7 +246,7 @@ function passes(h: HomestayItem, c: SearchCriteria, skip?: Group): boolean {
   if (skip !== 'type' && c.types.length && !c.types.includes(propertyTypeOf(h))) return false;
   if (skip !== 'amenity' && c.amenities.length) {
     const fac = facilitiesOf(h);
-    if (!c.amenities.every((a) => fac.includes(a))) return false;
+    if (!c.amenities.every((a) => matchesAmenity(fac, a))) return false;
   }
   if (skip !== 'meal' && c.meals.length) {
     const meals = mealsOf(h);
@@ -231,6 +272,7 @@ export interface Facets {
   rating: FacetOption[];
   type: FacetOption[];
   amenity: FacetOption[];
+  popularAmenity: FacetOption[];
   meal: FacetOption[];
   source: FacetOption[];
 }
@@ -267,13 +309,21 @@ export function computeFacets(list: HomestayItem[], c: SearchCriteria): Facets {
     .map(([key, count]) => ({ key, label: PROPERTY_TYPE_LABELS[key] ?? key, count }))
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'vi'));
 
+  const amenitySet = without('amenity');
+  const amenityFacilities = amenitySet.map(facilitiesOf);
+  const popularAmenity = POPULAR_AMENITIES.map((option) => ({
+    key: option.key, label: option.label,
+    count: amenityFacilities.filter((facilities) => matchesAmenity(facilities, option.key)).length,
+  }));
   const amenityCounts = new Map<string, number>();
-  for (const h of without('amenity')) {
-    for (const f of new Set(facilitiesOf(h))) {
+  for (const facilities of amenityFacilities) {
+    for (const f of facilities) {
       if (!isMealFacility(f)) amenityCounts.set(f, (amenityCounts.get(f) ?? 0) + 1);
     }
   }
-  for (const a of c.amenities) if (!amenityCounts.has(a)) amenityCounts.set(a, 0);
+  for (const a of c.amenities) {
+    if (!POPULAR_AMENITIES.some((option) => option.key === a) && !amenityCounts.has(a)) amenityCounts.set(a, 0);
+  }
   const amenity = [...amenityCounts.entries()]
     .map(([key, count]) => ({ key, label: key, count }))
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'vi'));
@@ -292,7 +342,7 @@ export function computeFacets(list: HomestayItem[], c: SearchCriteria): Facets {
     count: sourceSet.filter((h) => sourceOf(h) === s).length,
   }));
 
-  return { price, rating, type, amenity, meal, source };
+  return { price, rating, type, amenity, popularAmenity, meal, source };
 }
 
 /** Sắp xếp; 'popular' giữ thứ tự backend (chính chủ trước). Căn chưa có giá luôn xuống cuối khi xếp theo giá. */

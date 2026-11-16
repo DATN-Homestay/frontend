@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, App, Button, Card, Col, Divider, Input, Modal, Result, Row, Skeleton, Space, Tag, Typography } from 'antd';
 import { CheckCircleFilled, GiftOutlined, SafetyCertificateOutlined, TagOutlined } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { customerService } from '../../services/customerService';
 import { ApiError } from '../../services/apiClient';
 import type { BookingQuote, CouponCheck, CreatedBooking, AvailableCoupon } from '../../types/customer';
+import { estimateDiscount } from '../../features/coupons/coupon.utils';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -13,6 +14,12 @@ const formatTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false });
 
 export default function CheckoutPage() {
+  const [params] = useSearchParams();
+  const stayKey = ['roomId', 'checkIn', 'checkOut', 'guests'].map((key) => params.get(key)).join('|');
+  return <CheckoutStay key={stayKey} />;
+}
+
+function CheckoutStay() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { message } = App.useApp();
@@ -40,6 +47,12 @@ export default function CheckoutPage() {
   const [availableCoupons, setAvailableCoupons] = useState<AvailableCoupon[]>([]);
   const [couponModalOpen, setCouponModalOpen] = useState(false);
   const urlCoupon = searchParams.get('coupon');
+  const couponRequest = useRef(0);
+  const couponInFlight = useRef(false);
+  const paymentInFlight = useRef(false);
+  const attemptedUrlCoupon = useRef<string | null>(null);
+
+  useEffect(() => () => { couponRequest.current += 1; }, []);
 
   // Báo giá thật từ server: tiền phòng, số đêm, còn phòng hay không
   useEffect(() => {
@@ -64,22 +77,22 @@ export default function CheckoutPage() {
   // Tải danh sách mã ưu đãi có sẵn cho homestay này
   useEffect(() => {
     if (!quote?.homestay?.id) return;
-    customerService.getHomestayCoupons(quote.homestay.id).then(setAvailableCoupons);
+    let cancelled = false;
+    customerService.getHomestayCoupons(quote.homestay.id).then((coupons) => {
+      if (!cancelled) setAvailableCoupons(coupons);
+    });
+    return () => { cancelled = true; };
   }, [quote?.homestay?.id]);
 
-  // Tự động áp dụng mã truyền qua URL (?coupon=...)
-  useEffect(() => {
-    if (urlCoupon && quote?.available && !appliedCoupon && !couponChecking) {
-      applyCouponDirectly(urlCoupon);
-    }
-  }, [urlCoupon, quote?.available]);
-
-  const applyCouponDirectly = async (code: string) => {
+  const applyCouponDirectly = useCallback(async (code: string) => {
     const cleanCode = code.trim().toUpperCase();
-    if (!cleanCode || !roomId || !checkIn || !checkOut) return;
+    if (!cleanCode || !roomId || !checkIn || !checkOut || !quote?.available || booking || couponInFlight.current || paymentInFlight.current) return;
+    const requestId = ++couponRequest.current;
+    couponInFlight.current = true;
     setCouponInput(cleanCode);
     setCouponChecking(true);
     setCouponError(null);
+    setAppliedCoupon(null);
     try {
       const result = await customerService.validateCoupon({
         room_id: roomId,
@@ -88,6 +101,7 @@ export default function CheckoutPage() {
         num_guests: guests,
         coupon_code: cleanCode,
       });
+      if (couponRequest.current !== requestId) return;
       if (result.valid) {
         setAppliedCoupon(result);
         message.success(`Đã áp dụng mã ưu đãi ${cleanCode}!`);
@@ -96,24 +110,37 @@ export default function CheckoutPage() {
         setCouponError(result.message);
       }
     } catch (err) {
-      setCouponError(err instanceof Error ? err.message : 'Không thể kiểm tra mã giảm giá');
+      if (couponRequest.current === requestId) setCouponError(err instanceof Error ? err.message : 'Không thể kiểm tra mã giảm giá');
     } finally {
-      setCouponChecking(false);
+      if (couponRequest.current === requestId) {
+        couponInFlight.current = false;
+        setCouponChecking(false);
+      }
     }
-  };
+  }, [roomId, checkIn, checkOut, guests, quote?.available, booking, message]);
+
+  // Apply a URL code once; removing an applied code must keep it removed.
+  useEffect(() => {
+    if (urlCoupon && quote?.available && attemptedUrlCoupon.current !== urlCoupon) {
+      attemptedUrlCoupon.current = urlCoupon;
+      void applyCouponDirectly(urlCoupon);
+    }
+  }, [urlCoupon, quote?.available, applyCouponDirectly]);
 
   const handleApplyCoupon = () => {
     applyCouponDirectly(couponInput);
   };
 
   const handleRemoveCoupon = () => {
+    if (couponInFlight.current || paymentInFlight.current || booking) return;
     setAppliedCoupon(null);
     setCouponError(null);
     setCouponInput('');
   };
 
   const handlePay = async () => {
-    if (!roomId || !checkIn || !checkOut) return;
+    if (!roomId || !checkIn || !checkOut || !quote?.available || couponInFlight.current || paymentInFlight.current) return;
+    paymentInFlight.current = true;
     setPaying(true);
     setPayError(null);
     try {
@@ -145,6 +172,7 @@ export default function CheckoutPage() {
         setCouponError(text);
       }
     } finally {
+      paymentInFlight.current = false;
       setPaying(false);
     }
   };
@@ -173,7 +201,8 @@ export default function CheckoutPage() {
 
   // Đã tạo đơn thì lấy số server đã chốt; chưa tạo thì dùng kết quả kiểm tra mã
   const discount = booking?.discount_amount ?? appliedCoupon?.discount_amount ?? 0;
-  const total = booking ? booking.total_amount : (quote ? quote.total_amount - discount : 0);
+  const total = booking?.total_amount ?? appliedCoupon?.total_amount ?? quote?.total_amount ?? 0;
+  const subtotal = booking?.room_subtotal ?? appliedCoupon?.subtotal ?? quote?.room_subtotal ?? 0;
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
@@ -228,6 +257,7 @@ export default function CheckoutPage() {
                   <Button
                     type="link"
                     size="small"
+                    disabled={couponChecking || paying}
                     onClick={() => setCouponModalOpen(true)}
                     style={{ padding: 0, fontWeight: 600, color: '#6366f1', display: 'flex', alignItems: 'center', gap: 4 }}
                   >
@@ -249,23 +279,23 @@ export default function CheckoutPage() {
                     Tiết kiệm được: -{money(appliedCoupon.discount_amount)}
                   </div>
                 </div>
-                {!booking && <Button type="link" danger onClick={handleRemoveCoupon}>Bỏ mã</Button>}
+                {!booking && <Button type="link" danger disabled={paying || couponChecking} onClick={handleRemoveCoupon}>Bỏ mã</Button>}
               </Space>
             ) : (
               <>
                 <Space.Compact style={{ width: '100%' }}>
                   <Input
-                    placeholder="Nhập mã giảm giá (ví dụ: STAYAI10, SKIBIDI20...)"
+                    placeholder="Nhập mã giảm giá"
                     value={couponInput}
                     maxLength={50}
-                    disabled={!!booking}
+                    disabled={!!booking || paying || couponChecking}
                     onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
                     onPressEnter={handleApplyCoupon}
                   />
                   <Button
                     type="primary"
                     loading={couponChecking}
-                    disabled={!couponInput.trim() || !!booking || loading || !quote?.available}
+                    disabled={!couponInput.trim() || !!booking || paying || loading || !quote?.available}
                     onClick={handleApplyCoupon}
                   >
                     Áp dụng
@@ -303,7 +333,7 @@ export default function CheckoutPage() {
                               transition: 'all 0.2s ease',
                             }}
                             onClick={() => {
-                              if (meetsMin && !loading && quote?.available) {
+                              if (meetsMin && !loading && !couponChecking && !paying && quote?.available) {
                                 applyCouponDirectly(c.code);
                               } else if (!meetsMin) {
                                 message.warning(`Đơn tối thiểu để dùng mã ${c.code} là ${money(c.min_order_value)}`);
@@ -357,7 +387,12 @@ export default function CheckoutPage() {
               <Skeleton active paragraph={{ rows: 4 }} />
             ) : (
               <>
-                {quote.nightly_prices.map((n) => (
+                {subtotal !== quote.room_subtotal ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <Text type="secondary">Tiền phòng ({quote.nights} đêm) · Giá đã cập nhật</Text>
+                    <Text>{money(subtotal)}</Text>
+                  </div>
+                ) : quote.nightly_prices.map((n) => (
                   <div key={n.date} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                     <Text type="secondary">Đêm {n.date}</Text>
                     <Text>{money(n.price)}</Text>
@@ -400,7 +435,7 @@ export default function CheckoutPage() {
                         {quote.held_dates.length > 0 && (
                           <div>
                             Các đêm đã có người giữ chỗ hoặc đã đặt: {quote.held_dates.join(', ')}. Nếu bạn vừa bấm
-                            thanh toán, phòng đang được giữ cho đơn chờ thanh toán của chính bạn trong 15 phút: hãy vào{' '}
+                            thanh toán, phòng đang được giữ cho đơn chờ thanh toán của chính bạn: hãy vào{' '}
                             <a onClick={() => navigate('/trips')}>Chuyến đi của tôi</a> để thanh toán tiếp.
                           </div>
                         )}
@@ -424,7 +459,7 @@ export default function CheckoutPage() {
                   size="large"
                   block
                   loading={paying}
-                  disabled={!quote.available}
+                  disabled={!quote.available || couponChecking}
                   onClick={handlePay}
                   icon={<CheckCircleFilled />}
                   style={{ height: 48, borderRadius: 10, fontWeight: 600 }}
@@ -432,7 +467,7 @@ export default function CheckoutPage() {
                   {booking ? 'Tiếp tục thanh toán VNPay' : 'Thanh toán VNPay'}
                 </Button>
                 <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginTop: 10, fontSize: 12 }}>
-                  Phòng được giữ 15 phút kể từ khi bạn bấm thanh toán
+                  {booking ? `Vui lòng thanh toán trước ${formatTime(booking.payment_deadline)}` : `Phòng được giữ ${quote.booking_hold_minutes ?? 15} phút kể từ khi bạn bấm thanh toán`}
                 </Text>
               </>
             )}
@@ -463,13 +498,7 @@ export default function CheckoutPage() {
               const meetsMin = subtotal >= c.min_order_value;
               const isApplied = appliedCoupon?.code === c.code;
 
-              let estimatedSaving = 0;
-              if (c.discount_type === 'PERCENTAGE') {
-                estimatedSaving = Math.floor((subtotal * c.discount_value) / 100);
-                if (c.max_discount) estimatedSaving = Math.min(estimatedSaving, c.max_discount);
-              } else {
-                estimatedSaving = c.discount_value;
-              }
+              const estimatedSaving = estimateDiscount(c, subtotal);
 
               return (
                 <div
@@ -516,10 +545,13 @@ export default function CheckoutPage() {
 
                     <div style={{ fontSize: 12, color: meetsMin ? '#16a34a' : '#ea580c', marginTop: 4, fontWeight: 500 }}>
                       {meetsMin ? (
-                        <span>✓ Đủ điều kiện: Tiết kiệm ước tính ~<strong>{money(estimatedSaving)}</strong></span>
+                        <span>Đạt mức đơn tối thiểu · Tiết kiệm dự kiến <strong>{money(estimatedSaving)}</strong></span>
                       ) : (
                         <span>⚠️ Đơn tối thiểu: {money(c.min_order_value)} (cần thêm {money(c.min_order_value - subtotal)})</span>
                       )}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                      Hết hạn: {new Date(c.end_date).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}. Điều kiện và lượt dùng được kiểm tra khi áp dụng.
                     </div>
                   </div>
 
@@ -540,7 +572,7 @@ export default function CheckoutPage() {
                       <Button
                         type="primary"
                         size="middle"
-                        disabled={!meetsMin || loading || !quote?.available}
+                        disabled={!meetsMin || loading || couponChecking || paying || !!booking || !quote?.available || estimatedSaving <= 0}
                         style={{
                           borderRadius: 8,
                           background: meetsMin ? '#ea580c' : undefined,

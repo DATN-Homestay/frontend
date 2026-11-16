@@ -293,7 +293,7 @@ export default function PriceCalendarPage() {
   const currentQuote =
     quote && suggestionMatchesSelection(quote.data, selection) ? quote : null;
   const expired = Boolean(
-    currentQuote && now - currentQuote.receivedAt >= QUOTE_LIFETIME,
+    currentQuote && now - currentQuote.receivedAt >= (currentQuote.data.suggestion_ttl_seconds ? currentQuote.data.suggestion_ttl_seconds * 1000 : QUOTE_LIFETIME),
   );
   const saving = applying || batchUpdating || dayUpdating || confirmation !== null;
   const busy = saving || dayContext !== null || batchContext !== null;
@@ -423,10 +423,10 @@ export default function PriceCalendarPage() {
       saving ||
       batchContext !== null ||
       currentQuote.data.data_status !== 'SUFFICIENT_DATA' ||
-      !isPriceWithinBounds(price, currentQuote.data.base_price)
+      !isPriceWithinBounds(price, currentQuote.data.base_price, currentQuote.data.max_change_percent)
     )
       return;
-    if (Date.now() - currentQuote.receivedAt >= QUOTE_LIFETIME) {
+    if (Date.now() - currentQuote.receivedAt >= (currentQuote.data.suggestion_ttl_seconds ? currentQuote.data.suggestion_ttl_seconds * 1000 : QUOTE_LIFETIME)) {
       setNow(Date.now());
       return;
     }
@@ -443,7 +443,7 @@ export default function PriceCalendarPage() {
     const confirmed = confirmation;
     if (
       !currentQuote ||
-      Date.now() - currentQuote.receivedAt >= QUOTE_LIFETIME ||
+      Date.now() - currentQuote.receivedAt >= (currentQuote.data.suggestion_ttl_seconds ? currentQuote.data.suggestion_ttl_seconds * 1000 : QUOTE_LIFETIME) ||
       isHeld(targetDay, Date.now())
     ) {
       setConfirmation(null);
@@ -1017,7 +1017,7 @@ export default function PriceCalendarPage() {
                     {currentQuote.data.data_status === 'SUFFICIENT_DATA' && !expired ? (
                       <Button
                         disabled={dayUpdating || locked || !isPriceWithinBounds(
-                          currentQuote.data.suggested_price, currentQuote.data.base_price,
+                          currentQuote.data.suggested_price, currentQuote.data.base_price, currentQuote.data.max_change_percent,
                         )}
                         onClick={() => openConfirmation(currentQuote.data.suggested_price)}
                       >

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  EMPTY_CRITERIA, applyFilters, computeFacets, matchesGuests, matchesLocation, minNightlyPrice,
+  EMPTY_CRITERIA, applyFilters, computeFacets, facilitiesOf, matchesGuests, matchesLocation, minNightlyPrice,
   nightsBetween, parseCriteria, sortHomestays, toSearchParams, type SearchCriteria,
 } from '../src/utils/homestaySearch.ts';
 import type { HomestayItem } from '../src/types/customer.ts';
@@ -110,6 +110,35 @@ describe('bộ lọc bên trái', () => {
   it('mục đang chọn vẫn hiện dù đếm 0', () => {
     const f = computeFacets(list, c({ amenities: ['Sân bay riêng'] }));
     assert.equal(f.amenity.find((o) => o.key === 'Sân bay riêng')?.count, 0);
+  });
+
+  it('lọc thêm tiện nghi chủ nhà và nhóm chi tiết: hồ bơi, thú cưng, điều hòa, máy giặt, BBQ', () => {
+    const full = hs({ amenities_json: {
+      popular_facilities: ['WiFi miễn phí'],
+      items: ['Hồ bơi riêng', 'Cho phép mang thú cưng', 'Máy giặt', ' WiFi miễn phí ', null],
+      grouped_facilities: { 'Tiện ích': ['Điều hòa 2 chiều', 'Bếp nướng BBQ ngoài trời', 'Hồ bơi riêng'], 'Dữ liệu lỗi': null },
+    } });
+    assert.equal(facilitiesOf(full).filter((item) => item === 'WiFi miễn phí').length, 1);
+    const filters = c({ amenities: ['Hồ bơi riêng', 'Cho phép mang thú cưng', 'Điều hòa 2 chiều', 'Máy giặt'] });
+    assert.deepEqual(applyFilters([full, cheap], filters).map((item) => item.id), [full.id]);
+    const facets = computeFacets([full, cheap], filters);
+    assert.equal(facets.amenity.find((option) => option.key === 'Điều hòa 2 chiều')?.count, 1);
+    assert.equal(facets.meal.find((option) => option.key === 'kitchen')?.count, 1);
+    assert.deepEqual(facilitiesOf(hs({ amenities_json: { items: 'Sai định dạng', grouped_facilities: [] } })), []);
+  });
+
+  it('tiện ích phổ biến khớp nhiều cách gọi, kết hợp VÀ và không nhận tiện nghi bị phủ định', () => {
+    const a = hs({ amenities_json: { items: ['Wifi tốc độ cao', 'Hồ bơi riêng', 'Máy lạnh', 'Cho phép mang thú cưng'] } });
+    const b = hs({ fac: ['Wi-fi miễn phí', 'Bể bơi ngoài trời', 'Điều hòa nhiệt độ'] });
+    const unavailable = hs({ fac: ['Không có chỗ đỗ xe', 'Không cho phép mang thú cưng'] });
+    const properties = [a, b, unavailable];
+    const criteria = c({ amenities: ['facility:wifi', 'facility:pool', 'facility:aircon'] });
+    assert.deepEqual(applyFilters(properties, criteria).map((item) => item.id), [a.id, b.id]);
+    assert.deepEqual(applyFilters(properties, c({ amenities: ['facility:pets'] })).map((item) => item.id), [a.id]);
+    const facets = computeFacets(properties, criteria);
+    assert.equal(facets.popularAmenity.find((option) => option.key === 'facility:pool')?.count, 2);
+    assert.equal(facets.popularAmenity.find((option) => option.key === 'facility:parking')?.count, 0);
+    assert.deepEqual(parseCriteria(toSearchParams(criteria)).amenities, criteria.amenities);
   });
 });
 

@@ -14,6 +14,7 @@ const nativeFetch = globalThis.fetch;
 const testPassword = process.env.CHAT_TEST_PASSWORD ?? 'DemoPass123';
 let received = [];
 let failNextSend = false;
+let supportId, hostSupportId, adminAccount;
 
 async function login(email) {
   const response = await nativeFetch(`${origin}/api/v1/auth/login`, {
@@ -87,11 +88,24 @@ describe('Chat frontend with real REST + Socket.IO backend', { skip: !origin }, 
     globalThis.fetch = nativeFetch;
   });
 
-  it('loads persisted history, sends optimistic text once, receives realtime replies and updates receipts', async () => {
-    const customer = await mount('kh-chat@example.test', 'CUSTOMER', '/messages?conversation=1');
-    const host = await login('host-chat@example.test');
+  it('loads support history, sends optimistic text once, receives admin replies and updates receipts', async () => {
+    const initialCustomer = await login('kh-chat@example.test');
+    adminAccount = await login('admin-chat@example.test');
+    const support = await api('/chat/conversations', initialCustomer.access_token, 'POST', {
+      type: 'CUSTOMER_ADMIN', recipient_id: String(adminAccount.user.id), as_role: 'CUSTOMER',
+    });
+    supportId = support.id;
+    for (let i = 1; i <= 32; i++) {
+      await api(`/chat/conversations/${supportId}/messages`, initialCustomer.access_token, 'POST', {
+        content: `Mình muốn tìm hiểu thêm về tiện nghi của chỗ ở. (${i})`,
+      });
+    }
+    await api(`/chat/conversations/${supportId}/messages`, adminAccount.access_token, 'POST', {
+      content: 'Đội ngũ StayAI có thể hỗ trợ bạn điều gì hôm nay?',
+    });
+    const customer = await mount('kh-chat@example.test', 'CUSTOMER', `/messages?conversation=${supportId}`);
     const screen = testing.screen;
-    await testing.within(screen.getByRole('log')).findByText('Mình sẽ kiểm tra lịch phòng ngày đó và báo lại bạn nhé. Giờ nhận phòng thông thường là 14h.', {}, { timeout: 10000 });
+    await testing.within(screen.getByRole('log')).findByText('Đội ngũ StayAI có thể hỗ trợ bạn điều gì hôm nay?', {}, { timeout: 10000 });
     const input = screen.getByRole('textbox', { name: 'Nội dung tin nhắn' });
     testing.fireEvent.change(input, { target: { value: 'Tin gửi từ kiểm thử frontend' } });
     testing.fireEvent.click(screen.getByRole('button', { name: 'Gửi tin nhắn' }));
@@ -100,12 +114,12 @@ describe('Chat frontend with real REST + Socket.IO backend', { skip: !origin }, 
     await testing.waitFor(() => assert.equal(screen.queryByText('Đang gửi'), null), { timeout: 10000 });
     assert.equal(input.value, '');
     assert.equal(received.filter((body) => body.content === 'Tin gửi từ kiểm thử frontend').length, 1);
-    const saved = await api('/chat/conversations/1/messages', customer.access_token);
+    const saved = await api(`/chat/conversations/${supportId}/messages`, customer.access_token);
     const sent = saved.messages.find((m) => m.content === 'Tin gửi từ kiểm thử frontend');
     assert.ok(sent?.client_message_id);
-    await api('/chat/conversations/1/messages', host.access_token, 'POST', { content: 'Host trả lời realtime cho frontend' });
-    await testing.within(log).findByText('Host trả lời realtime cho frontend', {}, { timeout: 10000 });
-    await api('/chat/conversations/1/read', host.access_token, 'PATCH', {});
+    await api(`/chat/conversations/${supportId}/messages`, adminAccount.access_token, 'POST', { content: 'Admin trả lời realtime cho frontend' });
+    await testing.within(log).findByText('Admin trả lời realtime cho frontend', {}, { timeout: 10000 });
+    await api(`/chat/conversations/${supportId}/read`, adminAccount.access_token, 'PATCH', {});
     await testing.waitFor(() => {
       const bubble = testing.within(log).getByText('Tin gửi từ kiểm thử frontend').closest('.chat-message');
       assert.match(bubble.textContent, /Đã xem/);
@@ -116,8 +130,9 @@ describe('Chat frontend with real REST + Socket.IO backend', { skip: !origin }, 
     const screen = testing.screen;
     testing.fireEvent.click(screen.getByRole('button', { name: 'Xem tin nhắn trước' }));
     await testing.within(screen.getByRole('log')).findByText('Mình muốn tìm hiểu thêm về tiện nghi của chỗ ở. (1)', {}, { timeout: 10000 });
-    testing.fireEvent.change(screen.getByRole('textbox', { name: 'Tìm hội thoại' }), { target: { value: 'hoang nam' } });
-    assert.ok(screen.getByRole('button', { name: /Nguyễn Hoàng Nam/ }));
+    testing.fireEvent.change(screen.getByRole('textbox', { name: 'Tìm hội thoại' }), { target: { value: adminAccount.user.full_name } });
+    assert.ok(screen.getByRole('button', { name: new RegExp(adminAccount.user.full_name) }));
+    assert.equal(screen.queryByRole('button', { name: /Nguyễn Hoàng Nam/ }), null);
     assert.equal(screen.queryByRole('button', { name: /Trần Mai Phương/ }), null);
     testing.fireEvent.change(screen.getByRole('textbox', { name: 'Tìm hội thoại' }), { target: { value: '' } });
   });
@@ -127,10 +142,10 @@ describe('Chat frontend with real REST + Socket.IO backend', { skip: !origin }, 
     testing.fireEvent.click(screen.getByRole('button', { name: 'Cuộc trò chuyện mới' }));
     await screen.findByRole('dialog');
     testing.fireEvent.click(screen.getByRole('radio', { name: 'Hỗ trợ StayAI' }));
-    const contact = await testing.within(screen.getByRole('dialog')).findByRole('button', { name: /StayAI · Thanh Thảo/ }, { timeout: 10000 });
+    const contact = await testing.within(screen.getByRole('dialog')).findByRole('button', { name: new RegExp(adminAccount.user.full_name) }, { timeout: 10000 });
     testing.fireEvent.click(contact);
     await testing.waitFor(() => assert.equal(screen.queryByRole('dialog'), null), { timeout: 10000 });
-    await testing.within(screen.getByRole('log')).findByText('Chào Minh Anh, đội ngũ StayAI có thể hỗ trợ bạn điều gì hôm nay?', {}, { timeout: 10000 });
+    await testing.within(screen.getByRole('log')).findByText('Đội ngũ StayAI có thể hỗ trợ bạn điều gì hôm nay?', {}, { timeout: 10000 });
   });
 
   it('retains the same client ID when retrying a failed send', async () => {
@@ -147,14 +162,22 @@ describe('Chat frontend with real REST + Socket.IO backend', { skip: !origin }, 
   });
 
   it('shows the host inbox and creates host-admin messages with the host role', async () => {
-    await mount('host-chat@example.test', 'HOST', '/host/messages?conversation=4');
+    const initialHost = await login('host-chat@example.test');
+    const support = await api('/chat/conversations', initialHost.access_token, 'POST', {
+      type: 'HOST_ADMIN', recipient_id: String(adminAccount.user.id), as_role: 'HOST',
+    });
+    hostSupportId = support.id;
+    await api(`/chat/conversations/${hostSupportId}/messages`, initialHost.access_token, 'POST', {
+      content: 'Chào StayAI, mình muốn hỏi về lịch đối soát tháng này.',
+    });
+    await mount('host-chat@example.test', 'HOST', `/host/messages?conversation=${hostSupportId}`);
     const screen = testing.screen;
     await testing.within(screen.getByRole('log')).findByText('Chào StayAI, mình muốn hỏi về lịch đối soát tháng này.', {}, { timeout: 10000 });
     testing.fireEvent.change(screen.getByRole('textbox', { name: 'Nội dung tin nhắn' }), { target: { value: 'Host gửi tin từ frontend' } });
     testing.fireEvent.click(screen.getByRole('button', { name: 'Gửi tin nhắn' }));
     await testing.waitFor(() => assert.equal(screen.queryByText('Đang gửi'), null), { timeout: 10000 });
     const session = await login('host-chat@example.test');
-    const page = await api('/chat/conversations/4/messages', session.access_token);
+    const page = await api(`/chat/conversations/${hostSupportId}/messages`, session.access_token);
     assert.equal(page.messages.find((m) => m.content === 'Host gửi tin từ frontend')?.sender_role, 'HOST');
   });
 

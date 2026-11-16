@@ -19,7 +19,7 @@ import type {
   AvailableCoupon,
 } from '../types/customer';
 
-export interface HomestayCatalogFilters { district?: string; guests?: number; rooms?: number }
+export interface HomestayCatalogFilters { district?: string; guests?: number; rooms?: number; view?: 'search' }
 interface HomestayCatalog { items: HomestayItem[]; total: number }
 // Public catalog only: coalesce StrictMode/concurrent reads and reuse pages for five seconds.
 const catalogRequests = new Map<string, { promise: Promise<HomestayCatalog>; expiresAt: number }>();
@@ -28,7 +28,7 @@ export const customerService = {
   getHomestays(city?: string, limit = 24, offset = 0, filters: HomestayCatalogFilters = {}): Promise<HomestayCatalog> {
     const params = {
       city: city && !city.startsWith('Tất cả') ? city : undefined,
-      limit, offset, district: filters.district, guests: filters.guests, rooms: filters.rooms,
+      limit, offset, district: filters.district, guests: filters.guests, rooms: filters.rooms, view: filters.view,
     };
     const key = JSON.stringify(params);
     const cached = catalogRequests.get(key);
