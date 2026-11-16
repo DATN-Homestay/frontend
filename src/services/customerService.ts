@@ -3,6 +3,8 @@ import type { ApiResponse } from './apiClient';
 import type {
   HomestayItem,
   ReviewSubmission,
+  MyReview,
+  PublicReviewList,
   BookingQuote,
   CreatedBooking,
   PaymentLink,
@@ -13,6 +15,8 @@ import type {
   BookingStatus,
   CancellationQuote,
   CancelResult,
+  CouponCheck,
+  AvailableCoupon,
 } from '../types/customer';
 
 export interface HomestayCatalogFilters { district?: string; guests?: number; rooms?: number }
@@ -69,6 +73,7 @@ export const customerService = {
     check_out_date: string;
     num_guests?: number;
     customer_note?: string;
+    coupon_code?: string;
   }) {
     const res = await apiClient<ApiResponse<CreatedBooking>>('/bookings', {
       method: 'POST',
@@ -78,6 +83,31 @@ export const customerService = {
       }),
     });
     return res?.data ?? res;
+  },
+
+  /** Lấy danh sách mã giảm giá công khai áp dụng cho homestay */
+  async getHomestayCoupons(homestayId: string): Promise<AvailableCoupon[]> {
+    try {
+      const res = await apiClient<ApiResponse<AvailableCoupon[]>>(`/homestays/${homestayId}/coupons`);
+      return res.data ?? [];
+    } catch {
+      return [];
+    }
+  },
+
+  /** Xem trước mã giảm giá (không giữ lượt dùng). Mã sai vẫn trả 200 với valid=false. */
+  async validateCoupon(data: {
+    room_id: string;
+    check_in_date: string;
+    check_out_date: string;
+    num_guests?: number;
+    coupon_code: string;
+  }) {
+    const res = await apiClient<ApiResponse<CouponCheck>>('/coupons/validate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return res.data;
   },
 
   /** URL thanh toán VNPay đã ký của một đơn đang chờ thanh toán */
@@ -119,12 +149,21 @@ export const customerService = {
     return res.data;
   },
 
-  async submitReview(data: ReviewSubmission) {
-    const res: any = await apiClient(`/bookings/${data.booking_id}/reviews`, {
+  /** Gửi đánh giá cho đơn đã hoàn tất. Server tự kiểm tra quyền, thời hạn và chống gửi trùng. */
+  async submitReview(bookingId: string, data: ReviewSubmission) {
+    const res = await apiClient<ApiResponse<MyReview>>(`/bookings/${bookingId}/reviews`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
-    return res?.data ?? res;
+    return res.data;
+  },
+
+  /** Đánh giá công khai của homestay (đã duyệt), có phân trang */
+  async getHomestayReviews(homestayId: string, page = 1, limit = 5) {
+    const res = await apiClient<ApiResponse<PublicReviewList>>(`/homestays/${homestayId}/reviews`, {
+      params: { page, limit },
+    });
+    return res.data;
   },
 };
 

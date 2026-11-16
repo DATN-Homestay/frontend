@@ -23,12 +23,22 @@ const RegisterPage = lazy(() => import('./pages/auth/Register'));
 
 // Customer Pages (Member 1)
 import HomePage from './pages/customer/Home';
+<<<<<<< HEAD
 const HomestayDetailPage = lazy(() => import('./pages/customer/HomestayDetail'));
 const CheckoutPage = lazy(() => import('./pages/customer/Checkout'));
 const MyTripsPage = lazy(() => import('./pages/customer/MyTrips'));
 const ProfilePage = lazy(() => import('./pages/account/Profile'));
 const PaymentResultPage = lazy(() => import('./pages/customer/PaymentResult'));
 const FavoritesPage = lazy(() => import('./pages/customer/Favorites'));
+=======
+import HomestayDetailPage from './pages/customer/HomestayDetail';
+import SearchResultsPage from './pages/customer/SearchResults';
+import CheckoutPage from './pages/customer/Checkout';
+import MyTripsPage from './pages/customer/MyTrips';
+import ProfilePage from './pages/account/Profile';
+import PaymentResultPage from './pages/customer/PaymentResult';
+import FavoritesPage from './pages/customer/Favorites';
+>>>>>>> 7537cb9e1d74021f9fff24a3cd9df1c863c59a9a
 import RequireAuth from './components/RequireAuth';
 
 // Host Pages (Member 2)
@@ -105,6 +115,7 @@ export default function App() {
                   {/* PHÂN HỆ 1: KHÁCH HÀNG (CUSTOMER PORTAL) */}
                   <Route path="/" element={<CustomerLayout />}>
                     <Route index element={<HomePage />} />
+                    <Route path="search" element={<SearchResultsPage />} />
                     <Route path="homestay/:id" element={<HomestayDetailPage />} />
                     <Route path="checkout" element={<RequireAuth><CheckoutPage /></RequireAuth>} />
                     <Route path="payment-result" element={<RequireAuth><PaymentResultPage /></RequireAuth>} />

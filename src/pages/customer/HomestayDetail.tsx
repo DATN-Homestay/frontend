@@ -41,11 +41,13 @@ import {
   PictureOutlined,
   HeartOutlined,
   HeartFilled,
+  GiftOutlined,
 } from '@ant-design/icons';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { customerService } from '../../services/customerService';
-import type { HomestayItem, RoomItem } from '../../types/customer';
+import type { PublicReview } from '../../types/customer';
+import type { HomestayItem, RoomItem, AvailableCoupon } from '../../types/customer';
 import { getHomestayCoverImage, getAllHomestayImages } from '../../utils/imageHelper';
 import { useRoomAvailability } from './useRoomAvailability';
 import RoomStayPrice from './RoomStayPrice';
@@ -110,13 +112,25 @@ function HomestayDetailContent() {
   useTrackHomestayView(homestay?.id);
   const [loading, setLoading] = useState(true);
   const [selectedRoom, setSelectedRoom] = useState<RoomItem | null>(null);
-  const [dateRange, setDateRange] = useState<[string, string] | null>(null);
+  // Ngày mang sang từ trang kết quả tìm kiếm (?checkin=&checkout=), bỏ qua nếu sai hoặc đã qua
+  const [dateRange, setDateRange] = useState<[string, string] | null>(() => {
+    const qs = new URLSearchParams(location.search);
+    const ci = qs.get('checkin');
+    const co = qs.get('checkout');
+    const ok = (d: string | null): d is string => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d) && dayjs(d).isValid();
+    if (!ok(ci) || !ok(co) || co <= ci || dayjs(ci).isBefore(dayjs().startOf('day'))) return null;
+    return [ci, co];
+  });
   const [activeImage, setActiveImage] = useState<string | null>(initialCoverFromState || null);
 
   // ROOM DETAIL MODAL STATE
   const [roomDetailModalOpen, setRoomDetailModalOpen] = useState(false);
   const [activeDetailRoom, setActiveDetailRoom] = useState<RoomItem | null>(null);
   const [modalActiveImgIndex, setModalActiveImgIndex] = useState(0);
+
+  // MÃ GIẢM GIÁ KHẢ DỤNG CHO HOMESTAY
+  const [availableCoupons, setAvailableCoupons] = useState<AvailableCoupon[]>([]);
+  const [selectedCouponCode, setSelectedCouponCode] = useState<string | null>(null);
 
   const handleOpenRoomDetail = (room: RoomItem, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -174,8 +188,34 @@ function HomestayDetailContent() {
   useEffect(() => {
     if (id) {
       fetchDetail(id);
+      customerService.getHomestayCoupons(id).then((coupons) => {
+        setAvailableCoupons(coupons);
+      });
     }
   }, [id, fetchDetail]);
+
+  // Đánh giá thật của khách đã lưu trú (đã duyệt, tên được che bớt)
+  const [publicReviews, setPublicReviews] = useState<PublicReview[]>([]);
+  const [reviewMeta, setReviewMeta] = useState<{ page: number; total_pages: number } | null>(null);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+
+  const loadReviews = async (homestayId: string, page: number) => {
+    setLoadingReviews(true);
+    try {
+      const res = await customerService.getHomestayReviews(homestayId, page, 5);
+      setPublicReviews((prev) => (page === 1 ? res.items : [...prev, ...res.items]));
+      setReviewMeta({ page: res.meta.page, total_pages: res.meta.total_pages });
+    } catch {
+      // Lỗi tải đánh giá không được làm hỏng cả trang chi tiết
+      if (page === 1) setPublicReviews([]);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  useEffect(() => {
+    if (id) loadReviews(id, 1);
+  }, [id]);
 
   const isBookingComHomestay =
     homestay?.is_claimed !== 1 && (
@@ -260,8 +300,9 @@ function HomestayDetailContent() {
     const checkIn = dateRange[0];
     const checkOut = dateRange[1];
 
+    const couponParam = selectedCouponCode ? `&coupon=${encodeURIComponent(selectedCouponCode)}` : '';
     navigate(
-      `/checkout?roomId=${selectedRoom.id}&homestayId=${homestay?.id}&checkIn=${checkIn}&checkOut=${checkOut}`,
+      `/checkout?roomId=${selectedRoom.id}&homestayId=${homestay?.id}&checkIn=${checkIn}&checkOut=${checkOut}${couponParam}`,
     );
   };
 
@@ -552,6 +593,121 @@ function HomestayDetailContent() {
       {/* DETAILS & BOOKING CARD */}
       <Row gutter={[32, 32]}>
         <Col xs={24} md={16}>
+          {/* MÃ GIẢM GIÁ & ƯU ĐÃI KHẢ DỤNG */}
+          {!isBookingComHomestay && availableCoupons.length > 0 && (
+            <Card
+              style={{
+                borderRadius: 16,
+                marginBottom: 24,
+                background: 'linear-gradient(135deg, #fffbeb 0%, #ffffff 100%)',
+                border: '1px solid #fde68a',
+                boxShadow: '0 2px 10px rgba(245, 158, 11, 0.08)',
+              }}
+              title={
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                  <Space>
+                    <GiftOutlined style={{ color: '#d97706', fontSize: 18 }} />
+                    <span style={{ fontWeight: 700, fontSize: 15, color: '#92400e' }}>
+                      Ưu đãi & Mã giảm giá áp dụng ({availableCoupons.length} mã)
+                    </span>
+                  </Space>
+                  <Tag color="gold" style={{ borderRadius: 6, fontWeight: 600 }}>Tiết kiệm ngay khi đặt phòng</Tag>
+                </div>
+              }
+            >
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+                {availableCoupons.map((c) => {
+                  const isSelected = selectedCouponCode === c.code;
+                  return (
+                    <div
+                      key={c.id}
+                      style={{
+                        border: isSelected ? '2px solid #ea580c' : '1px dashed #f59e0b',
+                        background: isSelected ? '#fff7ed' : '#ffffff',
+                        borderRadius: 12,
+                        padding: '12px 14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        gap: 8,
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                          <Tag color="orange" style={{ fontWeight: 800, fontSize: 13, padding: '2px 8px' }}>
+                            {c.code}
+                          </Tag>
+                          {c.sponsor_by === 'PLATFORM' ? (
+                            <Tag color="blue" style={{ fontSize: 11 }}>Sàn StayAI</Tag>
+                          ) : (
+                            <Tag color="purple" style={{ fontSize: 11 }}>Chủ nhà</Tag>
+                          )}
+                        </div>
+                        <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>
+                          {c.discount_type === 'PERCENTAGE'
+                            ? `Giảm ${c.discount_value}%${c.max_discount ? ` (Tối đa ${(c.max_discount / 1000).toLocaleString('vi-VN')}k)` : ''}`
+                            : `Giảm ${(c.discount_value).toLocaleString('vi-VN')}đ`}
+                        </div>
+                        {c.name && (
+                          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{c.name}</div>
+                        )}
+                        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+                          • Đơn tối thiểu: {Number(c.min_order_value) > 0 ? `${Number(c.min_order_value).toLocaleString('vi-VN')}đ` : 'Không giới hạn'}
+                        </div>
+                        {c.target_audience === 'LOYALTY' && (
+                          <div style={{ marginTop: 6 }}>
+                            <Tag color="magenta" style={{ fontSize: 11, fontWeight: 600, borderRadius: 4 }}>
+                              👑 Khách quen ({[
+                                c.min_completed_bookings ? `≥${c.min_completed_bookings} đơn` : null,
+                                c.min_total_spent ? `≥${(Number(c.min_total_spent) / 1000000).toFixed(1).replace('.0', '')}tr` : null,
+                              ].filter(Boolean).join(c.loyalty_condition_type === 'AND' ? ' VÀ ' : ' HOẶC ')})
+                            </Tag>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            navigator.clipboard.writeText(c.code);
+                            message.success(`Đã sao chép mã ${c.code}`);
+                          }}
+                          style={{ borderRadius: 6, fontSize: 12 }}
+                        >
+                          Sao chép mã
+                        </Button>
+                        <Button
+                          type={isSelected ? 'primary' : 'default'}
+                          size="small"
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedCouponCode(null);
+                              message.info('Đã bỏ chọn mã');
+                            } else {
+                              setSelectedCouponCode(c.code);
+                              message.success(`Đã chọn mã ${c.code}. Mã sẽ tự áp dụng khi bạn đặt phòng!`);
+                            }
+                          }}
+                          style={{
+                            borderRadius: 6,
+                            fontSize: 12,
+                            background: isSelected ? '#ea580c' : undefined,
+                            borderColor: '#ea580c',
+                            color: isSelected ? '#ffffff' : '#ea580c',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {isSelected ? '✓ Đang dùng' : 'Dùng mã này'}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+
           {/* ROOM SELECTION LIST */}
           <Card
             id="rooms-section"
@@ -1261,25 +1417,30 @@ function HomestayDetailContent() {
 
             {/* REVIEWS LIST */}
             <div id="user-comments-list" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              {homestay.reviews && homestay.reviews.length > 0 ? (
-                homestay.reviews.map((rev: any) => (
+              {publicReviews.length > 0 ? (
+                publicReviews.map((rev) => (
                   <div key={rev.id} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 20 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                       <Space size="middle">
                         <Avatar style={{ backgroundColor: '#003b95' }} icon={<UserOutlined />} size={44} />
                         <div>
                           <Text strong style={{ fontSize: 15, display: 'block' }}>
-                            {rev.customer?.name || 'Khách lưu trú'}
+                            {rev.customer_name}
                           </Text>
                           <Space size={6}>
                             <Tag color="cyan" style={{ fontSize: 11, border: 'none' }}>
                               <CheckOutlined /> Khách đã lưu trú
                             </Tag>
+                            {rev.stay_date && (
+                              <Text type="secondary" style={{ fontSize: 12 }}>
+                                Lưu trú đến {rev.stay_date}
+                              </Text>
+                            )}
                           </Space>
                         </div>
                       </Space>
 
-                      <Rate disabled defaultValue={rev.rating_overall || 5} style={{ fontSize: 14, color: '#f59e0b' }} />
+                      <Rate disabled value={rev.rating_overall} style={{ fontSize: 14, color: '#f59e0b' }} />
                     </div>
 
                     <Paragraph style={{ color: '#334155', fontSize: 14, lineHeight: 1.6, margin: '8px 0 12px' }}>
@@ -1287,6 +1448,8 @@ function HomestayDetailContent() {
                     </Paragraph>
                   </div>
                 ))
+              ) : loadingReviews ? (
+                <Spin />
               ) : (
                 <div
                   style={{
@@ -1301,6 +1464,11 @@ function HomestayDetailContent() {
                     Chưa có nhận xét nào cho chỗ nghỉ này. Hãy là người đầu tiên trải nghiệm và chia sẻ đánh giá!
                   </Text>
                 </div>
+              )}
+              {reviewMeta && reviewMeta.page < reviewMeta.total_pages && id && (
+                <Button loading={loadingReviews} onClick={() => loadReviews(id, reviewMeta.page + 1)}>
+                  Xem thêm đánh giá
+                </Button>
               )}
             </div>
           </Card>
@@ -1360,6 +1528,7 @@ function HomestayDetailContent() {
                   const startOfToday = new Date().setHours(0, 0, 0, 0);
                   return current.valueOf() < startOfToday || current.valueOf() > startOfToday + 365 * 86_400_000;
                 }}
+                value={dateRange ? [dayjs(dateRange[0]), dayjs(dateRange[1])] : null}
                 onChange={(_, dateStrings) =>
                   setDateRange(dateStrings[0] && dateStrings[1] ? [dateStrings[0], dateStrings[1]] : null)
                 }
@@ -1461,6 +1630,7 @@ function HomestayDetailContent() {
                       const startOfToday = dayjs().startOf('day');
                       return current && current < startOfToday;
                     }}
+                    value={dateRange ? [dayjs(dateRange[0]), dayjs(dateRange[1])] : null}
                     onChange={(_, dateStrings) =>
                       setDateRange(dateStrings[0] && dateStrings[1] ? [dateStrings[0], dateStrings[1]] : null)
                     }
@@ -1499,6 +1669,12 @@ function HomestayDetailContent() {
                         <div style={{ fontSize: 12, marginTop: 4, color: '#166534' }}>
                           Tổng tiền: <strong>{Number(roomAvailabilityQuote.total_amount).toLocaleString('vi-VN')}đ</strong> ({roomAvailabilityQuote.nightly_prices?.length || 0} đêm)
                         </div>
+                        {selectedCouponCode && (
+                          <div style={{ marginTop: 8, padding: '6px 10px', background: '#fff7ed', border: '1px dashed #f97316', borderRadius: 8, fontSize: 12, color: '#c2410c', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>🏷️ Đã chọn ưu đãi: <strong>{selectedCouponCode}</strong></span>
+                            <Button type="link" size="small" onClick={() => setSelectedCouponCode(null)} style={{ padding: 0, height: 'auto', fontSize: 11, color: '#ea580c' }}>Bỏ chọn</Button>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div

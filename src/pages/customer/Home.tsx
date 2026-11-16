@@ -9,42 +9,47 @@ import {
   Tag,
   Space,
   Spin,
-  DatePicker,
-  Popover,
-  Select,
   Pagination,
 } from 'antd';
 import {
-  SearchOutlined,
   StarFilled,
   EnvironmentOutlined,
   CheckCircleOutlined,
+<<<<<<< HEAD
   UserOutlined,
   CalendarOutlined,
   MinusOutlined,
   PlusOutlined,
   HomeOutlined,
+=======
+  ThunderboltOutlined,
+>>>>>>> 7537cb9e1d74021f9fff24a3cd9df1c863c59a9a
   HeartOutlined,
   HeartFilled,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+<<<<<<< HEAD
 import { useHomestayCatalog } from './useHomestayCatalog';
 import HomestayRecommendations from '../../features/recommendations/HomestayRecommendations';
 import { useTrackHomestaySearch } from '../../features/recommendations/useTrackHomestaySearch';
+=======
+import { loadAllHomestays } from '../../services/homestayCache';
+import SearchBar, { type SearchBarValue } from '../../components/search/SearchBar';
+import { toSearchParams } from '../../utils/homestaySearch';
+import type { HomestayItem } from '../../types/customer';
+>>>>>>> 7537cb9e1d74021f9fff24a3cd9df1c863c59a9a
 import { useFavorites } from '../../contexts/useFavorites';
 import { getHomestayCoverImage } from '../../utils/imageHelper';
 import {
-  ALL_LOCATIONS_LIST,
-  VIETNAM_LOCATIONS,
   POPULAR_DESTINATIONS,
 } from '../../data/vietnamLocations';
 
 const { Title, Text, Paragraph } = Typography;
-const { RangePicker } = DatePicker;
 
 export default function HomePage() {
   const navigate = useNavigate();
   const { isFavorite, toggleFavorite } = useFavorites();
+<<<<<<< HEAD
   const trackSearch = useTrackHomestaySearch();
 
   // SEARCH FORM STATES (HOÀN TOÀN TỰ DO - KHÔNG BẮT BUỘC CHỌN BẤT KỲ BỘ LỌC NÀO ĐỂ HIỆN TOÀN BỘ HOMESTAY)
@@ -60,14 +65,26 @@ export default function HomePage() {
     children: 0,
     rooms: 1,
   });
+=======
+
+  const [loading, setLoading] = useState(true);
+  const [allHomestays, setAllHomestays] = useState<HomestayItem[]>([]);
+>>>>>>> 7537cb9e1d74021f9fff24a3cd9df1c863c59a9a
 
   // PHÂN TRANG (PAGINATION) CHỐNG LAG KHI RENDER DANH SÁCH HOMESTAY LỚN
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(12);
 
+<<<<<<< HEAD
   const [criteria, setCriteria] = useState<{ city?: string; district?: string; guests?: number; rooms?: number }>({});
   const [revision, setRevision] = useState(0);
   const { items: homestays, total, allTotal, loading, error } = useHomestayCatalog(criteria.city, currentPage, pageSize, criteria, revision);
+=======
+  const paginatedHomestays = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return allHomestays.slice(start, start + pageSize);
+  }, [allHomestays, currentPage, pageSize]);
+>>>>>>> 7537cb9e1d74021f9fff24a3cd9df1c863c59a9a
 
   const handlePageChange = (page: number, size?: number) => {
     setCurrentPage(size && size !== pageSize ? 1 : page);
@@ -75,6 +92,7 @@ export default function HomePage() {
     document.getElementById('all-homestays-section')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
   };
 
+<<<<<<< HEAD
   const applyFilter = (city?: string, district?: string, useGuestFilter = false, totalGuests = 0, rooms = 1) => {
     const clean = (value?: string) => value && !value.startsWith('Tất cả') ? value : undefined;
     setCriteria({ city: clean(city), district: clean(district), guests: useGuestFilter ? totalGuests : undefined, rooms: useGuestFilter ? rooms : undefined });
@@ -269,6 +287,38 @@ export default function HomePage() {
       </div>
     </div>
   );
+=======
+  const fetchHomestays = useCallback(() => {
+    return loadAllHomestays()
+      .then((items) => {
+        setAllHomestays(items);
+      })
+      .catch((err) => {
+        console.warn('Lỗi khi tải dữ liệu homestays:', err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    fetchHomestays();
+  }, [fetchHomestays]);
+
+  /** Tìm kiếm chuyển sang trang kết quả riêng, tiêu chí nằm trên URL */
+  const goSearch = (value: SearchBarValue) => {
+    const qs = toSearchParams(value).toString();
+    navigate(qs ? `/search?${qs}` : '/search');
+  };
+
+  // INVISIBLE RAG RECOMMENDATION: TỰ ĐỘNG PHÂN TÍCH HÀNH VI ĐẨY HOMESTAY PHÙ HỢP NHẤT LÊN TOP
+  // Tiêu chí: rating cao >= 4.5, tiện nghi BBQ/View/Không gian yên tĩnh
+  const aiRecommendedHomestays = (
+    allHomestays.filter((h) => Number(h.average_rating) >= 4.5).length > 0
+      ? allHomestays.filter((h) => Number(h.average_rating) >= 4.5)
+      : allHomestays
+  ).slice(0, 4);
+>>>>>>> 7537cb9e1d74021f9fff24a3cd9df1c863c59a9a
 
   return (
     <div>
@@ -295,6 +345,7 @@ export default function HomePage() {
             Khám phá toàn bộ {allTotal.toLocaleString('vi-VN')} chỗ nghỉ đã xác thực eKYC chính chủ và bảo vệ thanh toán Escrow 24 giờ
           </Paragraph>
 
+<<<<<<< HEAD
           {/* ======================================================== */}
           {/* SEARCH BAR CHÍNH (ĐỊA ĐIỂM + NGÀY ĐI/VỀ + SỐ KHÁCH/PHÒNG) */}
           {/* ======================================================== */}
@@ -490,23 +541,22 @@ export default function HomePage() {
               >
                 Tìm kiếm
               </Button>
+=======
+          <SearchBar
+            variant="hero"
+            value={{}}
+            onSubmit={goSearch}
+            extra={
+>>>>>>> 7537cb9e1d74021f9fff24a3cd9df1c863c59a9a
               <Button
                 size="large"
-                onClick={handleResetFilters}
-                style={{
-                  height: 48,
-                  borderRadius: 12,
-                  padding: '0 16px',
-                  fontWeight: 600,
-                  borderColor: '#cbd5e1',
-                  color: '#475569',
-                  flexShrink: 0,
-                }}
+                onClick={() => navigate('/search')}
+                style={{ height: 48, borderRadius: 12, padding: '0 16px', fontWeight: 600, borderColor: '#cbd5e1', color: '#475569' }}
               >
                 Xem tất cả ({allTotal})
               </Button>
-            </Space>
-          </div>
+            }
+          />
         </div>
       </div>
 
@@ -515,6 +565,7 @@ export default function HomePage() {
         <Text strong style={{ color: '#64748b', marginRight: 4 }}>
           Điểm đến nổi bật:
         </Text>
+<<<<<<< HEAD
         <Button
           type={!searchCity || searchCity === 'Tất cả điểm đến' ? 'primary' : 'default'}
           shape="round"
@@ -536,12 +587,16 @@ export default function HomePage() {
           }}
         >
           🌟 Tất cả ({allTotal})
+=======
+        <Button shape="round" onClick={() => navigate('/search')} style={{ fontWeight: 600, borderColor: '#cbd5e1' }}>
+          🌟 Tất cả ({allHomestays.length})
+>>>>>>> 7537cb9e1d74021f9fff24a3cd9df1c863c59a9a
         </Button>
         {POPULAR_DESTINATIONS.map((c) => (
           <Button
             key={c}
-            type={searchCity === c ? 'primary' : 'default'}
             shape="round"
+<<<<<<< HEAD
             onClick={() => {
               const nextCity = searchCity === c ? undefined : c;
               if (nextCity) void trackSearch({ city: nextCity,
@@ -562,6 +617,10 @@ export default function HomePage() {
               borderColor: searchCity === c ? '#6366f1' : '#cbd5e1',
               fontWeight: 500,
             }}
+=======
+            onClick={() => goSearch({ city: c })}
+            style={{ borderColor: '#cbd5e1', fontWeight: 500 }}
+>>>>>>> 7537cb9e1d74021f9fff24a3cd9df1c863c59a9a
           >
             {c}
           </Button>
@@ -573,11 +632,10 @@ export default function HomePage() {
       <div id="all-homestays-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <Title level={3} style={{ margin: 0, color: '#0f172a' }}>
-            {!searchCity || searchCity === 'Tất cả điểm đến'
-              ? 'Tất cả chỗ nghỉ trên toàn quốc'
-              : `Tất cả chỗ nghỉ tại ${searchCity} ${searchDistrict && searchDistrict !== 'Tất cả quận/huyện' ? `• ${searchDistrict}` : ''}`}
+            Tất cả chỗ nghỉ trên toàn quốc
           </Title>
           <Text type="secondary" style={{ fontSize: 14 }}>
+<<<<<<< HEAD
             Tìm thấy <strong>{total}</strong> chỗ nghỉ
             {filterByGuests
               ? ` phù hợp cho ${guestConfig.adults + guestConfig.children} khách (${guestConfig.rooms} phòng)`
@@ -596,6 +654,14 @@ export default function HomePage() {
             </Button>
           )}
         </Space>
+=======
+            <strong>{allHomestays.length.toLocaleString('vi-VN')}</strong> chỗ nghỉ · chọn điểm đến và bộ lọc ở trang tìm kiếm
+          </Text>
+        </div>
+        <Button type="link" onClick={() => navigate('/search')} style={{ color: '#6366f1', fontWeight: 600, padding: 0 }}>
+          Tìm kiếm & lọc nâng cao →
+        </Button>
+>>>>>>> 7537cb9e1d74021f9fff24a3cd9df1c863c59a9a
       </div>
 
       {/* HOMESTAYS GRID */}
@@ -607,7 +673,11 @@ export default function HomePage() {
           <Spin size="large" />
           <div style={{ marginTop: 12, color: '#64748b' }}>Đang tải danh sách homestay...</div>
         </div>
+<<<<<<< HEAD
       ) : total === 0 ? (
+=======
+      ) : allHomestays.length === 0 ? (
+>>>>>>> 7537cb9e1d74021f9fff24a3cd9df1c863c59a9a
         <div
           style={{
             textAlign: 'center',
@@ -620,6 +690,7 @@ export default function HomePage() {
           <Title level={4} style={{ color: '#64748b' }}>
             Không tìm thấy homestay phù hợp với tiêu chí của bạn
           </Title>
+<<<<<<< HEAD
           <Paragraph type="secondary">
             Thử thay đổi khu vực quận/huyện hoặc bấm nút bên dưới để xem toàn bộ homestays.
           </Paragraph>
@@ -630,6 +701,9 @@ export default function HomePage() {
           >
             Hiển thị tất cả ({allTotal} căn)
           </Button>
+=======
+          <Paragraph type="secondary">Không tải được danh sách. Vui lòng tải lại trang.</Paragraph>
+>>>>>>> 7537cb9e1d74021f9fff24a3cd9df1c863c59a9a
         </div>
       ) : (
         <>
@@ -797,7 +871,11 @@ export default function HomePage() {
           </Row>
 
           {/* THANH PHÂN TRANG CHỐNG LAG */}
+<<<<<<< HEAD
           {total > pageSize && (
+=======
+          {allHomestays.length > pageSize && (
+>>>>>>> 7537cb9e1d74021f9fff24a3cd9df1c863c59a9a
             <div
               style={{
                 display: 'flex',
@@ -814,7 +892,11 @@ export default function HomePage() {
               <Pagination
                 current={currentPage}
                 pageSize={pageSize}
+<<<<<<< HEAD
                 total={total}
+=======
+                total={allHomestays.length}
+>>>>>>> 7537cb9e1d74021f9fff24a3cd9df1c863c59a9a
                 pageSizeOptions={['12', '24', '48']}
                 showSizeChanger
                 showQuickJumper

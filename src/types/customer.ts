@@ -73,14 +73,43 @@ export interface CustomerBooking {
   created_at: string;
 }
 
+/** Nội dung khách gửi khi đánh giá; booking_id nằm trên đường dẫn, không gửi trong body */
 export interface ReviewSubmission {
-  booking_id: string;
   rating_overall: number;
   cleanliness_rating: number;
   service_rating: number;
   location_rating: number;
+  value_rating: number;
   comment: string;
   photos?: string[];
+}
+
+export interface MyReview extends ReviewSubmission {
+  id: string;
+  photos: string[];
+  created_at: string;
+}
+
+/** Một đánh giá công khai trên trang homestay (tên khách đã được che) */
+export interface PublicReview {
+  id: string;
+  customer_name: string;
+  stay_date: string | null;
+  rating_overall: number;
+  cleanliness_rating: number;
+  service_rating: number;
+  location_rating: number;
+  value_rating: number;
+  comment: string | null;
+  photos: string[];
+  is_verified_stay: boolean;
+  created_at: string;
+}
+
+export interface PublicReviewList {
+  items: PublicReview[];
+  distribution: Record<'1' | '2' | '3' | '4' | '5', number>;
+  meta: { page: number; limit: number; total: number; total_pages: number };
 }
 
 // =========================================================
@@ -131,8 +160,51 @@ export interface CreatedBooking {
   nights: number;
   num_guests: number;
   total_amount: number;
+  room_subtotal?: number;
+  discount_amount?: number;
+  coupon_code?: string | null;
   is_dropship: boolean;
   payment_deadline: string;
+}
+
+/** data của POST /coupons/validate: luôn HTTP 200, `valid` cho biết mã có dùng được không */
+export type CouponCheck =
+  | {
+      valid: true;
+      reason: null;
+      message: string;
+      code: string;
+      name: string | null;
+      discount_type: 'PERCENTAGE' | 'FIXED_AMOUNT';
+      discount_value: number;
+      subtotal: number;
+      discount_amount: number;
+      total_amount: number;
+    }
+  | {
+      valid: false;
+      reason: string;
+      message: string;
+      subtotal: number;
+      discount_amount: number;
+      total_amount: number;
+    };
+
+export interface AvailableCoupon {
+  id: string;
+  code: string;
+  name: string | null;
+  discount_type: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  discount_value: number;
+  min_order_value: number;
+  max_discount: number | null;
+  sponsor_by: 'PLATFORM' | 'HOST';
+  target_audience?: 'ALL' | 'LOYALTY';
+  loyalty_condition_type?: 'OR' | 'AND';
+  min_completed_bookings?: number | null;
+  min_total_spent?: number | null;
+  start_date: string;
+  end_date: string;
 }
 
 /** data của POST /bookings/:id/payment-url */
@@ -192,12 +264,25 @@ export interface MyBookingItem {
   is_dropship?: boolean;
   ota_fulfillment?: OtaFulfillmentInfo | null;
   homestay: { id: string; name: string; city: string };
-  room: { id: string; room_name: string };
+  room: {
+    id: string;
+    room_name: string;
+    capacity?: number;
+    base_price?: number;
+    area_sqm?: number | null;
+    bed_info?: string | null;
+    description?: string | null;
+    room_details_json?: RoomDetailsJson | null;
+    images?: RoomImageItem[];
+  };
   check_in_date: string;
   check_out_date: string;
   total_amount: number;
   /** Hạn thanh toán, chỉ có khi đơn đang PENDING_PAYMENT */
   expires_at: string | null;
+  /** Đã hoàn tất lưu trú, chưa đánh giá và còn trong thời hạn đánh giá */
+  can_review?: boolean;
+  has_review?: boolean;
   created_at: string;
 }
 
@@ -214,7 +299,17 @@ export interface BookingDetail {
   is_dropship: boolean;
   ota_fulfillment?: OtaFulfillmentInfo | null;
   homestay: { id: string; name: string; address: string; city: string; cancellation_policy: string };
-  room: { id: string; room_name: string };
+  room: {
+    id: string;
+    room_name: string;
+    capacity?: number;
+    base_price?: number;
+    area_sqm?: number | null;
+    bed_info?: string | null;
+    description?: string | null;
+    room_details_json?: RoomDetailsJson | null;
+    images?: RoomImageItem[];
+  };
   check_in_date: string;
   check_out_date: string;
   nights: number;
@@ -222,7 +317,10 @@ export interface BookingDetail {
   customer_note: string | null;
   room_subtotal: number;
   discount_amount: number;
+  coupon_code?: string | null;
   total_amount: number;
+  can_review?: boolean;
+  review?: MyReview | null;
   payment_deadline: string | null;
   payments: { id: string; amount: number; method: string; status: string; transaction_code: string | null; created_at: string }[];
   escrow_status: string | null;
