@@ -21,6 +21,8 @@ import AuthLayout from './layouts/AuthLayout';
 // Auth Pages
 const LoginPage = lazy(() => import('./pages/auth/Login'));
 const RegisterPage = lazy(() => import('./pages/auth/Register'));
+const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPassword'));
+const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPassword'));
 
 // Customer Pages (Member 1)
 import HomePage from './pages/customer/Home';
@@ -124,6 +126,8 @@ export default function App() {
                   <Route path="/auth" element={<AuthLayout />}>
                     <Route path="login" element={<LoginPage />} />
                     <Route path="register" element={<RegisterPage />} />
+                    <Route path="forgot-password" element={<ForgotPasswordPage />} />
+                    <Route path="reset-password" element={<ResetPasswordPage />} />
                   </Route>
 
                   {/* MẶC ĐỊNH CHUYỂN HƯỚNG VỀ TRANG CHỦ KHÁCH HÀNG */}

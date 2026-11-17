@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test:auth": "node --test --test-force-exit test/password-reset.test.mjs",
     "test:pricing": "node --test --test-force-exit test/pricing.utils.test.ts test/pricing-panel.test.mjs test/room-pricing.test.mjs test/host-pricing.test.mjs",
     "test:chat": "node --test --test-force-exit test/chat.utils.test.ts test/chat-ui.test.mjs test/chat.integration.test.mjs",
     "test:portals": "node --test --test-force-exit test/portal-layout.test.mjs",

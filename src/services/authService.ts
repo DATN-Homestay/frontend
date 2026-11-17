@@ -1,6 +1,6 @@
 import { apiClient, type ApiResponse } from './apiClient';
 import { tokenStorage } from './tokenStorage';
-import type { AuthResponse, LoginDto, RegisterDto, RegisterResult, UserProfile, UserRole } from '../types/auth';
+import type { AuthResponse, ForgotPasswordResult, LoginDto, RegisterDto, RegisterResult, ResetPasswordDto, UserProfile, UserRole, VerifyResetOtpResult } from '../types/auth';
 
 /** Vai trò chính để điều hướng: Host đăng ký có cả CUSTOMER và HOST nên không lấy roles[0] */
 export function primaryRole(roles: UserRole[] | undefined): UserRole {
@@ -21,6 +21,33 @@ export function postLoginPath(roles: UserRole[] | undefined, from?: string): str
 }
 
 export const authService = {
+  async forgotPassword(email: string): Promise<ForgotPasswordResult> {
+    const res = await apiClient<ApiResponse<ForgotPasswordResult>>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      skipAuthRefresh: true,
+    });
+    return res.data;
+  },
+
+  async verifyResetOtp(email: string, otp_code: string): Promise<VerifyResetOtpResult> {
+    const res = await apiClient<ApiResponse<VerifyResetOtpResult>>('/auth/verify-reset-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email: email.trim().toLowerCase(), otp_code: otp_code.trim() }),
+      skipAuthRefresh: true,
+    });
+    return res.data;
+  },
+
+  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
+    const res = await apiClient<ApiResponse<{ message: string }>>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+      skipAuthRefresh: true,
+    });
+    return res.data;
+  },
+
   async login(dto: LoginDto, remember: boolean): Promise<UserProfile> {
     const res = await apiClient<ApiResponse<AuthResponse>>('/auth/login', {
       method: 'POST',

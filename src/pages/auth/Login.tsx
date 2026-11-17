@@ -48,6 +48,10 @@ export default function LoginPage() {
         <Text type="secondary">Chào mừng bạn quay trở lại với StayAI</Text>
       </div>
 
+      {(location.state as { passwordReset?: boolean } | null)?.passwordReset && (
+        <Alert type="success" showIcon title="Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới." style={{ marginBottom: 16 }} />
+      )}
+
       {error && <Alert type="error" showIcon title={error} style={{ marginBottom: 16, whiteSpace: 'pre-line' }} />}
 
       <Form<LoginForm>
@@ -76,13 +80,9 @@ export default function LoginPage() {
           <Form.Item name="remember" valuePropName="checked" noStyle>
             <Checkbox>Ghi nhớ đăng nhập</Checkbox>
           </Form.Item>
-          <Button
-            type="link"
-            style={{ padding: 0 }}
-            onClick={() => message.info('Tính năng quên mật khẩu đang được phát triển')}
-          >
+          <Link to="/auth/forgot-password" state={location.state}>
             Quên mật khẩu?
-          </Button>
+          </Link>
         </div>
 
         <Button type="primary" htmlType="submit" size="large" block loading={loading} style={glowButtonStyle}>

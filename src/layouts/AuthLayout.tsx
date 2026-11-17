@@ -11,7 +11,7 @@ import './AuthLayout.css';
 export default function AuthLayout() {
   const location = useLocation();
   const { user, initializing } = useAuth();
-  if (!initializing && user) {
+  if (!initializing && user && location.pathname !== '/auth/reset-password') {
     const from = (location.state as { from?: string } | null)?.from;
     return <Navigate to={postLoginPath(user.roles, from)} replace />;
   }

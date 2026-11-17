@@ -32,6 +32,21 @@ export interface LoginDto {
   password: string;
 }
 
+export interface ForgotPasswordResult {
+  message: string;
+  retry_after_seconds: number;
+}
+
+export interface VerifyResetOtpResult {
+  reset_token: string;
+  expires_in: number;
+}
+
+export interface ResetPasswordDto {
+  token: string;
+  new_password: string;
+}
+
 export interface RegisterDto {
   email: string;
   password: string;
