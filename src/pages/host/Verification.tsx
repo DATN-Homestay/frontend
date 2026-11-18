@@ -597,8 +597,8 @@ Thời gian xuất: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Ch
     try {
       await hostService.sendOtp(targetHomestayId);
       message.success('Đã gửi mã bảo mật OTP 6 chữ số đến địa chỉ Email đã đăng ký của bạn!');
-    } catch {
-      message.info('Hệ thống đã chuẩn bị mã OTP xác thực: 849201');
+    } catch (err) {
+      message.error(err instanceof Error && err.message ? err.message : 'Không gửi được mã OTP, vui lòng thử lại sau ít phút');
     }
   };
 
@@ -1308,7 +1308,7 @@ Thời gian xuất: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Ch
                         </Button>
 
                         <Input
-                          placeholder="Nhập mã OTP 6 chữ số (hoặc 849201)"
+                          placeholder="Nhập mã OTP 6 chữ số trong email"
                           value={otpCode}
                           onChange={(e) => setOtpCode(e.target.value)}
                           maxLength={6}
