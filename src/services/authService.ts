@@ -54,6 +54,26 @@ export const authService = {
     return res.data;
   },
 
+  /** Quên mật khẩu: server luôn trả cùng một thông điệp, dù email có tài khoản hay không */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const res = await apiClient<ApiResponse<{ message: string }>>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+      skipAuthRefresh: true,
+    });
+    return res.data;
+  },
+
+  /** Đặt mật khẩu mới bằng mã 6 số trong email; mọi thiết bị sẽ bị đăng xuất */
+  async resetPassword(email: string, otp_code: string, new_password: string): Promise<{ message: string; revoked_sessions: number }> {
+    const res = await apiClient<ApiResponse<{ message: string; revoked_sessions: number }>>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp_code, new_password }),
+      skipAuthRefresh: true,
+    });
+    return res.data;
+  },
+
   /** Kiểm tra tính đúng đắn của mã OTP email đăng ký */
   async verifyRegisterOtp(email: string, otp_code: string): Promise<{ success: boolean; message: string; verified: boolean }> {
     const res = await apiClient<ApiResponse<{ success: boolean; message: string; verified: boolean }>>('/auth/verify-register-otp', {

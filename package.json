@@ -12,7 +12,8 @@
     "test:search": "node --test --test-force-exit test/homestaySearch.utils.test.ts test/search-results.test.mjs",
     "test:regressions": "node --test --test-force-exit test/frontend-regressions.test.mjs",
     "preview": "vite preview",
-    "test:complaints": "node --test --test-force-exit test/admin-complaints.test.mjs"
+    "test:complaints": "node --test --test-force-exit test/admin-complaints.test.mjs",
+    "test:auth": "node --test --test-force-exit test/forgot-password.test.mjs"
   },
   "dependencies": {
     "@ant-design/charts": "^2.6.7",

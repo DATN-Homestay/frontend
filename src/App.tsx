@@ -18,6 +18,7 @@ import AuthLayout from './layouts/AuthLayout';
 // Auth Pages
 import LoginPage from './pages/auth/Login';
 import RegisterPage from './pages/auth/Register';
+import ForgotPasswordPage from './pages/auth/ForgotPassword';
 
 // Customer Pages (Member 1)
 import HomePage from './pages/customer/Home';
@@ -154,6 +155,7 @@ export default function App() {
                   <Route path="/auth" element={<AuthLayout />}>
                     <Route path="login" element={<LoginPage />} />
                     <Route path="register" element={<RegisterPage />} />
+                    <Route path="forgot-password" element={<ForgotPasswordPage />} />
                   </Route>
 
                   {/* MẶC ĐỊNH CHUYỂN HƯỚNG VỀ TRANG CHỦ KHÁCH HÀNG */}

@@ -21,9 +21,12 @@ export default function LoginPage() {
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [form] = Form.useForm<LoginForm>();
 
   // Trang được chuyển đến trước khi bị yêu cầu đăng nhập (nếu có)
   const from = (location.state as { from?: string } | null)?.from;
+  // Quay lại từ trang Quên mật khẩu thì điền sẵn email
+  const presetEmail = (location.state as { email?: string } | null)?.email;
 
   const onFinish = async ({ email, password, remember }: LoginForm) => {
     setLoading(true);
@@ -51,10 +54,11 @@ export default function LoginPage() {
       {error && <Alert type="error" showIcon title={error} style={{ marginBottom: 16, whiteSpace: 'pre-line' }} />}
 
       <Form<LoginForm>
+        form={form}
         layout="vertical"
         onFinish={onFinish}
         onValuesChange={() => setError(null)}
-        initialValues={{ remember: true }}
+        initialValues={{ remember: true, email: presetEmail }}
         requiredMark={false}
       >
         <Form.Item
@@ -79,7 +83,7 @@ export default function LoginPage() {
           <Button
             type="link"
             style={{ padding: 0 }}
-            onClick={() => message.info('Tính năng quên mật khẩu đang được phát triển')}
+            onClick={() => navigate('/auth/forgot-password', { state: { email: form.getFieldValue('email') } })}
           >
             Quên mật khẩu?
           </Button>
